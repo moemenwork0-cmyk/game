@@ -1,0 +1,52 @@
+name: Build game
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: 4.4.1
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot + export templates
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
+          unzip -q Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
+          sudo mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 /usr/local/bin/godot
+          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz
+          mkdir -p ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          unzip -q -j Godot_v${GODOT_VERSION}-stable_export_templates.tpz \
+            templates/windows_release_x86_64.exe templates/linux_release.x86_64 templates/version.txt \
+            -d ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          rm Godot_v${GODOT_VERSION}-stable_export_templates.tpz
+
+      - name: Import project
+        run: godot --headless --import || true
+
+      - name: Gameplay self-test
+        run: |
+          godot --headless -- --test | tee test.log
+          grep -q "TEST done" test.log
+
+      - name: Export Windows + Linux
+        run: |
+          mkdir -p build/windows build/linux
+          godot --headless --export-release "Windows Desktop" build/windows/Jazira.exe
+          godot --headless --export-release "Linux" build/linux/Jazira.x86_64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Jazira-Windows
+          path: build/windows/Jazira.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Jazira-Linux
+          path: build/linux/Jazira.x86_64
