@@ -56,9 +56,13 @@ void vertex() {
 	BINORMAL = normalize(bn);
 }
 
-float scene_depth(vec2 uv, mat4 inv_proj) {
-	float raw = texture(DEPTH_TEX, uv).r;
+// depth texture is sampled in fragment() itself (the GL/web renderer can't sample it in helpers)
+float linear_depth(vec2 uv, float raw, mat4 inv_proj) {
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+	vec4 v = inv_proj * vec4(vec3(uv, raw) * 2.0 - 1.0, 1.0);
+#else
 	vec4 v = inv_proj * vec4(uv * 2.0 - 1.0, raw, 1.0);
+#endif
 	return -v.z / v.w;
 }
 
@@ -70,9 +74,9 @@ void fragment() {
 	vec3 nd = normalize(vec3(n1.xy + n2.xy, n1.z * n2.z));
 
 	float surf_z = -VERTEX.z;
-	float thick = max(scene_depth(SCREEN_UV, INV_PROJECTION_MATRIX) - surf_z, 0.0);
+	float thick = max(linear_depth(SCREEN_UV, texture(DEPTH_TEX, SCREEN_UV).r, INV_PROJECTION_MATRIX) - surf_z, 0.0);
 	vec2 ruv = SCREEN_UV + nd.xy * 0.03 * clamp(thick * 0.6, 0.0, 1.0);
-	float thick2 = scene_depth(ruv, INV_PROJECTION_MATRIX) - surf_z;
+	float thick2 = linear_depth(ruv, texture(DEPTH_TEX, ruv).r, INV_PROJECTION_MATRIX) - surf_z;
 	if (thick2 < 0.0) {
 		ruv = SCREEN_UV;
 	} else {

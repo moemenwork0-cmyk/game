@@ -43,6 +43,8 @@ func _ready() -> void:
 	gen.buffer_length = 0.4
 	_gen_player = AudioStreamPlayer.new()
 	_gen_player.stream = gen
+	# web defaults to sample playback, which can't play generated streams
+	_gen_player.playback_type = AudioServer.PLAYBACK_TYPE_STREAM
 	_gen_player.volume_db = -6.0
 	add_child(_gen_player)
 	_gen_player.play()
