@@ -16,6 +16,7 @@ static func create(pos: Vector3) -> Campfire:
 
 func _ready() -> void:
 	_rng.randomize()
+	add_to_group("campfires")
 	collision_layer = Game.L_STRUCT
 	collision_mask = 0
 	var cs := CollisionShape3D.new()
@@ -112,7 +113,7 @@ func _ready() -> void:
 	_light.light_color = Color(1.0, 0.55, 0.25)
 	_light.omni_range = 9.0
 	_light.light_energy = 2.5
-	_light.shadow_enabled = true
+	_light.shadow_enabled = Settings.quality >= 2
 	_light.position.y = 0.6
 	add_child(_light)
 
@@ -128,3 +129,7 @@ func _process(delta: float) -> void:
 	_t += delta
 	_light.light_energy = 2.2 + sin(_t * 11.0) * 0.25 + sin(_t * 23.0 + 1.3) * 0.2 + _rng.randf() * 0.25
 	_light.position = Vector3(sin(_t * 7.0) * 0.04, 0.6 + sin(_t * 9.0) * 0.04, cos(_t * 5.0) * 0.04)
+
+
+func set_shadows(on: bool) -> void:
+	_light.shadow_enabled = on

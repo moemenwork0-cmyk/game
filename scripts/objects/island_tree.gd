@@ -4,6 +4,7 @@ extends Node3D
 ## then splits into logs. Leaves a stump behind.
 
 var kind := "oak"
+var seed_value := 0
 var hp := 6
 var felled := false
 var trunk_radius := 0.28
@@ -19,8 +20,10 @@ var _rng := RandomNumberGenerator.new()
 
 func setup(p_kind: String, seed_v: int) -> void:
 	kind = p_kind
+	seed_value = seed_v
 	_rng.seed = seed_v
 	add_to_group("trees")
+	add_to_group("island_trees")
 	add_child(visual)
 	add_child(body)
 	body.collision_layer = Game.L_TREES
@@ -295,6 +298,15 @@ func fell(dir: Vector3, leave_stump: bool = true) -> void:
 	var info := {"rb": rb, "radius": trunk_radius, "pts": trunk_pts.duplicate(), "start": start_y,
 		"canopy": canopy_center}
 	get_tree().create_timer(5.5).timeout.connect(IslandTree._break_into_logs.bind(info))
+
+
+## Restores an already-felled tree from a save: only the stump remains.
+func make_stump_only() -> void:
+	felled = true
+	remove_from_group("trees")
+	visual.queue_free()
+	body.queue_free()
+	_make_stump()
 
 
 static func _basis_y(up: Vector3) -> Basis:

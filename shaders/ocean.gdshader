@@ -74,7 +74,12 @@ void fragment() {
 	vec3 nd = normalize(vec3(n1.xy + n2.xy, n1.z * n2.z));
 
 	float surf_z = -VERTEX.z;
-	float thick = max(linear_depth(SCREEN_UV, texture(DEPTH_TEX, SCREEN_UV).r, INV_PROJECTION_MATRIX) - surf_z, 0.0);
+	float raw_thick = linear_depth(SCREEN_UV, texture(DEPTH_TEX, SCREEN_UV).r, INV_PROJECTION_MATRIX) - surf_z;
+	// manual depth test: never draw water in front of land, whatever the GPU's depth test does
+	if (raw_thick < -0.08 * max(surf_z * 0.02, 1.0)) {
+		discard;
+	}
+	float thick = max(raw_thick, 0.0);
 	vec2 ruv = SCREEN_UV + nd.xy * 0.03 * clamp(thick * 0.6, 0.0, 1.0);
 	float thick2 = linear_depth(ruv, texture(DEPTH_TEX, ruv).r, INV_PROJECTION_MATRIX) - surf_z;
 	if (thick2 < 0.0) {

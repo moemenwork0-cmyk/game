@@ -9,6 +9,8 @@ var amount := 1
 var volume := 0.05
 var float_points: Array[Vector3] = []
 var display_name := "Log"
+## how to rebuild this object from a save: {"type": ..., plus shape parameters}
+var save_info := {}
 var _was_in_water := false
 
 
@@ -73,6 +75,7 @@ static func make_log(pos: Vector3, basis: Basis, radius: float, length: float) -
 	it.display_name = "Log"
 	it.volume = PI * radius * radius * length
 	it.mass = it.volume * 600.0
+	it.save_info = {"type": "log", "radius": radius, "length": length}
 	var mi := MeshInstance3D.new()
 	var cm := CylinderMesh.new()
 	cm.top_radius = radius
@@ -108,11 +111,15 @@ static func make_log(pos: Vector3, basis: Basis, radius: float, length: float) -
 	return it
 
 
-static func make_stone(pos: Vector3, size: float, rng: RandomNumberGenerator) -> PhysicsItem:
+static func make_stone(pos: Vector3, size: float, rng: RandomNumberGenerator, fixed_seed: int = -1) -> PhysicsItem:
 	var it := PhysicsItem.new()
 	it.item_id = "stone"
 	it.display_name = "Stone"
-	var mesh := Mats.rock_mesh(size, rng, 0.75)
+	var shape_seed := fixed_seed if fixed_seed >= 0 else rng.randi() % 2147483647
+	var srng := RandomNumberGenerator.new()
+	srng.seed = shape_seed
+	it.save_info = {"type": "stone", "size": size, "seed": shape_seed}
+	var mesh := Mats.rock_mesh(size, srng, 0.75)
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
 	mi.material_override = Mats.get_mat("rock")

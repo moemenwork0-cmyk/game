@@ -16,7 +16,6 @@ func _init() -> void:
 	add_child(_mesh)
 	add_child(_shape)
 	_grass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_grass.visibility_range_end = 70.0
 	add_child(_grass)
 
 
@@ -57,3 +56,12 @@ func apply(data: Dictionary, mat: Material, grass_mesh: Mesh, grass_mat: Materia
 		mm.set_instance_color(i, gc[i])
 	_grass.multimesh = mm
 	_grass.material_override = grass_mat
+	apply_grass_settings()
+
+
+func apply_grass_settings() -> void:
+	_grass.visibility_range_end = Game.grass_range
+	var mm := _grass.multimesh
+	if mm:
+		# instances are randomly ordered, so drawing the first N thins the grass evenly
+		mm.visible_instance_count = int(mm.instance_count * Game.grass_density)

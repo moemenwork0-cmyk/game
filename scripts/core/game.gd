@@ -18,7 +18,12 @@ var sfx: Sfx
 var structures: StructureManager
 var day_night: DayNight
 var props: Node3D
-var quality_high := true
+var grass_density := 1.0
+var day_number := 1
+## set before reloading the scene: "" = show main menu, "new" = start fresh, "load" = continue the save
+var start_mode := ""
+var playing := false
+var grass_range := 70.0
 
 var inventory := {"log": 0, "plank": 0, "stone": 0, "dirt": 0, "sand": 0}
 
@@ -30,6 +35,27 @@ const ITEM_NAMES := {
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_setup_input()
+
+
+## Clears per-run state before the scene is rebuilt.
+func reset() -> void:
+	world = null
+	ocean = null
+	player = null
+	hud = null
+	structures = null
+	day_night = null
+	props = null
+	playing = false
+	day_number = 1
+	inventory = {"log": 0, "plank": 0, "stone": 0, "dirt": 0, "sand": 0}
+
+
+func restart(mode: String) -> void:
+	start_mode = mode
+	get_tree().paused = false
+	reset()
+	get_tree().reload_current_scene()
 
 
 func add_item(id: String, n: int = 1, announce: bool = true) -> void:

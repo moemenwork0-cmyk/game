@@ -22,6 +22,7 @@ var hp := 3
 static func create(p_kind: String) -> StructurePiece:
 	var p := StructurePiece.new()
 	p.kind = p_kind
+	p.save_info = {"type": "piece", "kind": p_kind}
 	var def: Dictionary = DEFS[p_kind]
 	p.size = def["size"]
 	p.display_name = def["name"]

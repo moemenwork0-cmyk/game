@@ -9,10 +9,32 @@ var moon: DirectionalLight3D
 var sky_mat: ShaderMaterial
 
 
+const AUTOSAVE_SECONDS := 240.0
+
+var _menu_cam: Camera3D
+var _menu_t := 0.0
+var _autosave_t := 0.0
+
+
 func _ready() -> void:
+	var mode := Game.start_mode
+	Game.start_mode = ""
+	var args := OS.get_cmdline_user_args()
+	for a in args:
+		if a.begins_with("--test") or a.begins_with("--shot"):
+			mode = "new"
+		if a == "--loadtest":
+			mode = "load"
+	var save_data := {}
+	if mode == "load":
+		save_data = SaveGame.read()
+		if save_data.is_empty():
+			mode = "new"
+
 	var hud := Hud.new()
 	add_child(hud)
 	Game.hud = hud
+	hud.set_gameplay_visible(false)
 	var sfx := Sfx.new()
 	add_child(sfx)
 	Game.sfx = sfx
@@ -31,7 +53,10 @@ func _ready() -> void:
 	var world := VoxelWorld.new()
 	add_child(world)
 	Game.world = world
-	await world.generate(SEED, hud.set_loading)
+	var override := {}
+	if not save_data.is_empty():
+		override = SaveGame.terrain_override(save_data)
+	await world.generate(int(save_data.get("seed", SEED)), hud.set_loading, override)
 
 	var ocean := Ocean.new()
 	add_child(ocean)
@@ -47,23 +72,91 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var rng := RandomNumberGenerator.new()
 	rng.seed = SEED
-	_populate(rng)
-
-	var player := Player.new()
-	add_child(player)
-	Game.player = player
-	var spawn := _find_spawn(rng)
-	player.global_position = spawn
-	player.look_toward(Vector3(0, spawn.y, 0))
+	_spawn_bushes()
+	if save_data.is_empty():
+		_populate(rng)
+	else:
+		SaveGame.restore_objects(save_data, self)
+		dn.time_hours = float(save_data["time_hours"])
+		await sm.restore(save_data["structures"])
+	apply_quality()
+	Settings.changed.connect(_on_settings_changed)
 
 	hud.set_loading(0.95, "Letting the world settle...")
 	for i in 40:
 		await get_tree().physics_frame
-	apply_quality()
 	hud.hide_loading()
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	Game.toast.emit("Welcome to Jazira. Press Esc for controls.")
+	if mode == "new" or mode == "load":
+		start_play(save_data)
+	else:
+		_show_menu()
 	_debug_shots()
+
+
+func _on_settings_changed() -> void:
+	if Game.player:
+		Game.player.camera.fov = Settings.fov
+
+
+## Spawns the player and hands control over. data = save (empty for a new island).
+func start_play(data: Dictionary) -> void:
+	if _menu_cam:
+		_menu_cam.queue_free()
+		_menu_cam = null
+	Game.day_night.day_minutes = 16.0
+	var player := Player.new()
+	add_child(player)
+	Game.player = player
+	if data.is_empty():
+		var rng := RandomNumberGenerator.new()
+		rng.seed = SEED + 1
+		var spawn := _find_spawn(rng)
+		player.global_position = spawn
+		player.look_toward(Vector3(0, spawn.y, 0))
+		Game.day_night.time_hours = 7.2
+		Game.toast.emit("Welcome to Jazira. Press Esc for the menu.")
+	else:
+		var pd: Dictionary = data["player"]
+		player.global_position = pd["pos"] + Vector3(0, 0.1, 0)
+		player.yaw = float(pd["yaw"])
+		player.pitch = float(pd["pitch"])
+		player.stamina = float(pd.get("stamina", 1.0))
+		Game.toast.emit("Welcome back — day %d" % Game.day_number)
+	Game.playing = true
+	Game.hud.set_gameplay_visible(true)
+	Game.hud._refresh_inventory()
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	_autosave_t = 0.0
+
+
+func _show_menu() -> void:
+	_menu_cam = Camera3D.new()
+	_menu_cam.fov = 55.0
+	_menu_cam.far = 1200.0
+	add_child(_menu_cam)
+	_menu_cam.current = true
+	Game.day_night.time_hours = 17.0
+	Game.day_night.day_minutes = 60.0
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	Game.hud.add_child(MainMenu.new())
+
+
+func _process(delta: float) -> void:
+	if _menu_cam:
+		_menu_t += delta * 0.035
+		var a := _menu_t + 2.3
+		_menu_cam.global_position = Vector3(cos(a) * 52.0, 15.0 + sin(_menu_t * 2.0) * 2.0, sin(a) * 52.0)
+		_menu_cam.look_at(Vector3(0, 3.5, 0))
+	if Game.playing and not get_tree().paused:
+		_autosave_t += delta
+		if _autosave_t >= AUTOSAVE_SECONDS:
+			_autosave_t = 0.0
+			SaveGame.save_now()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and Game.playing:
+		SaveGame.save_now()
 
 
 ## Dev helper: godot -- --shot=out.png [--pose=x,y,z,yaw_deg,pitch_deg] [--hour=h]
@@ -74,6 +167,24 @@ func _debug_shots() -> void:
 		args[kv[0]] = kv[1] if kv.size() > 1 else ""
 	if args.has("test"):
 		await _run_tests()
+		SaveGame.save_now()
+		print("SAVE ", _world_summary())
+		get_tree().quit()
+		return
+	if args.has("loadtest"):
+		for i in 30:
+			await get_tree().physics_frame
+		print("LOAD ", _world_summary())
+		get_tree().quit()
+		return
+	if args.has("menushot"):
+		if args.has("settings"):
+			for c in Game.hud.get_children():
+				if c is MainMenu:
+					c._open_settings()
+		for i in 120:
+			await get_tree().process_frame
+		get_viewport().get_texture().get_image().save_png(str(args["menushot"]))
 		get_tree().quit()
 		return
 	if not args.has("shot"):
@@ -101,6 +212,8 @@ func _debug_shots() -> void:
 		env.ssil_enabled = "il" in f
 		env.volumetric_fog_enabled = "vf" in f
 		env.glow_enabled = "gl" in f
+	if args.has("clean"):
+		Game.hud.visible = false
 	if args.has("nowater"):
 		Game.ocean.visible = false
 	if args.has("slot"):
@@ -167,16 +280,39 @@ func _setup_environment() -> void:
 	add_child(moon)
 
 
+## Applies the graphics preset (Settings.quality: 0 Low, 1 Medium, 2 High, 3 Ultra).
 func apply_quality() -> void:
-	var hi := Game.quality_high
-	env.volumetric_fog_enabled = hi
-	env.ssil_enabled = hi
-	env.ssao_enabled = true
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if hi else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
-	sun.light_angular_distance = 0.4 if hi else 0.0
-	RenderingServer.directional_shadow_atlas_set_size(4096 if hi else 2048, true)
+	var q := Settings.quality
+	env.ssao_enabled = q >= 1
+	RenderingServer.environment_set_ssao_quality(RenderingServer.ENV_SSAO_QUALITY_LOW if q < 3 else RenderingServer.ENV_SSAO_QUALITY_MEDIUM, q < 3, 0.5, 2, 50.0, 300.0)
+	env.ssil_enabled = q >= 3
+	env.volumetric_fog_enabled = q >= 2
+	env.glow_enabled = true
+	env.sdfgi_enabled = false
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if q >= 2 else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.directional_shadow_max_distance = [45.0, 65.0, 90.0, 110.0][q]
+	sun.light_angular_distance = 0.4 if q >= 3 else 0.0
+	moon.shadow_enabled = q >= 1
+	RenderingServer.directional_shadow_atlas_set_size([2048, 2048, 4096, 4096][q], true)
+	var soft: int = [RenderingServer.SHADOW_QUALITY_HARD, RenderingServer.SHADOW_QUALITY_SOFT_VERY_LOW,
+		RenderingServer.SHADOW_QUALITY_SOFT_LOW, RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM][q]
+	RenderingServer.directional_soft_shadow_filter_set_quality(soft)
+	RenderingServer.positional_soft_shadow_filter_set_quality(soft)
+	var vp := get_viewport()
 	# MSAA breaks the depth texture the water refraction relies on; FXAA is used instead
-	get_viewport().msaa_3d = Viewport.MSAA_DISABLED
+	vp.msaa_3d = Viewport.MSAA_DISABLED
+	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+	vp.scaling_3d_scale = clampf(Settings.render_scale, 0.5, 1.0)
+	# FSR upscaling needs Forward+; the web/compatibility renderer falls back to bilinear
+	var fsr_ok := RenderingServer.get_current_rendering_method() == "forward_plus"
+	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if fsr_ok and Settings.render_scale < 0.99 else Viewport.SCALING_3D_MODE_BILINEAR
+	vp.fsr_sharpness = 0.4
+	Game.grass_density = [0.35, 0.6, 0.85, 1.0][q]
+	Game.grass_range = [28.0, 45.0, 65.0, 85.0][q]
+	if Game.world:
+		Game.world.apply_grass_settings()
+	for c in get_tree().get_nodes_in_group("campfires"):
+		c.set_shadows(q >= 2)
 
 
 func _slope(world: VoxelWorld, x: float, z: float) -> float:
@@ -228,26 +364,6 @@ func _populate(rng: RandomNumberGenerator) -> void:
 		else:
 			oaks += 1
 
-	# bushes: leaf clusters hugging the ground
-	var bush_mat := Mats.get_mat("leaves_bush")
-	for i in 26:
-		var a := rng.randf() * TAU
-		var r := sqrt(rng.randf()) * 24.0
-		var x := cos(a) * r
-		var z := sin(a) * r
-		var h := world.surface_height(x, z)
-		if h < 2.0 or _slope(world, x, z) > 0.6:
-			continue
-		var st := SurfaceTool.new()
-		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		for c in rng.randi_range(2, 4):
-			IslandTree.add_leaf_cluster(st, rng, Vector3(0, 0.3, 0), Vector3(rng.randf_range(-0.5, 0.5), rng.randf_range(0.25, 0.55), rng.randf_range(-0.5, 0.5)), rng.randf_range(0.5, 0.8), 45)
-		var mi := MeshInstance3D.new()
-		mi.mesh = st.commit()
-		mi.material_override = bush_mat
-		add_child(mi)
-		mi.global_position = Vector3(x, h - 0.1, z)
-
 	# boulders on hills and at the cliff foot
 	var b := 0
 	tries = 0
@@ -296,6 +412,32 @@ func _populate(rng: RandomNumberGenerator) -> void:
 		var bas := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, PI * 0.5)
 		PhysicsItem.make_log(Vector3(x, h + 0.35, z), bas, rng.randf_range(0.12, 0.17), rng.randf_range(1.3, 2.0))
 		logs += 1
+
+
+## Bushes are pure decoration, so they are regenerated identically on every load.
+func _spawn_bushes() -> void:
+	var world := Game.world
+	var rng := RandomNumberGenerator.new()
+	rng.seed = SEED + 99
+	var bush_mat := Mats.get_mat("leaves_bush")
+	for i in 26:
+		var a := rng.randf() * TAU
+		var r := sqrt(rng.randf()) * 24.0
+		var x := cos(a) * r
+		var z := sin(a) * r
+		var h := world.surface_height(x, z)
+		if h < 2.0 or _slope(world, x, z) > 0.6:
+			continue
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for c in rng.randi_range(2, 4):
+			IslandTree.add_leaf_cluster(st, rng, Vector3(0, 0.3, 0), Vector3(rng.randf_range(-0.5, 0.5), rng.randf_range(0.25, 0.55), rng.randf_range(-0.5, 0.5)), rng.randf_range(0.5, 0.8), 45)
+		var mi := MeshInstance3D.new()
+		mi.mesh = st.commit()
+		mi.material_override = bush_mat
+		add_child(mi)
+		mi.global_position = Vector3(x, h - 0.1, z)
+
 
 
 func _find_spawn(rng: RandomNumberGenerator) -> Vector3:
@@ -409,3 +551,16 @@ func _run_tests() -> void:
 	for i in 30:
 		await get_tree().process_frame
 	print("TEST done inventory ", Game.inventory)
+
+
+func _world_summary() -> String:
+	var alive := get_tree().get_nodes_in_group("trees").size()
+	var all_trees := get_tree().get_nodes_in_group("island_trees").size()
+	var items := 0
+	for c in Game.props.get_children():
+		if c is PhysicsItem and not c.is_queued_for_deletion():
+			items += 1
+	return "trees=%d stumps=%d items=%d pieces=%d campfires=%d h(5,5)=%.2f day=%d inv=%s" % [
+		alive, all_trees - alive, items, Game.structures.pieces.size(),
+		get_tree().get_nodes_in_group("campfires").size(), Game.world.surface_height(5, 5),
+		Game.day_number, Game.inventory]

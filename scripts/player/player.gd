@@ -19,7 +19,6 @@ var tool_pivot := Node3D.new()
 var tool_models := {}
 var yaw := 0.0
 var pitch := 0.0
-var mouse_sens := 0.0022
 var slot := 0
 var stamina := 1.0
 var breath := 1.0
@@ -60,7 +59,7 @@ func _ready() -> void:
 	add_child(cs)
 	head.position.y = EYE
 	add_child(head)
-	camera.fov = 75.0
+	camera.fov = Settings.fov
 	camera.near = 0.04
 	camera.far = 1200.0
 	head.add_child(camera)
@@ -97,8 +96,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if get_tree().paused:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		yaw -= event.relative.x * mouse_sens
-		pitch = clampf(pitch - event.relative.y * mouse_sens, deg_to_rad(-88), deg_to_rad(88))
+		yaw -= event.relative.x * Settings.mouse_sens
+		pitch = clampf(pitch - event.relative.y * Settings.mouse_sens, deg_to_rad(-88), deg_to_rad(88))
 	elif event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			_select_slot((slot + SLOTS.size() - 1) % SLOTS.size())
@@ -295,7 +294,7 @@ func _camera_fx(delta: float) -> void:
 	_land_dip = move_toward(_land_dip, 0.0, delta * 0.5)
 	camera.position = Vector3(cos(_bob) * 0.025 * amp, absf(sin(_bob)) * 0.05 * amp - _land_dip, 0)
 	var sprint := Input.is_action_pressed("sprint") and hs > WALK + 0.5
-	camera.fov = lerpf(camera.fov, 82.0 if sprint else 75.0, 1.0 - exp(-6.0 * delta))
+	camera.fov = lerpf(camera.fov, Settings.fov + (7.0 if sprint else 0.0), 1.0 - exp(-6.0 * delta))
 	if not _swinging:
 		tool_pivot.position = tool_pivot.position.lerp(Vector3(0.3 + cos(_bob) * 0.012 * amp, -0.28 - absf(sin(_bob)) * 0.02 * amp, -0.46), 1.0 - exp(-10.0 * delta))
 	if Game.day_night:

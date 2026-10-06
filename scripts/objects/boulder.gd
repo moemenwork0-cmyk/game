@@ -6,8 +6,12 @@ var hp := 6
 var size := 1.0
 
 
-static func create(pos: Vector3, p_size: float, rng: RandomNumberGenerator) -> Boulder:
+static func create(pos: Vector3, p_size: float, rng: RandomNumberGenerator, fixed_seed: int = -1) -> Boulder:
 	var b := Boulder.new()
+	var shape_seed := fixed_seed if fixed_seed >= 0 else rng.randi() % 2147483647
+	rng = RandomNumberGenerator.new()
+	rng.seed = shape_seed
+	b.save_info = {"type": "boulder", "size": p_size, "seed": shape_seed}
 	b.size = p_size
 	b.item_id = "stone"
 	b.display_name = "Boulder"

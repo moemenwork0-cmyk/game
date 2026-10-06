@@ -17,7 +17,6 @@ var _toasts: VBoxContainer
 var _uw_rect: ColorRect
 var _uw_mat: ShaderMaterial
 var _pause: Control
-var _quality_btn: Button
 var _slot_style: StyleBoxFlat
 var _slot_style_sel: StyleBoxFlat
 
@@ -180,31 +179,7 @@ func hide_loading() -> void:
 	tw.tween_callback(_loading.queue_free)
 
 
-func _build_pause() -> void:
-	_pause = ColorRect.new()
-	(_pause as ColorRect).color = Color(0, 0, 0, 0.6)
-	_pause.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_pause.visible = false
-	add_child(_pause)
-	var panel := PanelContainer.new()
-	var ps := StyleBoxFlat.new()
-	ps.bg_color = Color(0.06, 0.08, 0.1, 0.95)
-	ps.set_corner_radius_all(12)
-	ps.set_content_margin_all(26)
-	panel.add_theme_stylebox_override("panel", ps)
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
-	_pause.add_child(panel)
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 10)
-	panel.add_child(vb)
-	var t := Label.new()
-	t.text = "JAZIRA — paused"
-	t.add_theme_font_size_override("font_size", 28)
-	vb.add_child(t)
-	var help := Label.new()
-	help.text = """WASD move · Shift sprint · Space jump / swim up · Ctrl dive
+const CONTROLS_TEXT := """WASD move · Shift sprint · Space jump / swim up · Ctrl dive
 Mouse wheel or 1–9 select tool · E pick up item
 Hand: hold LMB to carry objects (real mass), RMB throw
 Axe: fell trees → logs · Pickaxe: boulders, rock, stone blocks
@@ -212,35 +187,88 @@ Shovel: LMB dig · RMB place dirt/sand
 Beam / Post / Panel / Stone: LMB place · R/Q rotate · F tilt · G snap
    Pieces need support from the ground — overhangs collapse!
 Campfire: 2 logs + 4 stones · Hold T to fast-forward time · F1 hide HUD"""
-	help.add_theme_color_override("font_color", Color(1, 1, 1, 0.8))
-	vb.add_child(help)
-	var resume := Button.new()
-	resume.text = "Resume"
-	resume.pressed.connect(func() -> void: set_paused(false))
-	vb.add_child(resume)
-	_quality_btn = Button.new()
-	_quality_btn.text = "Graphics: High"
-	_quality_btn.pressed.connect(func() -> void:
-		Game.quality_high = not Game.quality_high
-		_quality_btn.text = "Graphics: " + ("High" if Game.quality_high else "Performance")
-		get_tree().current_scene.apply_quality())
-	vb.add_child(_quality_btn)
-	var quit := Button.new()
-	quit.text = "Quit"
-	quit.pressed.connect(func() -> void: get_tree().quit())
-	vb.add_child(quit)
+
+var _pause_menu: VBoxContainer
+var _pause_sub: Control
+
+
+func _build_pause() -> void:
+	_pause = ColorRect.new()
+	(_pause as ColorRect).color = Color(0, 0, 0, 0.55)
+	_pause.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_pause.visible = false
+	_pause.theme = UiKit.theme()
+	add_child(_pause)
+	var panel := PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_pause.add_child(panel)
+	_pause_menu = VBoxContainer.new()
+	_pause_menu.add_theme_constant_override("separation", 10)
+	panel.add_child(_pause_menu)
+	_pause_menu.add_child(UiKit.label("Paused", 30))
+	_pause_menu.add_child(UiKit.button("Resume", func() -> void: set_paused(false)))
+	_pause_menu.add_child(UiKit.button("Save game", func() -> void: SaveGame.save_now()))
+	_pause_menu.add_child(UiKit.button("Settings", func() -> void:
+		var sp := SettingsPanel.new()
+		sp.closed.connect(_close_sub)
+		_open_sub(sp)))
+	_pause_menu.add_child(UiKit.button("Controls", func() -> void:
+		var cp := PanelContainer.new()
+		var vb := VBoxContainer.new()
+		vb.add_theme_constant_override("separation", 14)
+		vb.add_child(UiKit.label("Controls", 30))
+		vb.add_child(UiKit.label(CONTROLS_TEXT, 16, Color(1, 1, 1, 0.8)))
+		vb.add_child(UiKit.button("Back", _close_sub, 140))
+		cp.add_child(vb)
+		cp.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+		cp.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		cp.grow_vertical = Control.GROW_DIRECTION_BOTH
+		_open_sub(cp)))
+	_pause_menu.add_child(UiKit.button("Save & main menu", func() -> void:
+		SaveGame.save_now()
+		Game.restart("")))
+	if not OS.has_feature("web"):
+		_pause_menu.add_child(UiKit.button("Save & quit", func() -> void:
+			SaveGame.save_now()
+			get_tree().quit()))
+
+
+func _open_sub(c: Control) -> void:
+	_pause_menu.get_parent().visible = false
+	_pause_sub = c
+	_pause.add_child(c)
+
+
+func _close_sub() -> void:
+	if _pause_sub:
+		_pause_sub.queue_free()
+		_pause_sub = null
+	_pause_menu.get_parent().visible = true
 
 
 func set_paused(p: bool) -> void:
+	if p and not Game.playing:
+		return
 	get_tree().paused = p
 	_pause.visible = p
+	if not p:
+		_close_sub()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if p else Input.MOUSE_MODE_CAPTURED
+
+
+func set_gameplay_visible(v: bool) -> void:
+	_root.visible = v
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause"):
-		set_paused(not get_tree().paused)
-	elif event.is_action_pressed("toggle_hud"):
+		if _pause_sub:
+			_close_sub()
+		else:
+			set_paused(not get_tree().paused)
+	elif event.is_action_pressed("toggle_hud") and Game.playing:
 		_root.visible = not _root.visible
 
 

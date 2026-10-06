@@ -77,9 +77,16 @@ scripts/ui       HUD, pause menu
 shaders          terrain (triplanar), ocean, sky, grass, leaves, underwater
 ```
 
+### Phase 1 (foundation)
+- Graphics presets Low / Medium / High / Ultra, auto-detected on first launch, plus render scale (FSR upscaling)
+- Custom splash and loading screen, main menu (Continue / New Game / Settings / Quit)
+- Settings saved to `user://settings.cfg`; whole-world saves in `user://saves/slot1.sav` with autosave every 4 minutes
+- See [ROADMAP.md](ROADMAP.md) for all phases
+
 ### Dev helpers
 ```
-godot --headless -- --test                     # automated gameplay self-test (chop, float, dig, build, collapse)
+godot --headless -- --test                     # gameplay self-test (chop, float, dig, build, collapse), then saves
+godot --headless -- --loadtest                 # loads that save and prints the same world summary
 godot -- --shot=out.png --hour=17.5 [--pose=x,y,z,yaw,pitch]   # render a screenshot
 ```
 

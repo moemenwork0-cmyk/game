@@ -56,6 +56,29 @@ func place(kind: String, xf: Transform3D) -> StructurePiece:
 	return p
 
 
+## Rebuilds saved structures: create every piece first, let physics register them, then link.
+func restore(list: Array) -> void:
+	var created: Array[StructurePiece] = []
+	for e in list:
+		var p := StructurePiece.create(e["kind"])
+		add_child(p)
+		p.global_transform = e["xf"]
+		pieces.append(p)
+		created.append(p)
+	if created.is_empty():
+		return
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	for p in created:
+		p.grounded = not _overlaps(p.size, p.global_transform, 0.06, Game.L_TERRAIN).is_empty()
+		for hit in _overlaps(p.size, p.global_transform, 0.06, Game.L_STRUCT, [p.get_rid()]):
+			var other = hit["collider"]
+			if other is StructurePiece and other != p:
+				p.neighbors[other] = true
+				other.neighbors[p] = true
+	recompute()
+
+
 func remove(p: StructurePiece) -> void:
 	for n in p.neighbors.keys():
 		if is_instance_valid(n):

@@ -30,14 +30,18 @@ func _process(delta: float) -> void:
 func clock_text() -> String:
 	var h := int(time_hours)
 	var m := int((time_hours - h) * 60.0)
-	return "%02d:%02d" % [h, m]
+	return "Day %d  ·  %02d:%02d" % [Game.day_number, h, m]
 
 
 func _update(delta: float) -> void:
 	var speed := 24.0 / (day_minutes * 60.0)
 	if Input.is_action_pressed("time_skip"):
 		speed *= 90.0
-	time_hours = fmod(time_hours + delta * speed, 24.0)
+	time_hours += delta * speed
+	if time_hours >= 24.0:
+		time_hours -= 24.0
+		Game.day_number += 1
+		Game.toast.emit("Day %d" % Game.day_number)
 	var ang := (time_hours - 6.0) / 24.0 * TAU
 	var dir := Vector3(cos(ang), sin(ang) * 0.9, sin(ang) * 0.42 + 0.12).normalized()
 	var elev := dir.y

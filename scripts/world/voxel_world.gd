@@ -27,6 +27,7 @@ const MAT_COLORS := [Color(1, 0, 0, 0), Color(0, 1, 0, 0), Color(0, 0, 1, 0), Co
 var density := PackedFloat32Array()
 var materials := PackedByteArray()
 var heights := PackedFloat32Array()
+var seed_value := 0
 var chunks := {}
 var terrain_material: ShaderMaterial
 var grass_material: ShaderMaterial
@@ -49,7 +50,9 @@ func _ready() -> void:
 
 # ---------------------------------------------------------------- generation
 
-func generate(seed_v: int, progress: Callable) -> void:
+## override: {density, materials} from a save replaces the generated field before meshing.
+func generate(seed_v: int, progress: Callable, override: Dictionary = {}) -> void:
+	seed_value = seed_v
 	for n in [_noise_h, _noise_c, _noise_3, _noise_r, _noise_dry]:
 		n.seed = seed_v
 		seed_v += 17
@@ -80,6 +83,9 @@ func generate(seed_v: int, progress: Callable) -> void:
 		density.append_array(_slices[z][0])
 		materials.append_array(_slices[z][1])
 	_slices.clear()
+	if not override.is_empty():
+		density = override["density"]
+		materials = override["materials"]
 	progress.call(0.35, "Carving cliffs and caves...")
 	await get_tree().process_frame
 
@@ -503,3 +509,8 @@ func _build_grass_clump() -> ArrayMesh:
 			prev_l = l
 			prev_r = r
 	return st.commit()
+
+
+func apply_grass_settings() -> void:
+	for c in chunks.values():
+		c.apply_grass_settings()
