@@ -35,11 +35,12 @@ func _ready() -> void:
 	add_child(hud)
 	Game.hud = hud
 	hud.set_gameplay_visible(false)
+	hud.set_loading(0.02, "Tuning the sea...")
+	await get_tree().process_frame
+	await get_tree().process_frame
 	var sfx := Sfx.new()
 	add_child(sfx)
 	Game.sfx = sfx
-	hud.set_loading(0.02, "Preparing the sea...")
-	await get_tree().process_frame
 
 	_setup_environment()
 	var props := Node3D.new()
@@ -173,6 +174,12 @@ func _debug_shots() -> void:
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=")
 		args[kv[0]] = kv[1] if kv.size() > 1 else ""
+	if args.has("dumpsfx"):
+		for id in Game.sfx.streams:
+			var w: AudioStreamWAV = Game.sfx.streams[id][0]
+			w.save_to_wav(str(args["dumpsfx"]) + "/" + id + ".wav")
+		get_tree().quit()
+		return
 	if args.has("test"):
 		await _run_tests()
 		SaveGame.save_now()
