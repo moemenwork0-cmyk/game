@@ -102,7 +102,7 @@ func _pick_next() -> void:
 		state = "storm"
 	hours_left = _rng.randf_range(3.0, 7.0)
 	if state == "storm" and Game.playing:
-		Game.toast.emit("A storm is coming…")
+		Game.toast.emit(tr("A storm is coming…"))
 
 
 func _apply(delta: float) -> void:

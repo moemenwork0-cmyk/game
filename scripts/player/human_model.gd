@@ -81,10 +81,7 @@ func _setup_materials(mi: MeshInstance3D) -> void:
 func _load_animations() -> void:
 	var lib := AnimationLibrary.new()
 	for key in ANIMS:
-		var src: Node = load("res://assets/characters/anims/%s.fbx" % ANIMS[key]).instantiate()
-		var ap: AnimationPlayer = src.find_children("*", "AnimationPlayer", true, false)[0]
-		var a: Animation = ap.get_animation(ap.get_animation_list()[0]).duplicate(true)
-		src.free()
+		var a: Animation = (load("res://assets/characters/anims/%s.res" % ANIMS[key]) as Animation).duplicate(true)
 		a.loop_mode = Animation.LOOP_LINEAR
 		# strip root motion: measure the clip's real speed, then pin the root in place
 		for t in a.get_track_count():

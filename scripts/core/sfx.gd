@@ -59,20 +59,22 @@ func _ready() -> void:
 	ap.stream = gen
 	ap.playback_type = AudioServer.PLAYBACK_TYPE_STREAM   # web needs stream playback for generators
 	ap.volume_db = -3.0
+	ap.bus = "Ambience"
 	add_child(ap)
 	ap.play()
 	_playback = ap.get_stream_playback()
 	_crickets = AudioStreamPlayer.new()
 	_crickets.stream = streams["crickets"][0]
 	_crickets.volume_db = -80.0
+	_crickets.bus = "Ambience"
 	add_child(_crickets)
 	_crickets.play()
 	_rng.randomize()
 
 
-func play(id: String, pos: Variant = null, vol_db: float = 0.0, pitch_var: float = 0.08) -> void:
+func play(id: String, pos: Variant = null, vol_db: float = 0.0, pitch_var: float = 0.08, bus: String = "SFX") -> AudioStreamPlayer:
 	if not streams.has(id):
-		return
+		return null
 	var arr: Array = streams[id]
 	var s: AudioStream = arr[_rng.randi() % arr.size()]
 	if pos == null:
@@ -80,9 +82,11 @@ func play(id: String, pos: Variant = null, vol_db: float = 0.0, pitch_var: float
 		ap.stream = s
 		ap.volume_db = vol_db
 		ap.pitch_scale = 1.0 + _rng.randf_range(-pitch_var, pitch_var)
+		ap.bus = bus
 		ap.finished.connect(ap.queue_free)
 		add_child(ap)
 		ap.play()
+		return ap
 	else:
 		var ap3 := AudioStreamPlayer3D.new()
 		ap3.stream = s
@@ -92,10 +96,12 @@ func play(id: String, pos: Variant = null, vol_db: float = 0.0, pitch_var: float
 		ap3.attenuation_filter_cutoff_hz = 9000.0
 		ap3.attenuation_filter_db = -18.0
 		ap3.pitch_scale = 1.0 + _rng.randf_range(-pitch_var, pitch_var)
+		ap3.bus = bus
 		ap3.finished.connect(ap3.queue_free)
 		add_child(ap3)
 		ap3.global_position = pos
 		ap3.play()
+	return null
 
 
 # ======================================================================== library
@@ -635,6 +641,188 @@ func _metal_groan() -> PackedFloat32Array:
 	for i in b.size():
 		b[i] = r1[i] * 4.0 + r2[i] * 2.5 + r3[i] * 1.2
 	return _normalize(b, 0.9)
+
+
+# ---------------------------------------------------------------- cinematic library
+
+## Built on demand (the prologue and the title use them; normal play does not).
+func ensure_cinematic() -> void:
+	if streams.has("impact"):
+		return
+	streams["impact"] = [_wav(_impact())]
+	streams["glass"] = _variants(2, _glass)
+	streams["radio"] = [_wav(_radio(3.0), true)]
+	streams["water_rush"] = [_wav(_water_rush(4.0), true)]
+	streams["ring"] = [_wav(_ring())]
+	streams["gasp"] = _variants(2, _gasp)
+	streams["cough"] = _variants(2, _cough)
+	streams["boom"] = [_wav(_boom())]
+	streams["drone"] = [_wav(_drone(8.0), true)]
+	streams["riser"] = [_wav(_riser(3.0))]
+	streams["creak"] = _variants(3, _creak)
+	streams["bodyfall"] = _variants(3, _bodyfall)
+
+
+func _impact() -> PackedFloat32Array:
+	# a steel hull meeting rock: sub-bass blow, tearing plate modes, raining debris
+	var b := _buf(4.5)
+	_thump(b, 0.0, 34.0, 90.0, 0.9, 1.0)
+	_thump(b, 0.08, 52.0, 120.0, 0.5, 0.6)
+	var n := _buf(4.5)
+	_noise_burst(n, 0.0, 0.002, 0.7, 0.9)
+	_biquad(n, "lp", 900.0)
+	_mix(b, n)
+	_modes(b, 0.02, [118.0, 187.0, 263.0, 412.0, 655.0, 981.0, 1460.0], [1.6, 1.3, 1.1, 0.8, 0.5, 0.35, 0.2], [0.35, 0.3, 0.28, 0.22, 0.16, 0.12, 0.08])
+	_grains(b, 0.15, 2.6, 900, 0.18, 3.0, 2.2)
+	var screech := _buf(4.5)
+	var ph := 0.0
+	for i in range(int(0.3 * RATE), int(2.8 * RATE)):
+		var t := float(i) / RATE
+		ph += TAU * (420.0 + 90.0 * sin(t * 7.0) + _noise() * 40.0) / RATE
+		screech[i] = sin(ph) * 0.12 * sin(PI * (t - 0.3) / 2.5)
+	_biquad(screech, "bp", 600.0, 2.0)
+	_mix(b, screech)
+	return _normalize(b, 0.98)
+
+
+func _glass() -> PackedFloat32Array:
+	var b := _buf(1.8)
+	_noise_burst(b, 0.0, 0.001, 0.04, 0.8)
+	_biquad(b, "hp", 2500.0)
+	for k in 70:
+		var t0 := pow(_rng.randf(), 2.0) * 1.4
+		var f := _rng.randf_range(2600.0, 8000.0)
+		_modes(b, t0, [f, f * 1.47, f * 2.11], [0.03, 0.02, 0.012], [0.25, 0.12, 0.06])
+	return _normalize(b, 0.8)
+
+
+func _radio(dur: float) -> PackedFloat32Array:
+	var b := _buf(dur)
+	for i in b.size():
+		b[i] = _noise() * (0.6 + 0.4 * sin(float(i) / RATE * TAU * 0.7))
+	_biquad(b, "bp", 1900.0, 0.8)
+	_grains(b, 0.0, dur, 220, 0.6, 1.0, 1.0)
+	# fade the loop seam
+	var f := 400
+	for i in f:
+		var g := float(i) / f
+		b[i] = lerpf(b[b.size() - f + i], b[i], g)
+	return _normalize(b, 0.5)
+
+
+func _water_rush(dur: float) -> PackedFloat32Array:
+	var b := _buf(dur)
+	var lp := 0.0
+	for i in b.size():
+		var t := float(i) / RATE
+		lp += (_noise() - lp) * 0.08
+		b[i] = lp * (0.75 + 0.25 * sin(TAU * t / dur * 2.0))
+	_biquad(b, "lp", 1400.0)
+	var f := 2000
+	for i in f:
+		b[i] = lerpf(b[b.size() - f + i], b[i], float(i) / f)
+	return _normalize(b, 0.8)
+
+
+func _ring() -> PackedFloat32Array:
+	# the high whine in your ears after a blow to the head
+	var b := _buf(7.0)
+	for i in b.size():
+		var t := float(i) / RATE
+		b[i] = (sin(TAU * 3900.0 * t) + 0.6 * sin(TAU * 3907.0 * t)) * exp(-t / 2.8) * minf(t * 30.0, 1.0)
+	return _normalize(b, 0.35)
+
+
+func _gasp() -> PackedFloat32Array:
+	var b := _buf(0.9)
+	_noise_burst(b, 0.02, 0.35, 0.25, 1.0)
+	var a := _biquad(b.duplicate(), "bp", 850.0, 4.0)
+	var c := _biquad(b.duplicate(), "bp", 2400.0, 5.0)
+	for i in b.size():
+		b[i] = a[i] + c[i] * 0.6
+	return _normalize(b, 0.7)
+
+
+func _cough() -> PackedFloat32Array:
+	var b := _buf(1.4)
+	for k in _rng.randi_range(2, 3):
+		var seg := _buf(0.3)
+		_noise_burst(seg, 0.0, 0.004, 0.08, 1.0)
+		var lo := _biquad(seg.duplicate(), "bp", 480.0, 2.5)
+		var hi := _biquad(seg.duplicate(), "bp", 1600.0, 3.0)
+		for i in seg.size():
+			seg[i] = lo[i] * 1.2 + hi[i] * 0.6
+		_thump(seg, 0.0, 120.0, 200.0, 0.05, 0.3)
+		_mix(b, seg, k * 0.33 + _rng.randf_range(0.0, 0.06))
+	return _normalize(b, 0.7)
+
+
+func _boom() -> PackedFloat32Array:
+	# a cinematic sub drop for cuts to black
+	var b := _buf(5.0)
+	_thump(b, 0.0, 28.0, 75.0, 1.6, 1.0)
+	var n := _buf(5.0)
+	_noise_burst(n, 0.0, 0.003, 1.2, 0.5)
+	_biquad(n, "lp", 220.0)
+	_mix(b, n)
+	return _normalize(b, 0.95)
+
+
+func _drone(dur: float) -> PackedFloat32Array:
+	var b := _buf(dur)
+	var freqs := [73.42, 110.0, 146.83, 155.56]
+	for i in b.size():
+		var t := float(i) / RATE
+		var v := 0.0
+		for k in freqs.size():
+			var f: float = freqs[k]
+			v += sin(TAU * f * t + sin(TAU * t / dur * (k + 1)) * 0.6) * (0.5 if k < 2 else 0.18) * (0.7 + 0.3 * sin(TAU * t / dur * (k + 1)))
+		b[i] = v
+	var air := _buf(dur)
+	for i in air.size():
+		air[i] = _noise() * 0.08
+	_biquad(air, "bp", 400.0, 0.7)
+	_mix(b, air)
+	return _normalize(b, 0.6)
+
+
+func _riser(dur: float) -> PackedFloat32Array:
+	var b := _buf(dur)
+	var ph := 0.0
+	var bp_state := [0.0, 0.0]
+	for i in b.size():
+		var t := float(i) / RATE
+		var u := t / dur
+		ph += TAU * lerpf(60.0, 240.0, u * u) / RATE
+		b[i] = sin(ph) * 0.4 * u + _noise() * 0.25 * u * u
+	_biquad(b, "lp", 3000.0)
+	return _normalize(b, 0.7)
+
+
+func _creak() -> PackedFloat32Array:
+	# wood under load: stick-slip pulses exciting the planks' resonances
+	var b := _buf(1.4)
+	var t := 0.05
+	var rate := _rng.randf_range(40.0, 90.0)
+	while t < 1.2:
+		var i := int(t * RATE)
+		if i < b.size():
+			b[i] += _rng.randf_range(0.5, 1.0)
+		t += 1.0 / (rate * (1.0 + 0.5 * sin(t * 4.0)) * _rng.randf_range(0.9, 1.1))
+	var r1 := _biquad(b.duplicate(), "bp", _rng.randf_range(380.0, 520.0), 9.0)
+	var r2 := _biquad(b.duplicate(), "bp", _rng.randf_range(900.0, 1300.0), 7.0)
+	for i in b.size():
+		b[i] = r1[i] * 3.0 + r2[i] * 1.5
+	return _normalize(b, 0.7)
+
+
+func _bodyfall() -> PackedFloat32Array:
+	var b := _buf(0.8)
+	_thump(b, 0.0, 60.0, 140.0, 0.12, 1.0)
+	_noise_burst(b, 0.0, 0.002, 0.06, 0.5)
+	_biquad(b, "lp", 900.0)
+	_modes(b, 0.0, [210.0, 340.0], [0.08, 0.05], [0.2, 0.1])
+	return _normalize(b, 0.8)
 
 
 func _ui_tick() -> PackedFloat32Array:

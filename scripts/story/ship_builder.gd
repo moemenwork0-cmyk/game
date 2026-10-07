@@ -102,7 +102,7 @@ static func _tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, col: Color
 
 
 ## Full ship: hull + superstructure + containers. Returns a Node3D (no physics).
-static func build_ship(rng: RandomNumberGenerator, wrecked: bool) -> Node3D:
+static func build_ship(rng: RandomNumberGenerator, wrecked: bool, interior: bool = false) -> Node3D:
 	var root := Node3D.new()
 	var hull := MeshInstance3D.new()
 	hull.mesh = build_hull()
@@ -124,9 +124,14 @@ static func build_ship(rng: RandomNumberGenerator, wrecked: bool) -> Node3D:
 		glass.emission_energy_multiplier = 1.5
 	# bridge at the stern
 	_box(root, Vector3(6.0, 2.8, 4.5), Vector3(0, DEPTH + 1.4, 9.0), white)
-	_box(root, Vector3(5.0, 2.2, 3.5), Vector3(0, DEPTH + 3.9, 9.4), white)
-	_box(root, Vector3(4.8, 0.9, 0.08), Vector3(0, DEPTH + 4.2, 7.62), glass)
-	_box(root, Vector3(0.5, 3.0, 0.5), Vector3(0, DEPTH + 6.5, 10.0), hm)
+	if interior:
+		var bridge := BridgeSet.new()
+		bridge.name = "Bridge"
+		root.add_child(bridge)
+	else:
+		_box(root, Vector3(5.0, 2.2, 3.5), Vector3(0, DEPTH + 3.9, 9.4), white)
+		_box(root, Vector3(4.8, 0.9, 0.08), Vector3(0, DEPTH + 4.2, 7.62), glass)
+	_box(root, Vector3(0.5, 3.0, 0.5), Vector3(0, DEPTH + 6.9 if interior else DEPTH + 6.5, 10.0), hm)
 	# mast and boom
 	_box(root, Vector3(0.35, 7.5, 0.35), Vector3(0, DEPTH + 3.7, -6.0), hm)
 	_box(root, Vector3(0.18, 0.18, 6.0), Vector3(0, DEPTH + 6.0, -3.5), hm, Vector3(0.35, 0, 0))
@@ -175,7 +180,7 @@ static func build_ship(rng: RandomNumberGenerator, wrecked: bool) -> Node3D:
 		search.spot_range = 60.0
 		search.spot_angle = 14.0
 		search.light_energy = 6.0
-		search.position = Vector3(0, DEPTH + 5.2, 7.4)
+		search.position = Vector3(0, DEPTH + 5.6, 6.7)
 		search.rotation = Vector3(-0.12, 0, 0)
 		root.add_child(search)
 	return root

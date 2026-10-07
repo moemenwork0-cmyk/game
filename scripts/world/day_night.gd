@@ -45,7 +45,7 @@ func _update(delta: float) -> void:
 	if time_hours >= 24.0:
 		time_hours -= 24.0
 		Game.day_number += 1
-		Game.toast.emit("Day %d" % Game.day_number)
+		Game.toast.emit(tr("Day %d") % Game.day_number)
 	var ang := (time_hours - 6.0) / 24.0 * TAU
 	var dir := Vector3(cos(ang), sin(ang) * 0.9, sin(ang) * 0.42 + 0.12).normalized()
 	var elev := dir.y

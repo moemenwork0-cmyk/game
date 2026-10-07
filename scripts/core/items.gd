@@ -46,7 +46,7 @@ const RECIPES := [
 
 
 static func item_name(id: String) -> String:
-	return NAMES.get(id, id.capitalize())
+	return TranslationServer.translate(NAMES.get(id, id.capitalize()))
 
 
 static func is_tool_item(id: String) -> bool:

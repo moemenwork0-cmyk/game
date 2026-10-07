@@ -42,6 +42,7 @@ var snap := true
 var hint := ""
 var asleep := false
 var _bob := 0.0
+var _sprint_latch := false
 var _step := 0.0
 var _was_floor := true
 var _fall_speed := 0.0
@@ -131,7 +132,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		yaw -= event.relative.x * Settings.mouse_sens
-		pitch = clampf(pitch - event.relative.y * Settings.mouse_sens, deg_to_rad(-88), deg_to_rad(88))
+		pitch = clampf(pitch - event.relative.y * Settings.mouse_sens * (-1.0 if Settings.invert_y else 1.0), deg_to_rad(-88), deg_to_rad(88))
 	elif event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			_select_slot((slot + SLOTS.size() - 1) % SLOTS.size())
@@ -183,7 +184,12 @@ func _physics_process(delta: float) -> void:
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if active else Vector2.ZERO
 	var wish := Basis(Vector3.UP, yaw) * Vector3(input.x, 0, input.y)
 	var tired := vitals.energy < 12.0 or vitals.food <= 0.0
-	var sprinting := active and Input.is_action_pressed("sprint") and input.y < 0.0 and stamina > 0.05 and not swimming and not tired
+	if Settings.toggle_sprint and active and Input.is_action_just_pressed("sprint"):
+		_sprint_latch = not _sprint_latch
+	if input.y >= 0.0:
+		_sprint_latch = false
+	var want_sprint := _sprint_latch if Settings.toggle_sprint else Input.is_action_pressed("sprint")
+	var sprinting := active and want_sprint and input.y < 0.0 and stamina > 0.05 and not swimming and not tired
 	var load_mult := clampf(1.0 - maxf(Game.carried_weight() - Items.MAX_CARRY, 0.0) / 80.0, 0.45, 1.0)
 
 	if swimming:
@@ -245,7 +251,7 @@ func _physics_process(delta: float) -> void:
 		_land_dip = clampf(_fall_speed * 0.018, 0.0, 0.14)
 		_footstep(-2.0 + minf(_fall_speed, 10.0))
 		if _fall_speed > 9.0:
-			vitals.hurt((_fall_speed - 9.0) * 9.0, "That was a hard fall")
+			vitals.hurt((_fall_speed - 9.0) * 9.0, tr("That was a hard fall"))
 			Game.sfx.play("hurt")
 	if on_floor:
 		_fall_speed = 0.0
@@ -371,7 +377,7 @@ func _process(delta: float) -> void:
 		build_tilt = (build_tilt + 1) % 3
 	if Input.is_action_just_pressed("snap"):
 		snap = not snap
-		Game.toast.emit("Grid snap " + ("ON" if snap else "OFF"))
+		Game.toast.emit(tr("Grid snap ON") if snap else tr("Grid snap OFF"))
 
 	var tool := active_tool()
 	_update_ghost(tool)
@@ -414,7 +420,7 @@ func _require_tool(id: String) -> bool:
 	if Game.has_tool(id):
 		return true
 	if Input.is_action_just_pressed("primary"):
-		Game.toast.emit("You have no %s — craft one (Tab)" % Items.item_name(id))
+		Game.toast.emit(tr("You have no %s — craft one (Tab)") % Items.item_name(id))
 	return false
 
 
@@ -437,7 +443,8 @@ func _camera_fx(delta: float) -> void:
 			dist = maxf(head.global_position.distance_to(hit["position"]) - 0.25, 0.4)
 		camera.position = camera.position.lerp(TP_OFFSET.normalized() * dist, 1.0 - exp(-12.0 * delta))
 	else:
-		camera.position = Vector3(cos(_bob) * 0.025 * amp, absf(sin(_bob)) * 0.05 * amp - _land_dip, 0)
+		var bob := amp if Settings.head_bob else 0.0
+		camera.position = Vector3(cos(_bob) * 0.025 * bob, absf(sin(_bob)) * 0.05 * bob - _land_dip * Settings.camera_shake, 0)
 	var sprint := Input.is_action_pressed("sprint") and hs > WALK + 0.5
 	camera.fov = lerpf(camera.fov, Settings.fov + (7.0 if sprint else 0.0), 1.0 - exp(-6.0 * delta))
 	if not _swinging:
@@ -490,35 +497,35 @@ func _reach_ok(look: Dictionary) -> bool:
 
 func _update_hint(look: Dictionary, tool: String) -> void:
 	if held:
-		hint = "Release LMB to drop   ·   RMB to throw   (%.0f kg)" % held.mass
+		hint = tr("Release LMB to drop   ·   RMB to throw   (%.0f kg)") % held.mass
 		return
 	if SLOTS[slot] == "spear":
-		hint = "Fishing spear (%d) — LMB to thrust at fish in the water" % int(Game.tools.get("spear", 0)) if Game.has_tool("spear") else "No spear — craft one (Tab)"
+		hint = tr("Fishing spear (%d) — LMB to thrust at fish in the water") % int(Game.tools.get("spear", 0)) if Game.has_tool("spear") else tr("No spear — craft one (Tab)")
 	if look.is_empty() or not _reach_ok(look):
 		return
 	var col = look["collider"]
 	if col is PhysicsItem and not (col is Boulder) and not (col is StructurePiece and not col.loose):
-		hint = "[E] Pick up %s   ·   Hand: hold LMB to carry" % col.display_name
+		hint = tr("[E] Pick up %s   ·   Hand: hold LMB to carry") % col.display_name
 	elif col is Boulder:
-		hint = "Boulder (%.0f kg) — Pickaxe to break" % col.mass
+		hint = tr("Boulder (%.0f kg) — Pickaxe to break") % col.mass
 	elif col is StructurePiece:
-		hint = "%s — support %d%%  ·  %s to dismantle" % [col.display_name, int(col.support * 100.0), "Axe" if col.is_wood() else "Pickaxe"]
+		hint = tr("%s — support %d%%  ·  %s to dismantle") % [col.display_name, int(col.support * 100.0), tr("Axe") if col.is_wood() else tr("Pickaxe")]
 	elif col is Campfire:
 		if col.cooking > 0:
-			hint = "Cooking %d fish…" % col.cooking
+			hint = tr("Cooking %d fish…") % col.cooking
 		else:
-			hint = "[E] Cook raw fish (%d)" % Game.count("fish_raw") if Game.count("fish_raw") > 0 else "Campfire — warm yourself, cook fish here"
+			hint = tr("[E] Cook raw fish (%d)") % Game.count("fish_raw") if Game.count("fish_raw") > 0 else tr("Campfire — warm yourself, cook fish here")
 	elif col is RainCollector:
-		hint = "[E] Drink rainwater (%d sips)" % int(col.water)
+		hint = tr("[E] Drink rainwater (%d sips)") % int(col.water)
 	elif col is Bed:
-		hint = "[E] Sleep until morning"
+		hint = tr("[E] Sleep until morning")
 	elif col is BerryBush:
-		hint = "[E] Pick berries" if col.ripe() else ("Berries will grow back tomorrow" if col.has_berries else "")
+		hint = tr("[E] Pick berries") if col.ripe() else (tr("Berries will grow back tomorrow") if col.has_berries else "")
 	elif col is StaticBody3D and col.get_parent() is IslandTree:
 		var tree: IslandTree = col.get_parent()
-		hint = "Palm — chop for logs; coconuts may fall" if tree.kind == "palm" else "Tree — use the Axe"
+		hint = tr("Palm — chop for logs; coconuts may fall") if tree.kind == "palm" else tr("Tree — use the Axe")
 	elif col is RigidBody3D:
-		hint = "Felled tree (%.0f kg)" % col.mass
+		hint = tr("Felled tree (%.0f kg)") % col.mass
 	elif col is StoryCrate:
 		hint = "" if col.opened else StoryData.t({"en": "[E] Open the crate", "ar": "[E] افتح الصندوق"})
 	elif col is MessageBottle:
@@ -556,7 +563,7 @@ func _quick_eat() -> void:
 		if Game.count(id) > 0:
 			vitals.eat(id)
 			return
-	Game.toast.emit("Nothing to eat — find coconuts, berries or fish")
+	Game.toast.emit(tr("Nothing to eat — find coconuts, berries or fish"))
 
 
 # ---------------------------------------------------------------- sleep & death
@@ -565,7 +572,7 @@ func sleep_in(bed: Bed) -> void:
 	var t := Game.day_night.time_hours
 	var night := t >= 19.0 or t < 5.5
 	if not night and vitals.energy > 35.0:
-		Game.toast.emit("You're not tired — sleep at night or when exhausted")
+		Game.toast.emit(tr("You're not tired — sleep at night or when exhausted"))
 		return
 	Game.respawn_point = bed.global_position + Vector3(0, 0.6, 0)
 	asleep = true
@@ -582,7 +589,7 @@ func sleep_in(bed: Bed) -> void:
 	if Game.weather:
 		Game.weather.advance(hours, 0.0)
 	await get_tree().create_timer(0.6).timeout
-	Game.toast.emit("You wake up rested — day %d" % Game.day_number)
+	Game.toast.emit(tr("You wake up rested — day %d") % Game.day_number)
 	if Game.story:
 		Game.story.on_sleep()
 	await Game.hud.fade(0.0, 1.2)
@@ -767,7 +774,7 @@ func _dig(look: Dictionary) -> void:
 	var amount := -1.6
 	if mat == VoxelWorld.MAT_STONE:
 		amount = -0.3
-		hint = "Too hard for a shovel — use the pickaxe"
+		hint = tr("Too hard for a shovel — use the pickaxe")
 	var got := Game.world.edit_sphere(p - n * 0.25, 1.35, amount)
 	var c := Color(0.8, 0.72, 0.52) if mat == VoxelWorld.MAT_SAND else Color(0.3, 0.22, 0.13)
 	Fx.burst(p, c, 18, 3.2, 0.06, 1.2)
@@ -782,7 +789,7 @@ func _fill(look: Dictionary) -> void:
 		return
 	var id := "dirt" if Game.count("dirt") > 0 else ("sand" if Game.count("sand") > 0 else "")
 	if id == "":
-		hint = "No dirt or sand — dig some with the shovel"
+		hint = tr("No dirt or sand — dig some with the shovel")
 		return
 	var p: Vector3 = look["position"] + look["normal"] * 0.55
 	var feet := global_position
@@ -846,11 +853,11 @@ func _update_ghost(tool: String) -> void:
 		var have := Game.count(tool) > 0
 		_ghost_ok = flat and have
 		_ghost_mat.albedo_color = Color(0.3, 1.0, 0.4, 0.35) if _ghost_ok else Color(1.0, 0.15, 0.15, 0.35)
-		hint = "LMB place %s   ·   B switch   ·   R/Q rotate" % Items.item_name(tool)
+		hint = tr("LMB place %s   ·   B switch   ·   R/Q rotate") % Items.item_name(tool)
 		if not have:
-			hint = "No %s — craft one (Tab)   ·   B switch" % Items.item_name(tool)
+			hint = tr("No %s — craft one (Tab)   ·   B switch") % Items.item_name(tool)
 		elif not flat:
-			hint = "Needs flat ground"
+			hint = tr("Needs flat ground")
 		return
 	var base_yaw := snappedf(yaw, deg_to_rad(15.0))
 	var ref: Node3D = null
@@ -885,10 +892,10 @@ func _update_ghost(tool: String) -> void:
 	c.a = 0.38
 	_ghost_mat.albedo_color = c
 	var cost: Dictionary = StructurePiece.DEFS[tool]["cost"]
-	hint = "LMB place %s (%d %s)   ·   B switch piece   ·   R/Q rotate   ·   F tilt   ·   G snap   ·   support %d%%" % [
+	hint = tr("LMB place %s (%d %s)   ·   B switch piece   ·   R/Q rotate   ·   F tilt   ·   G snap   ·   support %d%%") % [
 		StructurePiece.DEFS[tool]["name"], cost.values()[0], cost.keys()[0], int(maxf(sup, 0.0) * 100.0)]
 	if not afford:
-		hint = "Not enough materials — chop trees (logs are sawn into planks) or mine stone"
+		hint = tr("Not enough materials — chop trees (logs are sawn into planks) or mine stone")
 
 
 func _place_piece(tool: String) -> void:

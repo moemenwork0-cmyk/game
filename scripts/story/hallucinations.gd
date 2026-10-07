@@ -89,9 +89,9 @@ func _process(delta: float) -> void:
 	_shown = move_toward(_shown, intensity, delta * 0.05)
 	var env := _env()
 	if env:
-		if _base_sat < 0.0:
-			_base_sat = env.adjustment_saturation
-		env.adjustment_saturation = lerpf(_base_sat, 0.35, _shown)
+		if _shown > 0.001 or _base_sat > 0.0:
+			_base_sat = 1.0
+			env.adjustment_saturation = lerpf(Settings.saturation * 1.1, 0.35 * Settings.saturation, _shown)
 	_update_figure(delta, p)
 	_update_lights(delta, p)
 	# whispers and heartbeat

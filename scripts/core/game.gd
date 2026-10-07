@@ -3,6 +3,7 @@ extends Node
 
 signal inventory_changed
 signal toast(text: String)
+signal picked(id: String, n: int)
 
 const L_TERRAIN := 1
 const L_PROPS := 2
@@ -22,6 +23,8 @@ var grass_density := 1.0
 var day_number := 1
 ## set before reloading the scene: "" = show main menu, "new" = start fresh, "load" = continue the save
 var start_mode := ""
+## watching the prologue again from the menu: nothing is saved
+var replay := false
 var playing := false
 var grass_range := 70.0
 
@@ -40,6 +43,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	new_game_state()
 	_setup_input()
+	Settings.apply_bindings()
 
 
 ## Clears per-run state before the scene is rebuilt.
@@ -81,7 +85,7 @@ func add_item(id: String, n: int = 1, announce: bool = true) -> void:
 	if story:
 		story.on_item(id, n)
 	if announce:
-		toast.emit("+%d %s" % [n, Items.item_name(id)])
+		picked.emit(id, n)
 
 
 func count(id: String) -> int:
@@ -110,7 +114,7 @@ func use_tool(id: String, amount: int = 1) -> bool:
 		return true
 	tools[id] = maxi(int(tools[id]) - amount, 0)
 	if tools[id] == 0:
-		toast.emit("Your %s broke! Craft a new one (Tab)" % Items.item_name(id))
+		toast.emit(tr("Your %s broke! Craft a new one (Tab)") % Items.item_name(id))
 		if sfx:
 			sfx.play("break", null, -4.0)
 		inventory_changed.emit()
@@ -131,7 +135,7 @@ func craft(recipe: Dictionary) -> bool:
 	var id: String = recipe["id"]
 	if Items.is_tool_item(id):
 		tools[id] = Items.TOOLS[id]
-		toast.emit("Crafted %s" % Items.item_name(id))
+		toast.emit(tr("Crafted %s") % Items.item_name(id))
 	else:
 		add_item(id, 1)
 	if sfx:

@@ -50,7 +50,8 @@ static func font(weight: String = "SemiBold") -> Font:
 
 
 func _ready() -> void:
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	set_anchors_preset(Control.PRESET_TOP_LEFT)
+	size = get_viewport_rect().size
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var th := Theme.new()
 	th.default_font = font("SemiBold")
@@ -156,51 +157,46 @@ func _label(text: String, size: int, color: Color, shadow: bool = false) -> Labe
 	return l
 
 
-## Item pickups go to the right-hand feed, everything else to the centre notice.
+## Item pickups go to the right-hand feed.
+func push_item(id: String, n: int) -> void:
+	var row := PanelContainer.new()
+	var st := StyleBoxFlat.new()
+	st.bg_color = PANEL
+	st.border_color = ACCENT
+	st.border_width_left = 3
+	st.content_margin_left = 10
+	st.content_margin_right = 12
+	st.content_margin_top = 3
+	st.content_margin_bottom = 3
+	row.add_theme_stylebox_override("panel", st)
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 8)
+	var tr_ := TextureRect.new()
+	tr_.texture = icon(ITEM_ICONS.get(id, "build"))
+	tr_.custom_minimum_size = Vector2(24, 24)
+	tr_.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr_.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	hb.add_child(tr_)
+	hb.add_child(_label(Items.item_name(id).to_upper(), 17, TEXT))
+	var nl := _label("+%d" % n, 17, ACCENT)
+	nl.add_theme_font_override("font", font("Bold"))
+	hb.add_child(nl)
+	row.add_child(hb)
+	_feed.add_child(row)
+	if _feed.get_child_count() > 6:
+		_feed.get_child(0).queue_free()
+	row.modulate.a = 0.0
+	var tw := row.create_tween()
+	tw.tween_property(row, "modulate:a", 1.0, 0.15)
+	tw.tween_interval(2.6)
+	tw.tween_property(row, "modulate:a", 0.0, 0.6)
+	tw.tween_callback(row.queue_free)
+
+
+## Everything else goes to the centre notice.
 func push_message(text: String) -> void:
-	if text.begins_with("+"):
-		var parts := text.substr(1).split(" ", false, 1)
-		var n := parts[0]
-		var item := parts[1] if parts.size() > 1 else ""
-		var id := ""
-		for k in Items.NAMES:
-			if Items.NAMES[k] == item:
-				id = k
-		var row := PanelContainer.new()
-		var st := StyleBoxFlat.new()
-		st.bg_color = PANEL
-		st.border_color = ACCENT
-		st.border_width_left = 3
-		st.content_margin_left = 10
-		st.content_margin_right = 12
-		st.content_margin_top = 3
-		st.content_margin_bottom = 3
-		row.add_theme_stylebox_override("panel", st)
-		var hb := HBoxContainer.new()
-		hb.add_theme_constant_override("separation", 8)
-		var tr := TextureRect.new()
-		tr.texture = icon(ITEM_ICONS.get(id, "build"))
-		tr.custom_minimum_size = Vector2(24, 24)
-		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		hb.add_child(tr)
-		hb.add_child(_label(item.to_upper(), 17, TEXT))
-		var nl := _label("+" + n, 17, ACCENT)
-		nl.add_theme_font_override("font", font("Bold"))
-		hb.add_child(nl)
-		row.add_child(hb)
-		_feed.add_child(row)
-		if _feed.get_child_count() > 6:
-			_feed.get_child(0).queue_free()
-		row.modulate.a = 0.0
-		var tw := row.create_tween()
-		tw.tween_property(row, "modulate:a", 1.0, 0.15)
-		tw.tween_interval(2.6)
-		tw.tween_property(row, "modulate:a", 0.0, 0.6)
-		tw.tween_callback(row.queue_free)
-	else:
-		_notice.text = text.to_upper()
-		_notice_t = 3.2
+	_notice.text = text.to_upper()
+	_notice_t = 3.2
 
 
 func slot_changed() -> void:
@@ -210,10 +206,10 @@ func slot_changed() -> void:
 	var s: String = Player.SLOTS[p.slot]
 	var nm: String = Player.SLOT_NAMES[p.slot]
 	if s == "build":
-		nm = StructurePiece.DEFS[Player.BUILD_KINDS[p.build_idx]]["name"]
+		nm = tr(StructurePiece.DEFS[Player.BUILD_KINDS[p.build_idx]]["name"])
 	elif s == "place":
 		nm = Items.item_name(Player.PLACE_KINDS[p.place_idx]).replace(" kit", "")
-	_slot_title.text = nm.to_upper()
+	_slot_title.text = tr(nm).to_upper()
 	_slot_title_t = 1.8
 
 
@@ -232,6 +228,10 @@ func _process(delta: float) -> void:
 		_prompt_label.text = ""
 		_prompt_key.visible = false
 		_tip.text = h
+	if not Settings.hud_hints:
+		_tip.text = ""
+	scale = Vector2.ONE * Settings.hud_scale
+	size = get_viewport_rect().size / Settings.hud_scale
 	_slot_title_t -= delta
 	_slot_title.modulate.a = clampf(_slot_title_t, 0.0, 1.0)
 	_notice_t -= delta
@@ -257,14 +257,18 @@ func _draw() -> void:
 	if p == null:
 		return
 	var vs := size
-	_draw_crosshair(vs * 0.5)
-	_draw_compass(Vector2(vs.x * 0.5, 30), p)
+	if Settings.crosshair:
+		_draw_crosshair(vs * 0.5)
+	if Settings.hud_compass:
+		_draw_compass(Vector2(vs.x * 0.5, 30), p)
 	_draw_vitals(Vector2(32, vs.y - 34), p)
 	_draw_hotbar(Vector2(vs.x * 0.5, vs.y - 26), p)
 	_draw_effort(Vector2(vs.x * 0.5, vs.y - 104), p)
 	# top-right, dropping below the compass when the screen is too narrow for both
-	_draw_objective(Vector2(vs.x - 28, 28 if vs.x - 386.0 > vs.x * 0.5 + 290.0 else 112))
-	_draw_subtitle(Vector2(vs.x * 0.5, vs.y - 196), vs.x)
+	if Settings.hud_objective:
+		_draw_objective(Vector2(vs.x - 28, 28 if vs.x - 386.0 > vs.x * 0.5 + 290.0 or not Settings.hud_compass else 112))
+	if Settings.subtitles:
+		_draw_subtitle(Vector2(vs.x * 0.5, vs.y - 196), vs.x)
 
 
 func ping_objective() -> void:
@@ -304,8 +308,9 @@ func _draw_subtitle(c: Vector2, vw: float) -> void:
 	var a := st.line_alpha
 	var f := font()
 	var w := minf(vw - 120.0, 900.0)
-	var lines := _wrap(st.current_line, f, 22, w)
-	var h := lines.size() * 28.0 + 18.0
+	var fs: int = [18, 22, 28, 34][clampi(Settings.subtitle_size, 0, 3)]
+	var lines := _wrap(st.current_line, f, fs, w)
+	var h := lines.size() * (fs + 6.0) + 18.0
 	var y0 := c.y - h
 	var band := PackedVector2Array([Vector2(c.x - w * 0.5 - 60, y0), Vector2(c.x, y0), Vector2(c.x + w * 0.5 + 60, y0),
 		Vector2(c.x + w * 0.5 + 60, y0 + h), Vector2(c.x, y0 + h), Vector2(c.x - w * 0.5 - 60, y0 + h)])
@@ -314,7 +319,7 @@ func _draw_subtitle(c: Vector2, vw: float) -> void:
 	draw_polygon(PackedVector2Array([band[0], band[1], band[4], band[5]]), PackedColorArray([e, m, m, e]))
 	draw_polygon(PackedVector2Array([band[1], band[2], band[3], band[4]]), PackedColorArray([m, e, e, m]))
 	for i in lines.size():
-		_text(Vector2(c.x - w * 0.5, y0 + 32 + i * 28), lines[i], 22, Color(1, 0.96, 0.88, a), HORIZONTAL_ALIGNMENT_CENTER, "SemiBold", w)
+		_text(Vector2(c.x - w * 0.5, y0 + fs + 10 + i * (fs + 6.0)), lines[i], fs, Color(1, 0.96, 0.88, a), HORIZONTAL_ALIGNMENT_CENTER, "SemiBold", w)
 
 
 ## Greedy word wrap for draw_string (works for Arabic too: words are kept whole).
@@ -373,7 +378,7 @@ func _draw_compass(top: Vector2, p: Player) -> void:
 		var fade := 1.0 - smoothstep(55.0, 80.0, absf(off))
 		if labels.has(deg):
 			var main: bool = String(labels[deg]).length() == 1
-			_text(Vector2(x - 40, top.y + 22), labels[deg], 22 if main else 17,
+			_text(Vector2(x - 40, top.y + 22), tr(labels[deg]), 22 if main else 17,
 				(ACCENT if deg == 0 else TEXT) * Color(1, 1, 1, fade), HORIZONTAL_ALIGNMENT_CENTER, "Bold", 80)
 		elif deg % 15 == 0:
 			_text(Vector2(x - 20, top.y + 18), str(deg), 13, Color(1, 1, 1, 0.5 * fade), HORIZONTAL_ALIGNMENT_CENTER, "SemiBold", 40)
@@ -432,11 +437,12 @@ func _draw_vitals(base: Vector2, p: Player) -> void:
 	var sx := base.x
 	var sy := gy - 46
 	for s in v.status:
-		var w := font().get_string_size(s.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 36
+		var label := tr(s).to_upper()
+		var w := font().get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 36
 		draw_rect(Rect2(sx, sy, w, 24), Color(0.5, 0.08, 0.05, 0.55))
 		draw_rect(Rect2(sx, sy, 3, 24), Color(1.0, 0.4, 0.3))
 		_icon(STATUS_ICONS.get(s, "sick"), Rect2(sx + 7, sy + 4, 16, 16), Color(1, 0.85, 0.8))
-		_text(Vector2(sx + 27, sy + 18), s.to_upper(), 14, Color(1, 0.9, 0.88))
+		_text(Vector2(sx + 27, sy + 18), label, 14, Color(1, 0.9, 0.88))
 		sx += w + 6
 
 

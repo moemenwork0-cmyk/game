@@ -71,7 +71,7 @@ func generate(seed_v: int, progress: Callable, override: Dictionary = {}) -> voi
 	for z in SZ:
 		for x in SX:
 			heights[x + z * SX] = _height_at(ORIGIN.x + x, ORIGIN.z + z)
-	progress.call(0.1, "Raising the island...")
+	progress.call(0.1, "Raising the island")
 	await get_tree().process_frame
 
 	_slices.resize(SZ)
@@ -86,7 +86,7 @@ func generate(seed_v: int, progress: Callable, override: Dictionary = {}) -> voi
 	if not override.is_empty():
 		density = override["density"]
 		materials = override["materials"]
-	progress.call(0.35, "Carving cliffs and caves...")
+	progress.call(0.35, "Carving cliffs and caves")
 	await get_tree().process_frame
 
 	var all: Array[Vector3i] = []
@@ -100,7 +100,7 @@ func generate(seed_v: int, progress: Callable, override: Dictionary = {}) -> voi
 				add_child(ch)
 				all.append(c)
 	_remesh(all)
-	progress.call(0.6, "Growing grass...")
+	progress.call(0.6, "Growing the forest")
 	await get_tree().process_frame
 
 

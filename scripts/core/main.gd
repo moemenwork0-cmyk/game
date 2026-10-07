@@ -14,6 +14,7 @@ const AUTOSAVE_SECONDS := 240.0
 var _menu_cam: Camera3D
 var _menu_t := 0.0
 var _autosave_t := 0.0
+var _autosave_every := AUTOSAVE_SECONDS
 
 
 func _ready() -> void:
@@ -21,12 +22,22 @@ func _ready() -> void:
 	Game.start_mode = ""
 	var args := OS.get_cmdline_user_args()
 	for a in args:
-		if a.begins_with("--test") or a.begins_with("--shot") or a.begins_with("--introshot"):
+		if a.begins_with("--test") or a.begins_with("--shot") or a.begins_with("--cover"):
 			mode = "new"
+		if a.begins_with("--introshot") or a == "--prologue":
+			mode = "replay"
 		if a == "--loadtest":
 			mode = "load"
 		if a.begins_with("--lang="):
 			Settings.language = a.trim_prefix("--lang=")
+			Lang.apply(Settings.language)
+	# the very first launch on this machine goes straight into the prologue
+	if mode == "" and args.is_empty() and not SaveGame.exists():
+		mode = "prologue"
+	Game.replay = mode == "replay"
+	_want_intro = mode == "prologue" or mode == "replay"
+	if _want_intro:
+		mode = "new"
 	var save_data := {}
 	if mode == "load":
 		save_data = SaveGame.read()
@@ -37,7 +48,7 @@ func _ready() -> void:
 	add_child(hud)
 	Game.hud = hud
 	hud.set_gameplay_visible(false)
-	hud.set_loading(0.02, "Tuning the sea...")
+	hud.set_loading(0.02, "Tuning the sea")
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var sfx := Sfx.new()
@@ -45,6 +56,7 @@ func _ready() -> void:
 	Game.sfx = sfx
 
 	_setup_environment()
+	_setup_post()
 	var props := Node3D.new()
 	props.name = "Props"
 	add_child(props)
@@ -79,7 +91,12 @@ func _ready() -> void:
 	var shader_mats: Array[ShaderMaterial] = [world.terrain_material, ocean.mat]
 	dn.setup(env, sky_mat, sun, moon, shader_mats)
 
-	hud.set_loading(0.75, "Planting trees...")
+	hud.set_loading(0.75, "Waking the tide")
+	for a in args:
+		if a.begins_with("--loadshot="):
+			for i in 30:
+				await get_tree().process_frame
+			get_viewport().get_texture().get_image().save_png(a.trim_prefix("--loadshot="))
 	await get_tree().process_frame
 	var rng := RandomNumberGenerator.new()
 	rng.seed = SEED
@@ -94,7 +111,7 @@ func _ready() -> void:
 	apply_quality()
 	Settings.changed.connect(_on_settings_changed)
 
-	hud.set_loading(0.95, "Letting the world settle...")
+	hud.set_loading(0.95, "Letting the world settle")
 	for i in 40:
 		await get_tree().physics_frame
 	hud.hide_loading()
@@ -105,11 +122,11 @@ func _ready() -> void:
 	_debug_shots()
 
 
+var _want_intro := false
+
+
 func _intro_enabled() -> bool:
-	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--test") or a.begins_with("--shot") or a == "--nointro":
-			return false
-	return true
+	return _want_intro
 
 
 ## After the wreck: dawn, a calm sea, face down on the beach that looks out at her.
@@ -137,7 +154,6 @@ func _wake_up(player: Player) -> void:
 	player.vitals.energy = 55.0
 	player.vitals.water = 60.0
 	player.vitals.morale = 55.0
-	Game.hud.fade(0.0, 3.5)
 
 
 ## Leaves the Murjan's cargo on her deck and opens the first objective
@@ -155,6 +171,7 @@ func _begin_story() -> void:
 func _on_settings_changed() -> void:
 	if Game.player:
 		Game.player.camera.fov = Settings.fov
+	_autosave_every = [0.0, 120.0, 240.0, 600.0][clampi(Settings.autosave, 0, 3)]
 
 
 ## Spawns the player and hands control over. data = save (empty for a new island).
@@ -178,11 +195,24 @@ func start_play(data: Dictionary) -> void:
 		if _intro_enabled():
 			Game.hud.set_gameplay_visible(false)
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-			var intro := Intro.new()
-			add_child(intro)
-			await intro.finished
+			var pro := Prologue.new()
+			add_child(pro)
+			await pro.wake_ready
 			_wake_up(player)
+			pro.begin_wake(player)
+			await pro.finished
 		_begin_story()
+		if Game.replay:
+			Game.playing = true
+			Game.hud.set_gameplay_visible(true)
+			await get_tree().create_timer(4.0).timeout
+			var a := OS.get_cmdline_user_args()
+			if "--prologue" in a:
+				get_tree().quit()
+			elif a.is_empty():
+				Game.restart("")
+			return
+		SaveGame.save_now()
 	else:
 		var pd: Dictionary = data["player"]
 		player.global_position = pd["pos"] + Vector3(0, 0.1, 0)
@@ -223,9 +253,11 @@ func _process(delta: float) -> void:
 		var a := _menu_t + 2.3
 		_menu_cam.global_position = Vector3(cos(a) * 52.0, 15.0 + sin(_menu_t * 2.0) * 2.0, sin(a) * 52.0)
 		_menu_cam.look_at(Vector3(0, 3.5, 0))
+		# frame the island beside the menu column, not behind it
+		_menu_cam.rotate_object_local(Vector3.UP, 0.3 if not Lang.is_ar() else -0.3)
 	if Game.playing and not get_tree().paused:
 		_autosave_t += delta
-		if _autosave_t >= AUTOSAVE_SECONDS:
+		if _autosave_every > 0.0 and _autosave_t >= _autosave_every:
 			_autosave_t = 0.0
 			SaveGame.save_now()
 
@@ -262,11 +294,11 @@ func _debug_shots() -> void:
 	if args.has("introshot"):
 		# frames of the opening at the given seconds, then a few after waking up
 		var times: PackedFloat64Array = str(args.get("at", "3,10,17,23")).split_floats(",")
-		var intro: Intro = null
+		var intro: Prologue = null
 		while intro == null:
 			await get_tree().process_frame
 			for c in get_children():
-				if c is Intro:
+				if c is Prologue:
 					intro = c
 		for i in times.size():
 			while is_instance_valid(intro) and intro._t < times[i]:
@@ -279,8 +311,13 @@ func _debug_shots() -> void:
 		get_viewport().get_texture().get_image().save_png("%s/wake.png" % args["introshot"])
 		get_tree().quit()
 		return
+	if args.has("cover"):
+		await _render_cover(str(args["cover"]), float(args.get("hour", "6.45")))
+		get_tree().quit()
+		return
 	if args.has("menushot"):
 		if args.has("settings"):
+			SettingsPanel._tab = int(args.get("tab", "1"))
 			for c in Game.hud.get_children():
 				if c is MainMenu:
 					c._open_settings()
@@ -393,37 +430,84 @@ func _setup_environment() -> void:
 
 ## Applies the graphics preset (Settings.quality: 0 Low, 1 Medium, 2 High, 3 Ultra).
 func apply_quality() -> void:
-	var q := Settings.quality
-	env.ssao_enabled = q >= 1
-	RenderingServer.environment_set_ssao_quality(RenderingServer.ENV_SSAO_QUALITY_LOW if q < 3 else RenderingServer.ENV_SSAO_QUALITY_MEDIUM, q < 3, 0.5, 2, 50.0, 300.0)
-	env.ssil_enabled = q >= 3
-	env.volumetric_fog_enabled = q >= 2
-	env.glow_enabled = true
+	var S := Settings
+	var sh: int = S.shadows
+	env.ssao_enabled = S.ambient_occlusion > 0
+	RenderingServer.environment_set_ssao_quality(RenderingServer.ENV_SSAO_QUALITY_LOW if S.ambient_occlusion < 2 else RenderingServer.ENV_SSAO_QUALITY_MEDIUM,
+		S.ambient_occlusion < 2, 0.5, 2, 50.0, 300.0)
+	env.ssil_enabled = S.indirect_light
+	env.ssr_enabled = S.reflections
+	env.volumetric_fog_enabled = S.volumetric_fog
+	env.glow_enabled = S.bloom
 	env.sdfgi_enabled = false
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if q >= 2 else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
-	sun.directional_shadow_max_distance = [45.0, 65.0, 90.0, 110.0][q]
-	sun.light_angular_distance = 0.4 if q >= 3 else 0.0
-	moon.shadow_enabled = q >= 1
-	RenderingServer.directional_shadow_atlas_set_size([2048, 2048, 4096, 4096][q], true)
+	env.adjustment_enabled = true
+	env.adjustment_brightness = S.brightness
+	env.adjustment_contrast = 1.04 * S.contrast
+	env.adjustment_saturation = 1.1 * S.saturation
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if sh >= 2 else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.directional_shadow_max_distance = S.shadow_distance
+	sun.light_angular_distance = 0.4 if sh >= 3 else 0.0
+	moon.shadow_enabled = sh >= 1
+	RenderingServer.directional_shadow_atlas_set_size([2048, 2048, 4096, 8192][sh], true)
 	var soft: int = [RenderingServer.SHADOW_QUALITY_HARD, RenderingServer.SHADOW_QUALITY_SOFT_VERY_LOW,
-		RenderingServer.SHADOW_QUALITY_SOFT_LOW, RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM][q]
+		RenderingServer.SHADOW_QUALITY_SOFT_LOW, RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM][sh]
 	RenderingServer.directional_soft_shadow_filter_set_quality(soft)
 	RenderingServer.positional_soft_shadow_filter_set_quality(soft)
 	var vp := get_viewport()
-	# MSAA breaks the depth texture the water refraction relies on; FXAA is used instead
+	# MSAA breaks the depth texture the water refraction relies on; FXAA / TAA are used instead
 	vp.msaa_3d = Viewport.MSAA_DISABLED
-	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
-	vp.scaling_3d_scale = clampf(Settings.render_scale, 0.5, 1.0)
-	# FSR upscaling needs Forward+; the web/compatibility renderer falls back to bilinear
-	var fsr_ok := RenderingServer.get_current_rendering_method() == "forward_plus"
-	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if fsr_ok and Settings.render_scale < 0.99 else Viewport.SCALING_3D_MODE_BILINEAR
+	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if S.antialiasing in [1, 3] else Viewport.SCREEN_SPACE_AA_DISABLED
+	var fwd := RenderingServer.get_current_rendering_method() == "forward_plus"
+	vp.use_taa = fwd and S.antialiasing >= 2
+	vp.scaling_3d_scale = clampf(S.render_scale, 0.5, 1.0)
+	# FSR needs Forward+; the web/compatibility renderer falls back to bilinear
+	var mode := Viewport.SCALING_3D_MODE_BILINEAR
+	if fwd and S.upscaler == 1 and S.render_scale < 0.99:
+		mode = Viewport.SCALING_3D_MODE_FSR
+	elif fwd and S.upscaler == 2:
+		mode = Viewport.SCALING_3D_MODE_FSR2
+	vp.scaling_3d_mode = mode
 	vp.fsr_sharpness = 0.4
-	Game.grass_density = [0.35, 0.6, 0.85, 1.0][q]
-	Game.grass_range = [28.0, 45.0, 65.0, 85.0][q]
+	Game.grass_density = [0.35, 0.6, 0.85, 1.0][S.grass]
+	Game.grass_range = S.view_distance
 	if Game.world:
 		Game.world.apply_grass_settings()
 	for c in get_tree().get_nodes_in_group("campfires"):
-		c.set_shadows(q >= 2)
+		c.set_shadows(sh >= 2)
+	_post_mat.set_shader_parameter("grain", 0.045 if S.film_grain else 0.0)
+	_post_mat.set_shader_parameter("vignette", 0.32 if S.vignette else 0.0)
+
+
+var _post_mat: ShaderMaterial
+
+
+## Film grain and lens vignette, drawn under the HUD.
+func _setup_post() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 1
+	add_child(layer)
+	var r := ColorRect.new()
+	r.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_post_mat = ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = """shader_type canvas_item;
+uniform float grain = 0.045;
+uniform float vignette = 0.32;
+float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+void fragment() {
+	vec2 px = floor(FRAGCOORD.xy / 1.5);
+	float n = h(px + fract(TIME * 7.13) * 91.7) - 0.5;
+	float v = smoothstep(0.45, 1.05, length((UV - 0.5) * vec2(1.25, 1.0)) * 1.25) * vignette;
+	// grain over a darkening vignette, composited correctly ("over" operator)
+	float ga = abs(n) * grain;
+	float a = ga + v - ga * v;
+	vec3 c = vec3(step(0.0, n)) * ga * (1.0 - v);
+	COLOR = vec4(a > 0.0 ? c / a : vec3(0.0), a);
+}"""
+	_post_mat.shader = sh
+	r.material = _post_mat
+	layer.add_child(r)
 
 
 func _slope(world: VoxelWorld, x: float, z: float) -> float:
@@ -685,6 +769,42 @@ func _run_tests() -> void:
 	await _phase2_tests()
 	await _story_tests()
 	print("TEST done inventory ", Game.inventory)
+
+
+## Key art for the loading screen, rendered in-engine: the survivor on the beach
+## at dawn, looking out at the wreck of the Murjan.
+func _render_cover(path: String, hour: float) -> void:
+	Game.hud.set_gameplay_visible(false)
+	var p := Game.player
+	Game.playing = false
+	p.visible = false
+	Game.day_night.time_hours = hour
+	Game.day_night.day_minutes = 100000.0
+	Game.weather.force("cloudy")
+	# a lone figure on the west beach, the sun going down over open sea
+	var a := Actor.create("castaway", {"idle": "m_idle_look_around_01"})
+	add_child(a)
+	var spot := Vector3.ZERO
+	for r in range(40, 5, -1):
+		var h := Game.world.surface_height(-float(r), 2.0)
+		if h > 1.0:
+			spot = Vector3(-float(r) + 1.5, 0, 2.0)
+			break
+	spot.y = Game.world.surface_height(spot.x, spot.z)
+	a.global_position = spot
+	a.look_at(spot + Vector3(-1, 0, 0.15), Vector3.UP)
+	a.play("idle", 0.0, 0.0, 1.0)
+	var cam := Camera3D.new()
+	cam.fov = 34.0
+	cam.far = 2000.0
+	add_child(cam)
+	cam.global_position = spot + Vector3(4.2, 0.55, 1.6)
+	cam.look_at(spot + Vector3(-30.0, 3.4, -3.0))
+	cam.current = true
+	get_viewport().use_taa = false
+	for i in 160:
+		await get_tree().process_frame
+	get_viewport().get_texture().get_image().save_png(path)
 
 
 func _world_summary() -> String:

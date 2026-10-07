@@ -112,11 +112,11 @@ func _status_column() -> VBoxContainer:
 	var vb := _column("You", 250)
 	var v := Game.player.vitals
 	for e in [["Health", v.health], ["Food", v.food], ["Water", v.water], ["Energy", v.energy]]:
-		vb.add_child(UiKit.label("%s   %d / 100" % [e[0], int(e[1])], 16))
-	vb.add_child(UiKit.label("Body temperature  %.1f °C" % v.body_temp, 16))
-	vb.add_child(UiKit.label("Wet  %d%%" % int(v.wetness * 100.0), 16))
+		vb.add_child(UiKit.label("%s   %d / 100" % [tr(e[0]), int(e[1])], 16))
+	vb.add_child(UiKit.label(tr("Body temperature  %.1f °C") % v.body_temp, 16))
+	vb.add_child(UiKit.label(tr("Wet  %d%%") % int(v.wetness * 100.0), 16))
 	if not v.status.is_empty():
-		vb.add_child(UiKit.label(" · ".join(v.status), 16, Color(1.0, 0.6, 0.45)))
+		vb.add_child(UiKit.label(" · ".join(Array(v.status).map(func(x: String) -> String: return tr(x))), 16, Color(1.0, 0.6, 0.45)))
 	var tips := UiKit.label("Coconuts give food AND water.\nCook fish on a campfire — raw fish can make you sick.\nRain collectors give fresh water.\nStay dry and near fire at night.\nSleep in a bed to skip the night.", 13, Color(1, 1, 1, 0.45))
 	tips.autowrap_mode = TextServer.AUTOWRAP_WORD
 	tips.custom_minimum_size.x = 250
@@ -139,13 +139,13 @@ func _inventory_column() -> VBoxContainer:
 		if Items.FOOD.has(id):
 			var f: Dictionary = Items.FOOD[id]
 			var b := UiKit.button("Eat", func() -> void: Game.player.vitals.eat(id), 80)
-			b.tooltip_text = "+%d food  +%d water" % [int(f["food"]), int(f["water"])]
+			b.tooltip_text = "+%d %s  +%d %s" % [int(f["food"]), tr("Food"), int(f["water"]), tr("Water")]
 			b.custom_minimum_size.y = 32
 			hb.add_child(b)
 		vb.add_child(hb)
 	if not any:
 		vb.add_child(UiKit.label("Nothing yet — chop, dig, gather.", 15, Color(1, 1, 1, 0.5)))
-	vb.add_child(UiKit.label("Weight  %.0f / %.0f kg" % [Game.carried_weight(), Items.MAX_CARRY], 14, Color(1, 1, 1, 0.55)))
+	vb.add_child(UiKit.label(tr("Weight  %.0f / %.0f kg") % [Game.carried_weight(), Items.MAX_CARRY], 14, Color(1, 1, 1, 0.55)))
 	vb.add_child(UiKit.label("Tools", 20))
 	for t in Items.TOOLS:
 		var d := int(Game.tools.get(t, 0))
@@ -166,7 +166,7 @@ func _craft_column() -> VBoxContainer:
 		for id in r["cost"]:
 			cost.append("%d %s" % [r["cost"][id], Items.item_name(id).to_lower()])
 		info.add_child(UiKit.label(Items.item_name(r["id"]), 16))
-		info.add_child(UiKit.label(", ".join(cost) + " — " + String(r["desc"]), 12, Color(1, 1, 1, 0.5)))
+		info.add_child(UiKit.label(", ".join(cost) + " — " + tr(String(r["desc"])), 12, Color(1, 1, 1, 0.5)))
 		hb.add_child(info)
 		var b := UiKit.button("Craft", func() -> void: Game.craft(r), 90)
 		b.custom_minimum_size.y = 34

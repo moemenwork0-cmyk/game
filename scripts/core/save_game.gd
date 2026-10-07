@@ -118,12 +118,33 @@ static func read(slot: int = 1) -> Dictionary:
 
 
 static func save_now(slot: int = 1) -> bool:
-	if Game.player == null:
+	if Game.player == null or Game.replay:
 		return false
 	var ok := write(capture(), slot)
 	if ok:
-		Game.toast.emit("Game saved")
+		Game.toast.emit(TranslationServer.translate("Game saved"))
 	return ok
+
+
+## What the title screen shows on CONTINUE: the day and who you are.
+static func summary(slot: int = 1) -> Dictionary:
+	var d := read(slot)
+	if d.is_empty():
+		return {}
+	var who := ""
+	var st: Dictionary = d.get("story", {})
+	if not st.is_empty() and StoryData.BACKSTORIES.has(st.get("backstory", "")):
+		who = StoryData.t(StoryData.BACKSTORIES[st["backstory"]]["name"])
+	return {"day": int(d.get("day", 1)), "who": who}
+
+
+## Deletes every save slot (the "start over" option).
+static func erase_all() -> void:
+	var dir := DirAccess.open(DIR)
+	if dir == null:
+		return
+	for f in dir.get_files():
+		dir.remove(f)
 
 
 ## Decompressed terrain arrays for VoxelWorld.generate().

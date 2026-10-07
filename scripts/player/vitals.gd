@@ -101,9 +101,9 @@ func eat(id: String) -> bool:
 	var sick_chance := float(f["sick"]) * (0.3 if Game.story and Game.story.backstory == "medic" else 1.0)
 	if randf() < sick_chance:
 		sick = 6.0
-		Game.toast.emit("You feel sick… raw fish should be cooked first")
+		Game.toast.emit(tr("You feel sick… raw fish should be cooked first"))
 	else:
-		Game.toast.emit("Ate %s" % Items.item_name(id))
+		Game.toast.emit(tr("Ate %s") % Items.item_name(id))
 	if Game.sfx:
 		Game.sfx.play("eat")
 	if float(f["water"]) > 0.0 and Game.story:

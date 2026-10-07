@@ -76,10 +76,10 @@ func _process(_delta: float) -> void:
 
 func drink(vitals: Vitals) -> void:
 	if water < 1.0:
-		Game.toast.emit("The collector is empty — wait for rain")
+		Game.toast.emit(tr("The collector is empty — wait for rain"))
 		return
 	var need := ceilf((100.0 - vitals.water) / 20.0)
 	var sips := minf(floorf(water), maxf(need, 1.0))
 	water -= sips
 	vitals.drink(sips * 20.0)
-	Game.toast.emit("You drink fresh rainwater")
+	Game.toast.emit(tr("You drink fresh rainwater"))

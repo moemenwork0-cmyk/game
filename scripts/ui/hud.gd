@@ -1,9 +1,7 @@
 class_name Hud
 extends CanvasLayer
 
-var _loading: ColorRect
-var _load_label: Label
-var _load_bar: ProgressBar
+var _loading: LoadingScreen
 var _root: Control
 var _cross: Control
 var _slots: Array[PanelContainer] = []
@@ -58,6 +56,9 @@ func _ready() -> void:
 	_build_loading()
 	Game.inventory_changed.connect(_refresh_inventory)
 	Game.toast.connect(_on_toast)
+	Game.picked.connect(func(id: String, n: int) -> void:
+		if _play:
+			_play.push_item(id, n))
 	_refresh_inventory()
 
 
@@ -78,53 +79,21 @@ func _mk_bar(c: Color) -> ProgressBar:
 
 
 func _build_loading() -> void:
-	_loading = ColorRect.new()
-	_loading.color = Color(0.02, 0.04, 0.06)
-	_loading.theme = UiKit.theme()
-	_loading.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_loading = LoadingScreen.new()
 	add_child(_loading)
-	var vb := VBoxContainer.new()
-	vb.set_anchors_preset(Control.PRESET_CENTER)
-	vb.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	vb.grow_vertical = Control.GROW_DIRECTION_BOTH
-	vb.custom_minimum_size = Vector2(420, 0)
-	_loading.add_child(vb)
-	var title := Label.new()
-	title.text = "J A Z I R A"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 44)
-	vb.add_child(title)
-	_load_label = Label.new()
-	_load_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_load_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
-	vb.add_child(_load_label)
-	_load_bar = _mk_bar(Color(0.4, 0.8, 0.9))
-	_load_bar.custom_minimum_size = Vector2(420, 6)
-	vb.add_child(_load_bar)
 
 
 func set_loading(p: float, text: String) -> void:
-	_load_bar.value = p
-	_load_label.text = text
+	_loading.set_progress(p, text)
 
 
 func hide_loading() -> void:
+	_loading.set_progress(1.0, "")
 	var tw := create_tween()
-	tw.tween_property(_loading, "modulate:a", 0.0, 1.2)
+	tw.tween_interval(0.5)
+	tw.tween_property(_loading, "modulate:a", 0.0, 1.4)
 	tw.tween_callback(_loading.queue_free)
 
-
-const CONTROLS_TEXT := """WASD move · Shift sprint · Space jump / swim up · Ctrl dive
-Mouse wheel or 1–9 select tool · E pick up item
-Hand: hold LMB to carry objects (real mass), RMB throw
-Axe: fell trees → logs · Pickaxe: boulders, rock, stone blocks
-Shovel: LMB dig · RMB place dirt/sand
-Beam / Post / Panel / Stone: LMB place · R/Q rotate · F tilt · G snap
-   Pieces need support from the ground — overhangs collapse!
-Tab: needs, food & crafting · X quick-eat · V third person
-Spear: fish in the lagoon, cook them on a campfire (E)
-Place (8): B switches campfire / rain collector / bed
-Hold T to fast-forward time · F1 hide HUD"""
 
 var _pause_menu: VBoxContainer
 var _pause_sub: Control
@@ -132,45 +101,86 @@ var _pause_sub: Control
 
 func _build_pause() -> void:
 	_pause = ColorRect.new()
-	(_pause as ColorRect).color = Color(0, 0, 0, 0.55)
+	(_pause as ColorRect).color = Color(0.01, 0.015, 0.025, 0.78)
 	_pause.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_pause.visible = false
 	_pause.theme = UiKit.theme()
 	add_child(_pause)
-	var panel := PanelContainer.new()
-	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
-	_pause.add_child(panel)
+	var holder := VBoxContainer.new()
+	holder.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
+	holder.offset_left = 110
+	holder.offset_right = 700
+	holder.alignment = BoxContainer.ALIGNMENT_CENTER
+	_pause.add_child(holder)
 	_pause_menu = VBoxContainer.new()
-	_pause_menu.add_theme_constant_override("separation", 10)
-	panel.add_child(_pause_menu)
-	_pause_menu.add_child(UiKit.label("Paused", 30))
-	_pause_menu.add_child(UiKit.button("Resume", func() -> void: set_paused(false)))
-	_pause_menu.add_child(UiKit.button("Save game", func() -> void: SaveGame.save_now()))
-	_pause_menu.add_child(UiKit.button("Settings", func() -> void:
-		var sp := SettingsPanel.new()
-		sp.closed.connect(_close_sub)
-		_open_sub(sp)))
-	_pause_menu.add_child(UiKit.button("Controls", func() -> void:
-		var cp := PanelContainer.new()
-		var vb := VBoxContainer.new()
-		vb.add_theme_constant_override("separation", 14)
-		vb.add_child(UiKit.label("Controls", 30))
-		vb.add_child(UiKit.label(CONTROLS_TEXT, 16, Color(1, 1, 1, 0.8)))
-		vb.add_child(UiKit.button("Back", _close_sub, 140))
-		cp.add_child(vb)
-		cp.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-		cp.grow_horizontal = Control.GROW_DIRECTION_BOTH
-		cp.grow_vertical = Control.GROW_DIRECTION_BOTH
-		_open_sub(cp)))
-	_pause_menu.add_child(UiKit.button("Save & main menu", func() -> void:
+	_pause_menu.add_theme_constant_override("separation", 6)
+	holder.add_child(_pause_menu)
+	_build_pause_items()
+
+
+func _build_pause_items() -> void:
+	for c in _pause_menu.get_children():
+		c.queue_free()
+	_pause_menu.add_child(UiKit.heading(tr("Paused").to_upper(), 48))
+	_pause_menu.add_child(UiKit.rule(320))
+	var sp := Control.new()
+	sp.custom_minimum_size.y = 18
+	_pause_menu.add_child(sp)
+	_pause_menu.add_child(_pause_item(tr("Resume"), func() -> void: set_paused(false)))
+	_pause_menu.add_child(_pause_item(tr("Save game"), func() -> void: SaveGame.save_now()))
+	_pause_menu.add_child(_pause_item(tr("Settings"), func() -> void:
+		var spn := SettingsPanel.new()
+		spn.closed.connect(func() -> void:
+			_close_sub()
+			_build_pause_items())
+		_open_sub(spn)))
+	_pause_menu.add_child(_pause_item(tr("Controls"), func() -> void: _open_sub(_controls_panel())))
+	_pause_menu.add_child(_pause_item(tr("Save & main menu"), func() -> void:
 		SaveGame.save_now()
 		Game.restart("")))
 	if not OS.has_feature("web"):
-		_pause_menu.add_child(UiKit.button("Save & quit", func() -> void:
+		_pause_menu.add_child(_pause_item(tr("Save & quit"), func() -> void:
 			SaveGame.save_now()
 			get_tree().quit()))
+
+
+func _pause_item(text: String, cb: Callable) -> Button:
+	var b := UiKit.button(text.to_upper(), cb, 420)
+	b.add_theme_font_override("font", UiKit.display_font(600))
+	b.add_theme_font_size_override("font_size", 26)
+	return b
+
+
+func _controls_panel() -> Control:
+	var cp := PanelContainer.new()
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 6)
+	vb.add_child(UiKit.heading(tr("Controls").to_upper(), 34))
+	vb.add_child(UiKit.rule(260))
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 26)
+	grid.add_theme_constant_override("v_separation", 6)
+	vb.add_child(grid)
+	var rows: Array = []
+	for e in Settings.SCHEMA:
+		if e["type"] == "key":
+			rows.append([Settings.key_name(e["action"]), tr(e["label"])])
+	rows.append_array([[tr("LMB"), tr("Use tool · hold to carry")], [tr("RMB"), tr("Throw · place dirt")], ["1 – 9", tr("Select tool")],
+		["R / Q", tr("Rotate piece")], ["F", tr("Tilt piece")], ["G", tr("Grid snap")], ["F1", tr("Hide HUD")]])
+	for r in rows:
+		var k := UiKit.label(r[0], 17, UiKit.ACCENT)
+		k.add_theme_font_override("font", UiKit.font("Bold"))
+		grid.add_child(k)
+		grid.add_child(UiKit.label(r[1], 17, Color(1, 1, 1, 0.8)))
+	var back := UiKit.solid_button(tr("Back"), _close_sub, 160)
+	back.size_flags_horizontal = Control.SIZE_SHRINK_END
+	vb.add_child(back)
+	cp.add_child(vb)
+	cp.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	cp.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	cp.grow_vertical = Control.GROW_DIRECTION_BOTH
+	return cp
 
 
 func _open_sub(c: Control) -> void:

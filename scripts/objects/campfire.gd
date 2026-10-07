@@ -155,7 +155,7 @@ func set_shadows(on: bool) -> void:
 func cook_fish() -> void:
 	var n := Game.count("fish_raw")
 	if n <= 0:
-		Game.toast.emit("Catch fish with a spear, then cook them here")
+		Game.toast.emit(tr("Catch fish with a spear, then cook them here"))
 		return
 	Game.inventory["fish_raw"] = 0
 	Game.inventory_changed.emit()
@@ -179,4 +179,4 @@ func cook_fish() -> void:
 		_skewer.position.y = 0.55
 		add_child(_skewer)
 	Game.sfx.play("sizzle", global_position)
-	Game.toast.emit("Cooking %d fish…" % n)
+	Game.toast.emit(tr("Cooking %d fish…") % n)
