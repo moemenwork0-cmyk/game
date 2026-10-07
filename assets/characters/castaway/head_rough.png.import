@@ -2,19 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dyaym6x3klwf6"
-path="res://.godot/imported/castaway_vanguard_vanguard_diffuse_tga.jpg-ea05e710a41a6b6510c9a7b28a606382.ctex"
+uid="uid://cc0xloyql3bit"
+path="res://.godot/imported/head_rough.png-8365882bd9d7897829ac77963b1ff512.ctex"
 metadata={
 "vram_texture": false
-}
-generator_parameters={
-"md5": "48f3ea86b56ac184b64ed3487294eff4"
 }
 
 [deps]
 
-source_file="res://assets/characters/castaway_vanguard_vanguard_diffuse_tga.jpg"
-dest_files=["res://.godot/imported/castaway_vanguard_vanguard_diffuse_tga.jpg-ea05e710a41a6b6510c9a7b28a606382.ctex"]
+source_file="res://assets/characters/castaway/head_rough.png"
+dest_files=["res://.godot/imported/head_rough.png-8365882bd9d7897829ac77963b1ff512.ctex"]
 
 [params]
 
@@ -24,7 +21,7 @@ compress/lossy_quality=0.7
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=true
+mipmaps/generate=false
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""

@@ -2,19 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://5r6w7lf6o4wn"
-path="res://.godot/imported/castaway_file2.jpg-32b2fa735179fe98f0d368dad2239f3c.ctex"
+uid="uid://cnu2yyiqym27x"
+path="res://.godot/imported/body_color.jpg-33f45270504c89ffe9da76cddf5d91e7.ctex"
 metadata={
 "vram_texture": false
-}
-generator_parameters={
-"md5": "097baeaf099c995525c80dfb8d29603d"
 }
 
 [deps]
 
-source_file="res://assets/characters/castaway_file2.jpg"
-dest_files=["res://.godot/imported/castaway_file2.jpg-32b2fa735179fe98f0d368dad2239f3c.ctex"]
+source_file="res://assets/characters/castaway/body_color.jpg"
+dest_files=["res://.godot/imported/body_color.jpg-33f45270504c89ffe9da76cddf5d91e7.ctex"]
 
 [params]
 
@@ -24,7 +21,7 @@ compress/lossy_quality=0.7
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=true
+mipmaps/generate=false
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""

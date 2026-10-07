@@ -1,8 +1,8 @@
 class_name Player
 extends CharacterBody3D
 
-const WALK := 4.2
-const SPRINT := 7.0
+const WALK := 3.4
+const SPRINT := 6.2
 const SWIM := 2.6
 const JUMP_V := 4.9
 const GRAVITY := 9.81
@@ -341,6 +341,7 @@ func _process(delta: float) -> void:
 	_camera_fx(delta)
 	_update_torch(delta)
 	body.swing = _swing_amount
+	body.injured = vitals.health < 30.0 or vitals.energy < 8.0
 	body.animate(delta, Vector2(velocity.x, velocity.z).length(), is_on_floor(), swimming, velocity.y)
 	hint = ""
 	if not can_act():

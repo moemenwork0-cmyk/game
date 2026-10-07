@@ -175,8 +175,12 @@ func _remesh(coords: Array[Vector3i]) -> void:
 		return
 	_task_coords = coords
 	_task_results.clear()
-	var gid := WorkerThreadPool.add_group_task(_mesh_task, coords.size(), -1, true, "mesh")
-	WorkerThreadPool.wait_for_group_task_completion(gid)
+	if OS.has_environment("JAZIRA_SERIAL_MESH"):
+		for i in coords.size():
+			_mesh_task(i)
+	else:
+		var gid := WorkerThreadPool.add_group_task(_mesh_task, coords.size(), -1, true, "mesh")
+		WorkerThreadPool.wait_for_group_task_completion(gid)
 	for c in coords:
 		var ch: TerrainChunk = chunks[c]
 		ch.apply(_task_results[c], terrain_material, grass_mesh, grass_material)
@@ -191,7 +195,7 @@ func _mesh_task(i: int) -> void:
 	_mutex.unlock()
 
 
-func _grad(x: int, y: int, z: int) -> Vector3:
+static func _grad(density: PackedFloat32Array, x: int, y: int, z: int) -> Vector3:
 	var x0 := maxi(x - 1, 0)
 	var x1 := mini(x + 1, SX - 1)
 	var y0 := maxi(y - 1, 0)
@@ -229,6 +233,12 @@ func build_chunk(c: Vector3i) -> Dictionary:
 	var idx := PackedInt32Array()
 	var dens := density
 	var mats := materials
+	# thread-local copies of the lookup tables (shared const Arrays are not safe across worker threads)
+	var corner := PackedVector3Array(CORNER)
+	var corner_off := PackedInt32Array(CORNER_OFF)
+	var edge_a := PackedInt32Array(EDGE_A)
+	var edge_b := PackedInt32Array(EDGE_B)
+	var mat_colors := PackedColorArray(MAT_COLORS)
 	var cd := PackedFloat32Array()
 	cd.resize(8)
 
@@ -238,7 +248,7 @@ func build_chunk(c: Vector3i) -> Dictionary:
 				var i0 := x + y * SX + z * SXY
 				var mask := 0
 				for k in 8:
-					var dv := dens[i0 + CORNER_OFF[k]]
+					var dv := dens[i0 + corner_off[k]]
 					cd[k] = dv
 					if dv > 0.0:
 						mask |= 1 << k
@@ -247,28 +257,28 @@ func build_chunk(c: Vector3i) -> Dictionary:
 				var sum := Vector3.ZERO
 				var cnt := 0
 				for e in 12:
-					var a: int = EDGE_A[e]
-					var b: int = EDGE_B[e]
+					var a: int = edge_a[e]
+					var b: int = edge_b[e]
 					var da := cd[a]
 					var db := cd[b]
 					if (da > 0.0) != (db > 0.0):
 						var t := da / (da - db)
-						sum += (CORNER[a] as Vector3).lerp(CORNER[b], t)
+						sum += corner[a].lerp(corner[b], t)
 						cnt += 1
 				var lp := sum / float(cnt)
 				# smooth normal: trilinear blend of central-difference gradients
 				var g := Vector3.ZERO
 				for k in 8:
-					var co: Vector3 = CORNER[k]
+					var co: Vector3 = corner[k]
 					var wgt := (lp.x if co.x > 0.5 else 1.0 - lp.x) * (lp.y if co.y > 0.5 else 1.0 - lp.y) * (lp.z if co.z > 0.5 else 1.0 - lp.z)
-					g += _grad(x + int(co.x), y + int(co.y), z + int(co.z)) * wgt
+					g += _grad(dens, x + int(co.x), y + int(co.y), z + int(co.z)) * wgt
 				var nrm := -g.normalized() if g.length_squared() > 0.000001 else Vector3.UP
 				var col := Color(0, 0, 0, 0)
 				var wsum := 0.0
 				for k in 8:
 					if cd[k] > 0.0:
 						var w := minf(cd[k], 1.0) + 0.2
-						var mc: Color = MAT_COLORS[mats[i0 + CORNER_OFF[k]]]
+						var mc: Color = mat_colors[mats[i0 + corner_off[k]]]
 						col += mc * w
 						wsum += w
 				col /= wsum
