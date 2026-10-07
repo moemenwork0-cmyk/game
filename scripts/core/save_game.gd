@@ -3,7 +3,7 @@ extends RefCounted
 ## Whole-world save/load: terrain edits, trees, loose items, buildings, campfires,
 ## inventory, player and time of day. One compressed file per slot.
 
-const VERSION := 1
+const VERSION := 2
 const DIR := "user://saves"
 
 
@@ -39,6 +39,14 @@ static func capture() -> Dictionary:
 		"items": [],
 		"structures": [],
 		"campfires": [],
+		"collectors": [],
+		"beds": [],
+		"bushes": {},
+		"vitals": p.vitals.to_dict(),
+		"tools": Game.tools.duplicate(),
+		"weather": Game.weather.to_dict() if Game.weather else {},
+		"respawn": Game.respawn_point,
+		"third_person": p.third_person,
 	}
 	for t in Game.get_tree().get_nodes_in_group("island_trees"):
 		var tree: IslandTree = t
@@ -54,7 +62,15 @@ static func capture() -> Dictionary:
 			e["sleeping"] = it.sleeping
 			data["items"].append(e)
 		elif c is Campfire:
-			data["campfires"].append(c.global_position)
+			data["campfires"].append({"pos": c.global_position, "cooking": c.cooking})
+		elif c is RainCollector:
+			data["collectors"].append({"xf": c.global_transform, "water": c.water})
+		elif c is Bed:
+			data["beds"].append(c.global_transform)
+	var bushes := Game.get_tree().get_nodes_in_group("bushes")
+	for i in bushes.size():
+		if bushes[i].regrow_day > 0:
+			data["bushes"][i] = bushes[i].regrow_day
 	for piece in Game.structures.pieces:
 		data["structures"].append({"kind": piece.kind, "xf": piece.global_transform})
 	return data
@@ -131,6 +147,8 @@ static func restore_objects(data: Dictionary, parent: Node) -> void:
 				it = PhysicsItem.make_stone(xf.origin, e["size"], rng, int(e["seed"]))
 			"boulder":
 				it = Boulder.create(xf.origin, e["size"], rng, int(e["seed"]))
+			"coconut":
+				it = PhysicsItem.make_coconut(xf.origin)
 			"piece":
 				var piece := StructurePiece.create(e["kind"])
 				Game.props.add_child(piece)
@@ -144,8 +162,27 @@ static func restore_objects(data: Dictionary, parent: Node) -> void:
 		it.angular_velocity = e.get("av", Vector3.ZERO)
 		if e.get("sleeping", false):
 			it.sleeping = true
-	for pos in data["campfires"]:
-		Campfire.create(pos)
+	for e in data["campfires"]:
+		var cf := Campfire.create(e["pos"])
+		if int(e.get("cooking", 0)) > 0:
+			Game.inventory["fish_raw"] = int(e["cooking"])
+			cf.cook_fish()
+	for e in data.get("collectors", []):
+		var rc := RainCollector.create(Vector3.ZERO)
+		rc.global_transform = e["xf"]
+		rc.water = float(e["water"])
+	for xf in data.get("beds", []):
+		var bed := Bed.create(Vector3.ZERO)
+		bed.global_transform = xf
+	var bushes := Game.get_tree().get_nodes_in_group("bushes")
+	var saved_bushes: Dictionary = data.get("bushes", {})
+	for i in saved_bushes:
+		if int(i) < bushes.size():
+			bushes[int(i)].set_regrow_day(int(saved_bushes[i]))
+	Game.tools = data.get("tools", Game.tools).duplicate()
+	Game.respawn_point = data.get("respawn", Vector3.INF)
+	if Game.weather and data.has("weather"):
+		Game.weather.from_dict(data["weather"])
 	Game.inventory = data["inventory"].duplicate()
 	Game.day_number = int(data.get("day", 1))
 	Game.inventory_changed.emit()

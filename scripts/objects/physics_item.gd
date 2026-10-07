@@ -135,3 +135,31 @@ static func make_stone(pos: Vector3, size: float, rng: RandomNumberGenerator, fi
 	it.global_position = pos
 	it.rotation = Vector3(rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU)
 	return it
+
+
+static func make_coconut(pos: Vector3) -> PhysicsItem:
+	var it := PhysicsItem.new()
+	it.item_id = "coconut"
+	it.display_name = "Coconut"
+	it.save_info = {"type": "coconut"}
+	var mi := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.1
+	sm.height = 0.22
+	sm.radial_segments = 12
+	sm.rings = 6
+	mi.mesh = sm
+	mi.material_override = Mats.get_mat("coconut")
+	it.add_child(mi)
+	var cs := CollisionShape3D.new()
+	var sp := SphereShape3D.new()
+	sp.radius = 0.1
+	cs.shape = sp
+	it.add_child(cs)
+	it.volume = 0.0045
+	it.mass = 1.2
+	it.float_points.append(Vector3.ZERO)
+	it.continuous_cd = true
+	Game.props.add_child(it)
+	it.global_position = pos
+	return it

@@ -25,15 +25,19 @@ var start_mode := ""
 var playing := false
 var grass_range := 70.0
 
-var inventory := {"log": 0, "plank": 0, "stone": 0, "dirt": 0, "sand": 0}
+var weather: Weather
+var ui_open := false
 
-const ITEM_NAMES := {
-	"log": "Log", "plank": "Plank", "stone": "Stone", "dirt": "Dirt", "sand": "Sand",
-}
+var inventory := {}
+## tool -> remaining durability (0 = missing / broken)
+var tools := {}
+## world position you respawn at (your bed)
+var respawn_point := Vector3.INF
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	new_game_state()
 	_setup_input()
 
 
@@ -48,7 +52,16 @@ func reset() -> void:
 	props = null
 	playing = false
 	day_number = 1
+	weather = null
+	ui_open = false
+	respawn_point = Vector3.INF
+	new_game_state()
+
+
+## What a castaway starts with: worn tools salvaged from the wreck.
+func new_game_state() -> void:
 	inventory = {"log": 0, "plank": 0, "stone": 0, "dirt": 0, "sand": 0}
+	tools = {"axe": 80, "pickaxe": 60, "shovel": 80, "spear": 0, "torch": 0}
 
 
 func restart(mode: String) -> void:
@@ -64,13 +77,60 @@ func add_item(id: String, n: int = 1, announce: bool = true) -> void:
 	inventory[id] = int(inventory.get(id, 0)) + n
 	inventory_changed.emit()
 	if announce:
-		toast.emit("+%d %s" % [n, ITEM_NAMES.get(id, id)])
+		toast.emit("+%d %s" % [n, Items.item_name(id)])
 
 
 func count(id: String) -> int:
 	if id == "plank":
 		return int(inventory["plank"]) + int(inventory["log"]) * 4
 	return int(inventory.get(id, 0))
+
+
+func carried_weight() -> float:
+	var w := 0.0
+	for id in inventory:
+		w += float(Items.WEIGHT.get(id, 0.5)) * int(inventory[id])
+	return w
+
+
+func has_tool(id: String) -> bool:
+	return int(tools.get(id, 0)) > 0
+
+
+## Wears a tool down; returns false if it just broke.
+func use_tool(id: String, amount: int = 1) -> bool:
+	if not tools.has(id):
+		return true
+	tools[id] = maxi(int(tools[id]) - amount, 0)
+	if tools[id] == 0:
+		toast.emit("Your %s broke! Craft a new one (Tab)" % Items.item_name(id))
+		if sfx:
+			sfx.play("break", null, -4.0)
+		inventory_changed.emit()
+		return false
+	return true
+
+
+func can_afford(cost: Dictionary) -> bool:
+	for id in cost:
+		if count(id) < int(cost[id]):
+			return false
+	return true
+
+
+func craft(recipe: Dictionary) -> bool:
+	if not take(recipe["cost"]):
+		return false
+	var id: String = recipe["id"]
+	if Items.is_tool_item(id):
+		tools[id] = Items.TOOLS[id]
+		toast.emit("Crafted %s" % Items.item_name(id))
+	else:
+		add_item(id, 1)
+	if sfx:
+		sfx.play("place", null, -6.0)
+	inventory_changed.emit()
+	return true
 
 
 ## Removes items; planks are sawn from logs automatically (1 log -> 4 planks).
@@ -84,7 +144,7 @@ func take(cost: Dictionary) -> bool:
 			while int(inventory["plank"]) < n:
 				inventory["log"] = int(inventory["log"]) - 1
 				inventory["plank"] = int(inventory["plank"]) + 4
-		inventory[id] = int(inventory[id]) - n
+		inventory[id] = int(inventory.get(id, 0)) - n
 	inventory_changed.emit()
 	return true
 
@@ -129,6 +189,10 @@ func _setup_input() -> void:
 	_key("time_skip", [KEY_T])
 	_key("toggle_hud", [KEY_F1])
 	_key("pause", [KEY_ESCAPE])
+	_key("inventory", [KEY_TAB, KEY_I])
+	_key("eat", [KEY_X])
+	_key("camera_toggle", [KEY_V])
+	_key("cycle", [KEY_B])
 	for i in 9:
 		_key("slot_%d" % (i + 1), [KEY_1 + i])
 	_mouse("primary", MOUSE_BUTTON_LEFT)

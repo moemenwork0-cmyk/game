@@ -13,6 +13,8 @@ const WAVES := [
 ]
 
 var time := 0.0
+## grows with wind; storms raise real waves (matched on the CPU for buoyancy)
+var wave_scale := 1.0
 var mat: ShaderMaterial
 var _far_mat: ShaderMaterial
 var _k := PackedFloat32Array()
@@ -70,6 +72,8 @@ func _process(delta: float) -> void:
 	time += delta
 	mat.set_shader_parameter("wave_time", time)
 	_far_mat.set_shader_parameter("wave_time", time)
+	mat.set_shader_parameter("wave_scale", wave_scale)
+	_far_mat.set_shader_parameter("wave_scale", wave_scale)
 	var cam := get_viewport().get_camera_3d()
 	if cam:
 		var step := SIZE / float(SUBDIV + 1)
@@ -82,7 +86,7 @@ func get_height(x: float, z: float) -> float:
 	var p := Vector2(x, z)
 	for i in _k.size():
 		var f := _k[i] * (_d[i].dot(p) - _c[i] * time)
-		h += _a[i] * sin(f)
+		h += _a[i] * wave_scale * sin(f)
 	return h
 
 

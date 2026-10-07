@@ -17,6 +17,7 @@ uniform vec3 rock_b : source_color = vec3(0.27, 0.25, 0.23);
 uniform float water_level = 0.0;
 uniform float daylight = 1.0;
 uniform float wave_time = 0.0;
+uniform float wetness = 0.0;
 
 varying vec3 wpos;
 varying vec3 wnrm;
@@ -89,8 +90,11 @@ void fragment() {
 		albedo += vec3(0.6, 0.85, 0.9) * caus * uw * daylight * 0.6 * exp(above * 0.12);
 	}
 
+	// rain soaks everything: darker, glossier
+	float rainwet = wetness * smoothstep(-0.2, 0.6, n.y + 0.4);
+	albedo *= 1.0 - rainwet * 0.45;
 	ALBEDO = albedo;
-	ROUGHNESS = clamp(0.96 - wet * s * 0.6 - wet * 0.15 - r * 0.1, 0.2, 1.0);
+	ROUGHNESS = clamp(0.96 - wet * s * 0.6 - wet * 0.15 - r * 0.1 - rainwet * 0.3, 0.3, 1.0);
 	SPECULAR = 0.35 + wet * 0.2;
 	float ns = 0.45 * g + 0.5 * s + 1.1 * r + 0.8 * dt;
 	vec3 wn = tri_n(tex_normal, wpos * 0.33, b, n, ns);

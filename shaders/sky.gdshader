@@ -3,6 +3,8 @@ shader_type sky;
 uniform vec3 sun_dir = vec3(0.0, 0.6, 0.6);
 uniform sampler2D cloud_tex : filter_linear_mipmap, repeat_enable;
 uniform float cloud_coverage = 0.46;
+uniform float overcast = 0.0;
+uniform float flash = 0.0;
 
 float hash3(vec3 p) {
 	p = fract(p * vec3(443.897, 441.423, 437.195));
@@ -71,5 +73,11 @@ void sky() {
 		lit += vec3(1.0, 0.8, 0.6) * pow(sd, 6.0) * 0.7 * day;
 		col = mix(col, lit, c * 0.93);
 	}
+	// overcast: flatten the sky toward grey, scaled by how bright it is
+	float lum = dot(col, vec3(0.3, 0.5, 0.2));
+	vec3 grey = vec3(lum) * mix(vec3(0.95, 0.97, 1.0), vec3(0.55, 0.6, 0.66), overcast);
+	col = mix(col, grey, overcast * 0.85);
+	col *= 1.0 - overcast * overcast * 0.6;
+	col += vec3(0.7, 0.75, 1.0) * flash * 2.0 * step(0.0, d.y);
 	COLOR = col;
 }

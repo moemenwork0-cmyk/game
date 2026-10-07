@@ -16,6 +16,7 @@ var canopy_radius := 2.0
 var visual := Node3D.new()
 var body := StaticBody3D.new()
 var _rng := RandomNumberGenerator.new()
+var _coconuts: Array[Node3D] = []
 
 
 func setup(p_kind: String, seed_v: int) -> void:
@@ -199,7 +200,9 @@ func _build_palm() -> void:
 		c.material_override = Mats.get_mat("coconut")
 		var a := _rng.randf() * TAU
 		c.position = top + Vector3(cos(a) * 0.18, -0.2, sin(a) * 0.18)
+		c.set_meta("coconut", true)
 		visual.add_child(c)
+		_coconuts.append(c)
 
 
 func _frond_quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, u0: float, u1: float, v0: float, v1: float, col: Color) -> void:
@@ -233,6 +236,12 @@ func hit(dir: Vector3, point: Vector3) -> void:
 	var q0 := visual.quaternion
 	tw.tween_property(visual, "quaternion", Quaternion(axis, -0.025) * q0, 0.06)
 	tw.tween_property(visual, "quaternion", q0, 0.35).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	# chopping shakes coconuts loose
+	if kind == "palm" and not _coconuts.is_empty() and _rng.randf() < 0.45:
+		var c: Node3D = _coconuts.pop_back()
+		var it := PhysicsItem.make_coconut(c.global_position)
+		it.linear_velocity = Vector3(_rng.randf_range(-1, 1), 0, _rng.randf_range(-1, 1))
+		c.queue_free()
 	if hp <= 0:
 		fell(dir)
 
@@ -385,6 +394,9 @@ static func _break_into_logs(info: Dictionary) -> void:
 			acc = 0.0
 			logs += 1
 		acc += d - t
+	for n in rb.find_children("*", "MeshInstance3D", true, false):
+		if n.has_meta("coconut"):
+			PhysicsItem.make_coconut(n.global_position)
 	var canopy: Vector3 = info["canopy"]
 	Fx.burst(xf * canopy, Color(0.25, 0.4, 0.1), 60, 3.0, 0.14, 2.2, 3.0, Vector3.UP, 180.0, true)
 	if Game.sfx:

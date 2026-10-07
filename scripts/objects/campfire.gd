@@ -5,6 +5,10 @@ extends StaticBody3D
 var _light: OmniLight3D
 var _t := 0.0
 var _rng := RandomNumberGenerator.new()
+var cooking := 0
+var _cook_t := 0.0
+var _skewer: Node3D
+const COOK_TIME := 6.0
 
 
 static func create(pos: Vector3) -> Campfire:
@@ -127,9 +131,52 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
-	_light.light_energy = 2.2 + sin(_t * 11.0) * 0.25 + sin(_t * 23.0 + 1.3) * 0.2 + _rng.randf() * 0.25
+	var rain := Game.weather.rain if Game.weather else 0.0
+	var strength := 1.0 - rain * 0.55
+	_light.light_energy = (2.2 + sin(_t * 11.0) * 0.25 + sin(_t * 23.0 + 1.3) * 0.2 + _rng.randf() * 0.25) * strength
+	if cooking > 0:
+		_cook_t += delta
+		_skewer.visible = true
+		if _cook_t >= COOK_TIME:
+			_cook_t = 0.0
+			cooking -= 1
+			Game.add_item("fish_cooked", 1)
+			Game.sfx.play("pickup", global_position, -4.0)
+	elif _skewer:
+		_skewer.visible = false
 	_light.position = Vector3(sin(_t * 7.0) * 0.04, 0.6 + sin(_t * 9.0) * 0.04, cos(_t * 5.0) * 0.04)
 
 
 func set_shadows(on: bool) -> void:
 	_light.shadow_enabled = on
+
+
+## Puts all raw fish on the fire; each one is done after COOK_TIME seconds.
+func cook_fish() -> void:
+	var n := Game.count("fish_raw")
+	if n <= 0:
+		Game.toast.emit("Catch fish with a spear, then cook them here")
+		return
+	Game.inventory["fish_raw"] = 0
+	Game.inventory_changed.emit()
+	cooking += n
+	if _skewer == null:
+		_skewer = Node3D.new()
+		var stick := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.012
+		cm.bottom_radius = 0.012
+		cm.height = 0.9
+		cm.material = Mats.get_mat("handle")
+		stick.mesh = cm
+		stick.rotation.z = PI / 2
+		_skewer.add_child(stick)
+		var fish := MeshInstance3D.new()
+		fish.mesh = FishSchool.fish_mesh()
+		fish.material_override = FishSchool.cooked_material()
+		fish.rotation.y = PI / 2
+		_skewer.add_child(fish)
+		_skewer.position.y = 0.55
+		add_child(_skewer)
+	Game.sfx.play("sizzle", global_position)
+	Game.toast.emit("Cooking %d fish…" % n)

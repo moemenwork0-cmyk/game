@@ -19,6 +19,7 @@ uniform vec3 deep_col : source_color = vec3(0.006, 0.06, 0.12);
 uniform vec3 absorb = vec3(0.42, 0.075, 0.05);
 uniform float daylight = 1.0;
 uniform bool displace = true;
+uniform float wave_scale = 1.0;
 
 varying vec3 wpos;
 varying float crest;
@@ -28,7 +29,7 @@ vec3 gerstner(vec4 w, vec2 p, inout vec3 tn, inout vec3 bn) {
 	float c = sqrt(9.8 / k);
 	vec2 d = normalize(w.xy);
 	float f = k * (dot(d, p) - c * wave_time);
-	float s = w.z;
+	float s = w.z * wave_scale;
 	float a = s / k;
 	float sf = sin(f);
 	float cf = cos(f);

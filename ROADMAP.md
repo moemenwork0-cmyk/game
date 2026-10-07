@@ -20,14 +20,18 @@ The base everything else sits on.
 - Settings: graphics, resolution scale, fullscreen, mouse sensitivity, volume — saved to disk
 - Save / load the whole world (terrain edits, trees, items, buildings, inventory, time) + autosave
 
-## Phase 2 — The body: survival & the player character  ⏭ (next)
-- Third-person / first-person toggle with an animated character (asset: Quaternius / Mixamo style)
-- Health, hunger, thirst, stamina, temperature, sleep
-- Food: fishing, coconuts, fruit, cooking on the campfire; water: rain collector, boiling
-- Crafting menu + workbench; tool durability; inventory with weight
-- Weather: rain, storms, wind that affects waves and fire
+## Phase 2 — The body: survival & the player character ✅ (done, character art pending)
+- ✅ Health, hunger, thirst, energy/sleep, body temperature, wetness, food poisoning, fall damage, drowning
+- ✅ Food: coconuts (shake them loose by chopping palms), berry bushes that regrow, fish schools + spear,
+  cooking on the campfire; water: coconuts and rain collectors
+- ✅ Crafting screen (Tab), tool durability, carry weight that slows you down
+- ✅ Weather: clear / cloudy / rain / storm with lightning & thunder, wind that bends grass and trees and
+  raises real waves (buoyancy follows them), rain fills collectors and soaks you
+- ✅ Bed: sleep through the night, respawn point; death → wake up at your bed and lose half your load
+- ✅ Third-person camera (V) with a procedurally animated placeholder body
+- ⏳ Realistic rigged character + animations (needs a 3D asset — see "Art assets" below)
 
-## Phase 3 — The opening story
+## Phase 3 — The opening story  ⏭ (next)
 - Intro: shipwreck cutscene → wake up on the beach
 - Tutorial missions woven into the story (find water, make fire, build shelter, signal fire)
 - Journal / mission log UI, objectives on screen

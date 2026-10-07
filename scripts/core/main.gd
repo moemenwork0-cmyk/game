@@ -65,6 +65,9 @@ func _ready() -> void:
 	var dn := DayNight.new()
 	add_child(dn)
 	Game.day_night = dn
+	var weather := Weather.new()
+	add_child(weather)
+	Game.weather = weather
 	var shader_mats: Array[ShaderMaterial] = [world.terrain_material, ocean.mat]
 	dn.setup(env, sky_mat, sun, moon, shader_mats)
 
@@ -73,6 +76,7 @@ func _ready() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = SEED
 	_spawn_bushes()
+	_spawn_fish()
 	if save_data.is_empty():
 		_populate(rng)
 	else:
@@ -108,19 +112,23 @@ func start_play(data: Dictionary) -> void:
 	add_child(player)
 	Game.player = player
 	if data.is_empty():
-		var rng := RandomNumberGenerator.new()
-		rng.seed = SEED + 1
-		var spawn := _find_spawn(rng)
+		Game.new_game_state()
+		Game.respawn_point = Vector3.INF
+		Game.weather.force("clear")
+		var spawn := default_spawn()
 		player.global_position = spawn
 		player.look_toward(Vector3(0, spawn.y, 0))
 		Game.day_night.time_hours = 7.2
-		Game.toast.emit("Welcome to Jazira. Press Esc for the menu.")
+		Game.toast.emit("You wash up on a tiny island. Tab: crafting & needs · Esc: menu")
 	else:
 		var pd: Dictionary = data["player"]
 		player.global_position = pd["pos"] + Vector3(0, 0.1, 0)
 		player.yaw = float(pd["yaw"])
 		player.pitch = float(pd["pitch"])
 		player.stamina = float(pd.get("stamina", 1.0))
+		player.vitals.from_dict(data.get("vitals", {}))
+		if data.get("third_person", false):
+			player.toggle_camera()
 		Game.toast.emit("Welcome back — day %d" % Game.day_number)
 	Game.playing = true
 	Game.hud.set_gameplay_visible(true)
@@ -212,6 +220,15 @@ func _debug_shots() -> void:
 		env.ssil_enabled = "il" in f
 		env.volumetric_fog_enabled = "vf" in f
 		env.glow_enabled = "gl" in f
+	if args.has("weather"):
+		Game.weather.force(str(args["weather"]))
+	if args.has("tp"):
+		Game.player.toggle_camera()
+	if args.has("panel"):
+		Game.add_item("coconut", 2, false)
+		Game.add_item("log", 3, false)
+		Game.add_item("stone", 5, false)
+		Game.hud.toggle_survival_panel()
 	if args.has("clean"):
 		Game.hud.visible = false
 	if args.has("nowater"):
@@ -412,6 +429,13 @@ func _populate(rng: RandomNumberGenerator) -> void:
 		var bas := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, PI * 0.5)
 		PhysicsItem.make_log(Vector3(x, h + 0.35, z), bas, rng.randf_range(0.12, 0.17), rng.randf_range(1.3, 2.0))
 		logs += 1
+	# a few coconuts have already fallen
+	var palm_trees := get_tree().get_nodes_in_group("trees").filter(func(t: Node) -> bool: return t.kind == "palm")
+	for i in mini(5, palm_trees.size()):
+		var t: Node3D = palm_trees[i * 2 % palm_trees.size()]
+		var off := Vector3(rng.randf_range(-1.5, 1.5), 0, rng.randf_range(-1.5, 1.5))
+		var cp := t.global_position + off
+		PhysicsItem.make_coconut(Vector3(cp.x, world.surface_height(cp.x, cp.z) + 0.3, cp.z))
 
 
 ## Bushes are pure decoration, so they are regenerated identically on every load.
@@ -419,8 +443,7 @@ func _spawn_bushes() -> void:
 	var world := Game.world
 	var rng := RandomNumberGenerator.new()
 	rng.seed = SEED + 99
-	var bush_mat := Mats.get_mat("leaves_bush")
-	for i in 26:
+	for i in 30:
 		var a := rng.randf() * TAU
 		var r := sqrt(rng.randf()) * 24.0
 		var x := cos(a) * r
@@ -428,16 +451,37 @@ func _spawn_bushes() -> void:
 		var h := world.surface_height(x, z)
 		if h < 2.0 or _slope(world, x, z) > 0.6:
 			continue
-		var st := SurfaceTool.new()
-		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		for c in rng.randi_range(2, 4):
-			IslandTree.add_leaf_cluster(st, rng, Vector3(0, 0.3, 0), Vector3(rng.randf_range(-0.5, 0.5), rng.randf_range(0.25, 0.55), rng.randf_range(-0.5, 0.5)), rng.randf_range(0.5, 0.8), 45)
-		var mi := MeshInstance3D.new()
-		mi.mesh = st.commit()
-		mi.material_override = bush_mat
-		add_child(mi)
-		mi.global_position = Vector3(x, h - 0.1, z)
+		BerryBush.create(self, Vector3(x, h - 0.1, z), rng, rng.randf() < 0.5)
 
+
+func default_spawn() -> Vector3:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = SEED + 1
+	return _find_spawn(rng)
+
+
+## Fish schools live where the lagoon is 1–3 m deep.
+func _spawn_fish() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = SEED + 7
+	var spots: Array[Vector3] = []
+	var tries := 0
+	while spots.size() < 4 and tries < 2000:
+		tries += 1
+		var a := rng.randf() * TAU
+		var r := rng.randf_range(22.0, 34.0)
+		var p := Vector3(cos(a) * r, 0, sin(a) * r)
+		var bed := Game.world.surface_height(p.x, p.z)
+		if bed > -3.2 and bed < -1.0:
+			var far_enough := true
+			for q in spots:
+				if q.distance_to(p) < 12.0:
+					far_enough = false
+			if far_enough:
+				p.y = bed + 0.6
+				spots.append(p)
+	for i in spots.size():
+		FishSchool.create(self, spots[i], SEED + i)
 
 
 func _find_spawn(rng: RandomNumberGenerator) -> Vector3:
@@ -528,7 +572,7 @@ func _run_tests() -> void:
 	p._dig(p._look(4.0))
 	print("TEST shovel dig -> inv dirt/sand ", Game.inventory["dirt"], "/", Game.inventory["sand"])
 	p.pitch = -0.9
-	p._select_slot(4)
+	p._select_slot(6)
 	for i in 5:
 		await get_tree().process_frame
 	print("TEST ghost visible=", p._ghost.visible, " ok=", p._ghost_ok, " hint=", p.hint)
@@ -542,14 +586,9 @@ func _run_tests() -> void:
 	print("TEST grabbed=", p.held)
 	for i in 60:
 		await get_tree().physics_frame
-	print("TEST held log offset from target=%.2f" % (lg2.global_position.distance_to(p.camera.global_position - p.camera.global_basis.z * p.held_dist)))
+	print("TEST held log offset from target=%.2f" % (lg2.global_position.distance_to(p.head.global_position - p.camera.global_basis.z * p.held_dist)))
 	p._throw()
-	p._select_slot(8)
-	p.pitch = -1.3
-	await get_tree().physics_frame
-	p._place_campfire(p._look(4.0))
-	for i in 30:
-		await get_tree().process_frame
+	await _phase2_tests()
 	print("TEST done inventory ", Game.inventory)
 
 
@@ -560,7 +599,109 @@ func _world_summary() -> String:
 	for c in Game.props.get_children():
 		if c is PhysicsItem and not c.is_queued_for_deletion():
 			items += 1
-	return "trees=%d stumps=%d items=%d pieces=%d campfires=%d h(5,5)=%.2f day=%d inv=%s" % [
+	var v := Game.player.vitals
+	return "trees=%d stumps=%d items=%d pieces=%d campfires=%d collectors=%d beds=%d h(5,5)=%.2f day=%d food=%.0f water=%.0f tools=%s weather=%s inv=%s" % [
 		alive, all_trees - alive, items, Game.structures.pieces.size(),
-		get_tree().get_nodes_in_group("campfires").size(), Game.world.surface_height(5, 5),
-		Game.day_number, Game.inventory]
+		get_tree().get_nodes_in_group("campfires").size(), get_tree().get_nodes_in_group("collectors").size(),
+		get_tree().get_nodes_in_group("beds").size(), Game.world.surface_height(5, 5),
+		Game.day_number, v.food, v.water, Game.tools, Game.weather.state, Game.inventory]
+
+
+func _phase2_tests() -> void:
+	var p := Game.player
+	var v := p.vitals
+	# needs drain over time
+	var f0 := v.food
+	var w0 := v.water
+	v.advance(5.0)
+	print("TEST2 5h: food %.0f->%.0f water %.0f->%.0f energy %.0f" % [f0, v.food, w0, v.water, v.energy])
+	# coconut: food + water
+	Game.add_item("coconut", 1, false)
+	var fw := v.food + v.water
+	v.eat("coconut")
+	print("TEST2 coconut eaten: food+water +%.0f" % (v.food + v.water - fw))
+	# crafting
+	Game.add_item("log", 6, false)
+	Game.add_item("stone", 12, false)
+	var crafted := []
+	for r in Items.RECIPES:
+		if r["id"] in ["spear", "torch", "campfire", "collector", "bed"]:
+			crafted.append("%s=%s" % [r["id"], Game.craft(r)])
+	print("TEST2 crafted ", crafted, " spear=", Game.tools["spear"], " kits=", Game.count("campfire"), Game.count("collector"), Game.count("bed"))
+	# fishing: put a fish right in front of the spear
+	var school: FishSchool = get_tree().get_nodes_in_group("fish_schools")[0]
+	p.global_position = school.home + Vector3(0, 0.5, 2.0)
+	p.set_physics_process(false)
+	p.look_toward(school.home)
+	p.rotation.y = p.yaw
+	p.pitch = 0.0
+	p.head.rotation.x = 0.0
+	await get_tree().process_frame
+	var fish_node: Node3D = school.fish[0]["node"]
+	school.set_process(false)
+	fish_node.global_position = p.head.global_position - p.camera.global_basis.z * 1.5
+	p._select_slot(4)
+	p._thrust()
+	await get_tree().create_timer(0.3).timeout
+	print("TEST2 spear catch -> raw fish ", Game.count("fish_raw"), " schools=", get_tree().get_nodes_in_group("fish_schools").size())
+	school.set_process(true)
+	p.set_physics_process(true)
+	# place campfire / collector / bed on flat ground and use them
+	var base := default_spawn() + Vector3(0, 0, 0)
+	var cf := Campfire.create(Vector3(base.x + 2, Game.world.surface_height(base.x + 2, base.z), base.z))
+	Game.take({"campfire": 1})
+	Game.add_item("fish_raw", 1, false)
+	cf.cook_fish()
+	await get_tree().create_timer(Campfire.COOK_TIME * 2 + 0.5).timeout
+	print("TEST2 cooked fish=", Game.count("fish_cooked"), " raw left=", Game.count("fish_raw"))
+	var rc := RainCollector.create(Vector3(base.x - 2, Game.world.surface_height(base.x - 2, base.z), base.z))
+	rc.water = 0.0
+	Game.weather.force("storm")
+	Game.day_night.day_minutes = 2.0
+	await get_tree().create_timer(3.0).timeout
+	print("TEST2 storm: rain=%.2f wind=%.2f waves=%.2f collector water=%.2f" % [Game.weather.rain, Game.weather.wind, Game.ocean.wave_scale, rc.water])
+	Game.day_night.day_minutes = 16.0
+	v.water = 40.0
+	rc.water = 5.0
+	rc.drink(v)
+	print("TEST2 drank from collector: water=%.0f collector=%.1f" % [v.water, rc.water])
+	# sleep
+	var bed := Bed.create(Vector3(base.x, Game.world.surface_height(base.x, base.z + 3), base.z + 3))
+	Game.day_night.time_hours = 22.0
+	var day0 := Game.day_number
+	v.energy = 20.0
+	await p.sleep_in(bed)
+	print("TEST2 slept: time=%.1f day %d->%d energy=%.0f respawn_set=%s" % [Game.day_night.time_hours, day0, Game.day_number, v.energy, Game.respawn_point != Vector3.INF])
+	Game.weather.force("clear")
+	# coconuts fall when chopping palms
+	var coco0 := 0
+	for c in Game.props.get_children():
+		if c is PhysicsItem and c.item_id == "coconut":
+			coco0 += 1
+	for t in get_tree().get_nodes_in_group("trees"):
+		if t.kind == "palm" and not t.felled:
+			for k in 4:
+				t.hit(Vector3.RIGHT, t.global_position + Vector3.UP)
+			break
+	var coco1 := 0
+	for c in Game.props.get_children():
+		if c is PhysicsItem and c.item_id == "coconut":
+			coco1 += 1
+	print("TEST2 coconuts on ground %d -> %d" % [coco0, coco1])
+	# death and respawn at the bed
+	v.hurt(500.0)
+	print("TEST2 dead=", v.dead)
+	await get_tree().process_frame
+	p.respawn()
+	Game.hud._death.queue_free()
+	Game.hud._death = null
+	Game.ui_open = false
+	print("TEST2 respawned health=%.0f near bed=%s" % [v.health, p.global_position.distance_to(bed.global_position) < 2.0])
+	# third person view and the survival panel build without errors
+	p.toggle_camera()
+	Game.hud.toggle_survival_panel()
+	for i in 10:
+		await get_tree().process_frame
+	Game.hud.toggle_survival_panel()
+	p.toggle_camera()
+	print("TEST2 ok")

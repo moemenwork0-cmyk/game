@@ -83,6 +83,11 @@ shaders          terrain (triplanar), ocean, sky, grass, leaves, underwater
 - Settings saved to `user://settings.cfg`; whole-world saves in `user://saves/slot1.sav` with autosave every 4 minutes
 - See [ROADMAP.md](ROADMAP.md) for all phases
 
+### Phase 2 (survival)
+Needs (health, food, water, energy, body temperature, wetness), coconuts / berries / spear fishing / cooking,
+rain collectors, beds & sleep, crafting (Tab) with tool durability and carry weight, dynamic weather with
+storms that raise the waves, and a third-person view (V).
+
 ### Dev helpers
 ```
 godot --headless -- --test                     # gameplay self-test (chop, float, dig, build, collapse), then saves

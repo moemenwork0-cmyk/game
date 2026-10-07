@@ -17,6 +17,10 @@ var _lp := Vector2.ZERO
 var _rng := RandomNumberGenerator.new()
 var _bird_timer := 3.0
 var muffled := 0.0
+var rain_level := 0.0
+var wind_level := 0.2
+var _rain_lp := 0.0
+var _rain_hp := 0.0
 
 
 func _ready() -> void:
@@ -37,6 +41,12 @@ func _ready() -> void:
 	streams["swing"] = [_make_noise(0.18, 900.0, 14.0)]
 	streams["bird"] = [_make_chirp(3200.0, 4400.0, 3), _make_chirp(2600.0, 3800.0, 2), _make_chirp(3800.0, 2900.0, 4)]
 	streams["fire"] = [_make_crackle()]
+	streams["eat"] = [_make_noise(0.18, 1800.0, 18.0), _make_noise(0.16, 2200.0, 20.0)]
+	streams["drink"] = [_make_tone(320.0, 520.0, 0.14), _make_tone(300.0, 480.0, 0.16)]
+	streams["hurt"] = [_make_impact(110.0, 0.25, 0.4, 600.0)]
+	streams["thunder"] = [_make_thunder(), _make_thunder()]
+	streams["spear"] = [_make_noise(0.14, 1400.0, 16.0)]
+	streams["sizzle"] = [_make_noise(1.2, 5000.0, 1.5)]
 
 	var gen := AudioStreamGenerator.new()
 	gen.mix_rate = RATE
@@ -129,9 +139,13 @@ func _fill_ambience() -> void:
 		_wind += (white - _wind) * 0.02
 		_wind2 += (_wind - _wind2) * 0.02
 		var gust := 0.5 + 0.5 * sin(_t * 0.23 + sin(_t * 0.07) * 3.0)
-		var w := _wind2 * (0.6 + 1.6 * height) * gust * 3.0
-		var sL := surf * 0.8 + w * 0.8
-		var sR := surf * 0.75 + w * 0.9
+		var w := _wind2 * (0.6 + 1.6 * height) * gust * 3.0 * (0.5 + wind_level * 1.8)
+		# rain: band-passed noise hiss
+		_rain_lp += (white - _rain_lp) * 0.5
+		_rain_hp += (_rain_lp - _rain_hp) * 0.05
+		var rn := (_rain_lp - _rain_hp) * rain_level * 0.55
+		var sL := surf * 0.8 * (0.8 + wind_level * 0.6) + w * 0.8 + rn
+		var sR := surf * 0.75 * (0.8 + wind_level * 0.6) + w * 0.9 + rn * 0.9
 		_lp.x += (sL - _lp.x) * lp_a
 		_lp.y += (sR - _lp.y) * lp_a
 		_playback.push_frame(_lp * (1.0 + muffled * 1.5))
@@ -249,6 +263,27 @@ func _make_crickets() -> AudioStreamWAV:
 		var p2 := 1.0 if fmod(t * 11.0 + 0.3, 1.0) < 0.45 and fmod(t + 0.4, 0.9) < 0.3 else 0.0
 		s[i] = sin(TAU * 4300.0 * t) * pulse * 0.25 + sin(TAU * 3900.0 * t) * p2 * 0.18
 	return _wav(s, true)
+
+
+func _make_thunder() -> AudioStreamWAV:
+	var dur := 4.0
+	var n := int(dur * RATE)
+	var s := PackedFloat32Array()
+	s.resize(n)
+	var lp := 0.0
+	var lp2 := 0.0
+	var env := 0.0
+	for i in n:
+		var t := float(i) / RATE
+		lp += ((_rng.randf() * 2.0 - 1.0) - lp) * 0.04
+		lp2 += (lp - lp2) * 0.08
+		# a sharp crack followed by long rolling rumbles
+		var target := exp(-t * 1.2) * (0.6 + 0.4 * sin(t * 5.0 + sin(t * 2.3) * 3.0))
+		if t < 0.08:
+			target += 1.5
+		env += (target - env) * 0.002
+		s[i] = lp2 * 5.0 * env
+	return _wav(s)
 
 
 func _make_crackle() -> AudioStreamWAV:

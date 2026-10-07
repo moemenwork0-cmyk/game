@@ -8,6 +8,13 @@ var _root: Control
 var _cross: Control
 var _slots: Array[PanelContainer] = []
 var _slot_counts: Array[Label] = []
+var _slot_names: Array[Label] = []
+var _vbars := {}
+var _temp_label: Label
+var _status_label: Label
+var _fade: ColorRect
+var _death: Control
+var _survival: SurvivalPanel
 var _inv_label: Label
 var _clock: Label
 var _stamina: ProgressBar
@@ -83,6 +90,7 @@ func _ready() -> void:
 		bar.add_child(pc)
 		_slots.append(pc)
 		_slot_counts.append(l2)
+		_slot_names.append(l1)
 
 	_hint = Label.new()
 	_hint.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
@@ -120,6 +128,12 @@ func _ready() -> void:
 	_toasts.position = Vector2(22, 0)
 	_root.add_child(_toasts)
 
+	_build_vitals()
+	_fade = ColorRect.new()
+	_fade.color = Color(0, 0, 0, 0)
+	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_fade)
 	_build_pause()
 	_build_loading()
 	Game.inventory_changed.connect(_refresh_inventory)
@@ -186,7 +200,10 @@ Axe: fell trees → logs · Pickaxe: boulders, rock, stone blocks
 Shovel: LMB dig · RMB place dirt/sand
 Beam / Post / Panel / Stone: LMB place · R/Q rotate · F tilt · G snap
    Pieces need support from the ground — overhangs collapse!
-Campfire: 2 logs + 4 stones · Hold T to fast-forward time · F1 hide HUD"""
+Tab: needs, food & crafting · X quick-eat · V third person
+Spear: fish in the lagoon, cook them on a campfire (E)
+Place (8): B switches campfire / rain collector / bed
+Hold T to fast-forward time · F1 hide HUD"""
 
 var _pause_menu: VBoxContainer
 var _pause_sub: Control
@@ -263,6 +280,11 @@ func set_gameplay_visible(v: bool) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("pause") and _survival:
+		toggle_survival_panel()
+		return
+	if event.is_action_pressed("pause") and _death:
+		return
 	if event.is_action_pressed("pause"):
 		if _pause_sub:
 			_close_sub()
@@ -275,6 +297,88 @@ func _unhandled_input(event: InputEvent) -> void:
 func set_slot(i: int) -> void:
 	for k in _slots.size():
 		_slots[k].add_theme_stylebox_override("panel", _slot_style_sel if k == i else _slot_style)
+	_refresh_inventory()
+
+
+func _build_vitals() -> void:
+	var box := VBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	box.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	box.offset_left = 20
+	box.offset_top = -150
+	box.offset_bottom = -20
+	box.add_theme_constant_override("separation", 3)
+	_root.add_child(box)
+	for e in [["health", "Health", Color(0.9, 0.3, 0.3)], ["food", "Food", Color(0.95, 0.65, 0.3)],
+			["water", "Water", Color(0.35, 0.7, 1.0)], ["energy", "Energy", Color(0.7, 0.55, 0.95)]]:
+		var hb := HBoxContainer.new()
+		var l := UiKit.label(e[1], 13, Color(1, 1, 1, 0.75))
+		l.custom_minimum_size.x = 56
+		hb.add_child(l)
+		var b := _mk_bar(e[2])
+		b.custom_minimum_size = Vector2(150, 8)
+		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		hb.add_child(b)
+		box.add_child(hb)
+		_vbars[e[0]] = b
+	_temp_label = UiKit.label("", 13, Color(1, 1, 1, 0.75))
+	box.add_child(_temp_label)
+	_status_label = UiKit.label("", 14, Color(1.0, 0.6, 0.45))
+	box.add_child(_status_label)
+
+
+func toggle_survival_panel() -> void:
+	if _survival:
+		_survival.queue_free()
+		_survival = null
+		Game.ui_open = false
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	else:
+		_survival = SurvivalPanel.new()
+		add_child(_survival)
+		Game.ui_open = true
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func fade(alpha: float, time: float) -> void:
+	var tw := create_tween()
+	tw.tween_property(_fade, "color:a", alpha, time)
+	await tw.finished
+
+
+func show_death() -> void:
+	if _survival:
+		toggle_survival_panel()
+	Game.ui_open = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_death = ColorRect.new()
+	(_death as ColorRect).color = Color(0.15, 0.0, 0.0, 0.0)
+	_death.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_death.theme = UiKit.theme()
+	add_child(_death)
+	var vb := VBoxContainer.new()
+	vb.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	vb.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	vb.grow_vertical = Control.GROW_DIRECTION_BOTH
+	vb.add_theme_constant_override("separation", 14)
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	_death.add_child(vb)
+	var t := UiKit.label("You did not survive", 40, Color(1, 0.9, 0.85))
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(t)
+	var cause := "Keep fed, drink fresh water, stay warm and dry."
+	var sub := UiKit.label(cause + "\nYou will wake up at your bed (or the beach) and lose half of what you carried.", 15, Color(1, 1, 1, 0.6))
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(sub)
+	var btn := UiKit.button("Wake up", func() -> void:
+		Game.player.respawn()
+		_death.queue_free()
+		_death = null
+		Game.ui_open = false
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED)
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	vb.add_child(btn)
+	_death.create_tween().tween_property(_death, "color:a", 0.75, 1.5)
 
 
 func set_underwater(s: float) -> void:
@@ -283,21 +387,33 @@ func set_underwater(s: float) -> void:
 
 
 func _refresh_inventory() -> void:
-	var inv := Game.inventory
-	_inv_label.text = "Logs  %d\nPlanks  %d\nStone  %d\nDirt  %d\nSand  %d" % [
-		inv["log"], inv["plank"], inv["stone"], inv["dirt"], inv["sand"]]
+	var lines := PackedStringArray()
+	for id in Game.inventory:
+		if int(Game.inventory[id]) > 0:
+			lines.append("%s  %d" % [Items.item_name(id), int(Game.inventory[id])])
+	var w := Game.carried_weight()
+	lines.append("%.0f / %.0f kg" % [w, Items.MAX_CARRY] + ("  (heavy!)" if w > Items.MAX_CARRY else ""))
+	_inv_label.text = "\n".join(lines)
+	var p := Game.player
 	for i in Player.SLOTS.size():
 		var s: String = Player.SLOTS[i]
 		var txt := ""
-		if StructurePiece.DEFS.has(s):
-			var cost: Dictionary = StructurePiece.DEFS[s]["cost"]
+		var nm: String = Player.SLOT_NAMES[i]
+		if Items.is_tool_item(s):
+			var d := int(Game.tools.get(s, 0))
+			txt = ("%d%%" % int(100.0 * d / Items.TOOLS[s])) if d > 0 else "craft"
+		elif s == "build" and p:
+			var k: String = Player.BUILD_KINDS[p.build_idx]
+			nm = StructurePiece.DEFS[k]["name"]
+			var cost: Dictionary = StructurePiece.DEFS[k]["cost"]
 			var id: String = cost.keys()[0]
-			txt = "×%d" % (Game.count(id) / int(cost[id]))
-		elif s == "shovel":
-			txt = "dirt %d" % Game.count("dirt")
-		elif s == "campfire":
-			txt = "×%d" % mini(Game.count("log") / 2, Game.count("stone") / 4)
+			txt = "×%d  (B)" % (Game.count(id) / int(cost[id]))
+		elif s == "place" and p:
+			var k2: String = Player.PLACE_KINDS[p.place_idx]
+			nm = Items.item_name(k2).replace(" kit", "")
+			txt = "×%d  (B)" % Game.count(k2)
 		_slot_counts[i].text = txt
+		_slot_names[i].text = "%d  %s" % [i + 1, nm]
 
 
 func _on_toast(text: String) -> void:
@@ -322,3 +438,11 @@ func _process(_delta: float) -> void:
 		_breath.value = Game.player.breath
 		_breath.visible = Game.player.breath < 0.999
 		_hint.text = Game.player.hint
+		var v := Game.player.vitals
+		_vbars["health"].value = v.health / 100.0
+		_vbars["food"].value = v.food / 100.0
+		_vbars["water"].value = v.water / 100.0
+		_vbars["energy"].value = v.energy / 100.0
+		var w := Game.weather.state.capitalize() if Game.weather else ""
+		_temp_label.text = "Body %.1f °C  ·  %s" % [v.body_temp, w]
+		_status_label.text = "  ".join(v.status)
