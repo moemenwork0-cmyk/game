@@ -136,3 +136,5 @@ func recompute() -> void:
 		p.reparent(Game.props)
 	if not falling.is_empty() and Game.sfx:
 		Game.sfx.play("tree_fall", falling[0].global_position, -6.0, 0.3)
+	if not falling.is_empty() and Game.story and Game.playing:
+		Game.story.on_event("collapse")

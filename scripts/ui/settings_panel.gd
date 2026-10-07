@@ -31,6 +31,13 @@ func _ready() -> void:
 		_apply_graphics())
 	_row(grid, "Graphics quality", q)
 
+	var lang := OptionButton.new()
+	lang.add_item("English")
+	lang.add_item("العربية")
+	lang.selected = 1 if Settings.language == "ar" else 0
+	lang.item_selected.connect(func(i: int) -> void: Settings.set_value("language", "ar" if i == 1 else "en"))
+	_row(grid, "Story language", lang)
+
 	_row(grid, "Render scale", _slider(50, 100, 5, Settings.render_scale * 100.0, "%d%%", func(v: float) -> void:
 		Settings.set_value("render_scale", v / 100.0)
 		_apply_graphics()))

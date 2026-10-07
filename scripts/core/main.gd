@@ -69,6 +69,11 @@ func _ready() -> void:
 	var weather := Weather.new()
 	add_child(weather)
 	Game.weather = weather
+	var story := StoryDirector.new()
+	story.name = "Story"
+	add_child(story)
+	Game.story = story
+	Wreck.create(self)
 	var shader_mats: Array[ShaderMaterial] = [world.terrain_material, ocean.mat]
 	dn.setup(env, sky_mat, sun, moon, shader_mats)
 
@@ -98,6 +103,17 @@ func _ready() -> void:
 	_debug_shots()
 
 
+## Rolls this playthrough's identity and mystery, and leaves the Murjan's cargo on her deck.
+func _begin_story() -> void:
+	Game.story.start_new()
+	var w: Wreck = get_tree().get_first_node_in_group("wreck")
+	if w:
+		var cr := StoryCrate.create(w.crate_position(), {"plank": 4, "tin": 1, "medkit": 1, "waterbottle": 1}, "wreck")
+		cr.global_basis = w.global_basis * Basis(Vector3.UP, 0.4)
+	Game.story.say(StoryData.WAKE)
+	Game.story._on_mission_start()
+
+
 func _on_settings_changed() -> void:
 	if Game.player:
 		Game.player.camera.fov = Settings.fov
@@ -120,7 +136,7 @@ func start_play(data: Dictionary) -> void:
 		player.global_position = spawn
 		player.look_toward(Vector3(0, spawn.y, 0))
 		Game.day_night.time_hours = 7.2
-		Game.toast.emit("You wash up on a tiny island. Tab: crafting & needs · Esc: menu")
+		_begin_story()
 	else:
 		var pd: Dictionary = data["player"]
 		player.global_position = pd["pos"] + Vector3(0, 0.1, 0)
@@ -130,7 +146,11 @@ func start_play(data: Dictionary) -> void:
 		player.vitals.from_dict(data.get("vitals", {}))
 		if data.get("third_person", false):
 			player.toggle_camera()
-		Game.toast.emit("Welcome back — day %d" % Game.day_number)
+		Game.toast.emit(StoryData.t({"en": "Welcome back — day %d", "ar": "مرحبًا بعودتك — اليوم %d"}) % Game.day_number)
+		if data.has("story"):
+			Game.story.from_dict(data["story"])
+		else:
+			_begin_story()
 	Game.playing = true
 	Game.hud.set_gameplay_visible(true)
 	Game.hud._refresh_inventory()
@@ -596,6 +616,7 @@ func _run_tests() -> void:
 	print("TEST held log offset from target=%.2f" % (lg2.global_position.distance_to(p.head.global_position - p.camera.global_basis.z * p.held_dist)))
 	p._throw()
 	await _phase2_tests()
+	await _story_tests()
 	print("TEST done inventory ", Game.inventory)
 
 
@@ -611,7 +632,84 @@ func _world_summary() -> String:
 		alive, all_trees - alive, items, Game.structures.pieces.size(),
 		get_tree().get_nodes_in_group("campfires").size(), get_tree().get_nodes_in_group("collectors").size(),
 		get_tree().get_nodes_in_group("beds").size(), Game.world.surface_height(5, 5),
-		Game.day_number, v.food, v.water, Game.tools, Game.weather.state, Game.inventory]
+		Game.day_number, v.food, v.water, Game.tools, Game.weather.state, Game.inventory] + \
+		" story=%s/%s mission=%d journal=%d morale=%.0f crates=%d bottles=%d gulls=%d" % [Game.story.backstory, Game.story.mystery,
+		Game.story.mission, Game.story.journal.size(), v.morale, get_tree().get_nodes_in_group("story_crates").size(),
+		get_tree().get_nodes_in_group("bottles").size(), get_tree().get_nodes_in_group("gulls").size()]
+
+
+func _story_tests() -> void:
+	var st := Game.story
+	var p := Game.player
+	print("TEST3 who=%s mystery=%s mission=%d (%s) journal=%d" % [st.backstory, st.mystery, st.mission, st.mission_def()["id"], st.journal.size()])
+	# the wreck crate
+	var wc: StoryCrate = null
+	for c in get_tree().get_nodes_in_group("story_crates"):
+		if c.story_key == "wreck":
+			wc = c
+	var w: Wreck = get_tree().get_first_node_in_group("wreck")
+	print("TEST3 wreck at %s crate at %s" % [w.global_position, wc.global_position if wc else Vector3.INF])
+	var hit := Game.cast_ray(wc.global_position + Vector3(0, 3, 0), wc.global_position + Vector3(0, -3, 0), Game.L_TERRAIN | Game.L_STRUCT)
+	print("TEST3 crate ray hit=%s" % (hit.get("collider") == wc))
+	var hit2 := Game.cast_ray(wc.global_position + Vector3(0.0, 0.3, 0.0), wc.global_position + Vector3(0, -3, 0), Game.L_TERRAIN, [wc.get_rid()])
+	print("TEST3 deck under crate: %s dist=%.2f" % [hit2.get("collider") == w, wc.global_position.y - (hit2["position"].y if hit2 else -99.0)])
+	wc.open()
+	print("TEST3 wreck_found=%s tins=%d medkit=%d" % [st.flags.get("wreck_found", false), Game.count("tin"), Game.count("medkit")])
+	# storyteller events
+	st._spawn_crate()
+	st._spawn_bottle()
+	st._spawn_gull()
+	print("TEST3 events: crates=%d bottles=%d gulls=%d letters=%s" % [get_tree().get_nodes_in_group("story_crates").size(),
+		get_tree().get_nodes_in_group("bottles").size(), get_tree().get_nodes_in_group("gulls").size(), st.letters_read])
+	var b: MessageBottle = get_tree().get_nodes_in_group("bottles")[0]
+	b.read()
+	await get_tree().process_frame
+	Game.hud._chosen.emit(0)
+	# the gull: feed it
+	Game.add_item("berry", 3, false)
+	var g: Gull = get_tree().get_nodes_in_group("gulls")[0]
+	st.gull_choice(g)
+	await get_tree().process_frame
+	Game.hud._chosen.emit(0)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	print("TEST3 gull friend=%s gulls=%d" % [st.flags.get("gull_friend", false), get_tree().get_nodes_in_group("gulls").size()])
+	# a passing ship
+	st._distant_ship()
+	var ship: DistantShip = null
+	for c in get_children():
+		if c is DistantShip:
+			ship = c
+	var passed := [false]
+	ship.passed.connect(func() -> void: passed[0] = true)
+	ship._t = DistantShip.DURATION - 0.1
+	for i in 10:
+		await get_tree().process_frame
+	print("TEST3 ship passed=%s" % passed[0])
+	# the mind: despair brings the hallucinations
+	p.vitals.morale = 5.0
+	p.vitals.advance(0.1)
+	for i in 30:
+		await get_tree().process_frame
+	print("TEST3 morale=%.1f intensity=%.2f status=%s" % [p.vitals.morale, st._hallucinate.intensity, p.vitals.status])
+	p.vitals.morale = 60.0
+	# journal tab builds
+	SurvivalPanel._tab = 1
+	Game.hud.toggle_survival_panel()
+	for i in 5:
+		await get_tree().process_frame
+	Game.hud.toggle_survival_panel()
+	SurvivalPanel._tab = 0
+	# subtitles flow
+	st.say({"en": "Test line.", "ar": "سطر تجريبي."}, false)
+	for i in 5:
+		await get_tree().process_frame
+	print("TEST3 subtitle='%s' alpha=%.2f" % [st.current_line, st.line_alpha])
+	# Arabic switch
+	Settings.language = "ar"
+	print("TEST3 ar title=%s" % StoryData.t(st.mission_def()["title"]))
+	Settings.language = "en"
+	print("TEST3 ok mission=%d (%s) journal=%d" % [st.mission, st.mission_def()["id"], st.journal.size()])
 
 
 func _phase2_tests() -> void:

@@ -6,13 +6,25 @@ const ACCENT := Color(1.0, 0.82, 0.45)
 const PANEL_BG := Color(0.05, 0.07, 0.09, 0.92)
 
 static var _theme: Theme
+static var _fonts := {}
+
+
+## Rajdhani for Latin text, with Cairo behind it so Arabic renders (and shapes) correctly.
+static func font(weight: String = "SemiBold") -> Font:
+	if not _fonts.has(weight):
+		var f: FontFile = load("res://assets/fonts/Rajdhani-%s.ttf" % weight)
+		var ar: FontFile = load("res://assets/fonts/Cairo.ttf")
+		if f and ar and f.fallbacks.is_empty():
+			f.fallbacks = [ar]
+		_fonts[weight] = f
+	return _fonts[weight]
 
 
 static func theme() -> Theme:
 	if _theme:
 		return _theme
 	var t := Theme.new()
-	t.default_font = load("res://assets/fonts/Rajdhani-SemiBold.ttf")
+	t.default_font = font("SemiBold")
 	t.default_font_size = 19
 	var normal := _box(Color(1, 1, 1, 0.06), Color(1, 1, 1, 0.1))
 	var hover := _box(Color(1, 1, 1, 0.13), ACCENT * Color(1, 1, 1, 0.7))

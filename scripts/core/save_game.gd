@@ -47,6 +47,10 @@ static func capture() -> Dictionary:
 		"weather": Game.weather.to_dict() if Game.weather else {},
 		"respawn": Game.respawn_point,
 		"third_person": p.third_person,
+		"story": Game.story.to_dict() if Game.story else {},
+		"crates": [],
+		"bottles": [],
+		"gulls": [],
 	}
 	for t in Game.get_tree().get_nodes_in_group("island_trees"):
 		var tree: IslandTree = t
@@ -67,6 +71,12 @@ static func capture() -> Dictionary:
 			data["collectors"].append({"xf": c.global_transform, "water": c.water})
 		elif c is Bed:
 			data["beds"].append(c.global_transform)
+		elif c is StoryCrate:
+			data["crates"].append({"xf": c.global_transform, "items": c.contents, "key": c.story_key, "opened": c.opened})
+		elif c is MessageBottle and not c.is_queued_for_deletion():
+			data["bottles"].append({"xf": c.global_transform, "letter": c.letter})
+		elif c is Gull and not c.is_queued_for_deletion():
+			data["gulls"].append({"pos": c.global_position, "mode": c.mode})
 	var bushes := Game.get_tree().get_nodes_in_group("bushes")
 	for i in bushes.size():
 		if bushes[i].regrow_day > 0:
@@ -179,6 +189,17 @@ static func restore_objects(data: Dictionary, parent: Node) -> void:
 	for i in saved_bushes:
 		if int(i) < bushes.size():
 			bushes[int(i)].set_regrow_day(int(saved_bushes[i]))
+	for e in data.get("crates", []):
+		var cr := StoryCrate.create(Vector3.ZERO, e["items"], e["key"])
+		cr.global_transform = e["xf"]
+		if e["opened"]:
+			cr.opened = true
+			cr._show_open()
+	for e in data.get("bottles", []):
+		var b := MessageBottle.create(Vector3.ZERO, e["letter"])
+		b.global_transform = e["xf"]
+	for e in data.get("gulls", []):
+		Gull.create(Game.props, e["pos"], e["mode"])
 	Game.tools = data.get("tools", Game.tools).duplicate()
 	Game.respawn_point = data.get("respawn", Vector3.INF)
 	if Game.weather and data.has("weather"):

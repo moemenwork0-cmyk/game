@@ -274,6 +274,89 @@ func show_death() -> void:
 	_death.create_tween().tween_property(_death, "color:a", 0.75, 1.5)
 
 
+signal _chosen(i: int)
+
+
+## Modal choice for story moments. Returns the chosen index (await it).
+func choose(text: String, options: Array) -> int:
+	if _survival:
+		toggle_survival_panel()
+	Game.ui_open = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	var bg := ColorRect.new()
+	bg.color = Color(0, 0, 0, 0.0)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.theme = UiKit.theme()
+	add_child(bg)
+	bg.create_tween().tween_property(bg, "color:a", 0.6, 0.6)
+	var panel := PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.custom_minimum_size = Vector2(640, 0)
+	bg.add_child(panel)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 14)
+	panel.add_child(vb)
+	var l := UiKit.label(text, 21, Color(1, 0.95, 0.88))
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(600, 0)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(l)
+	for i in options.size():
+		var idx := i
+		var b := UiKit.button(String(options[i]), func() -> void: _chosen.emit(idx), 600)
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		vb.add_child(b)
+	var pick: int = await _chosen
+	bg.queue_free()
+	Game.ui_open = false
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	return pick
+
+
+## End-of-act card: fades to black, shows what this playthrough was, then lets you keep playing.
+func show_act_end(title: String, sub: String, summary: String) -> void:
+	Game.ui_open = true
+	await fade(1.0, 2.5)
+	var root := Control.new()
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.theme = UiKit.theme()
+	add_child(root)
+	var vb := VBoxContainer.new()
+	vb.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	vb.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	vb.grow_vertical = Control.GROW_DIRECTION_BOTH
+	vb.add_theme_constant_override("separation", 18)
+	root.add_child(vb)
+	var t := UiKit.label(title, 52, UiKit.ACCENT)
+	t.add_theme_font_override("font", UiKit.font("Bold"))
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(t)
+	var s := UiKit.label(sub, 20, Color(1, 1, 1, 0.75))
+	s.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(s)
+	var sm := UiKit.label(summary, 18, Color(1, 1, 1, 0.6))
+	sm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(sm)
+	var cont := UiKit.button(StoryData.t({"en": "Keep surviving", "ar": "واصل النجاة"}), func() -> void: _chosen.emit(0))
+	cont.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	vb.add_child(cont)
+	root.modulate.a = 0.0
+	root.create_tween().tween_property(root, "modulate:a", 1.0, 1.5)
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	await _chosen
+	root.queue_free()
+	Game.ui_open = false
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	fade(0.0, 2.0)
+
+
+func ping_objective() -> void:
+	if _play:
+		_play.ping_objective()
+
+
 func set_underwater(s: float) -> void:
 	_uw_rect.visible = s > 0.01
 	_uw_mat.set_shader_parameter("strength", s)

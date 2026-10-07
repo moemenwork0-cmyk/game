@@ -18,6 +18,8 @@ var energy := 90.0
 var body_temp := 37.0
 var wetness := 0.0
 var sick := 0.0   # hours of food poisoning left
+## mind: isolation, darkness, hunger and fear wear it down; fire, shelter, company and hope restore it
+var morale := 70.0
 var dead := false
 var ambient_temp := 26.0
 var status := PackedStringArray()
@@ -25,7 +27,7 @@ var status := PackedStringArray()
 
 func to_dict() -> Dictionary:
 	return {"health": health, "food": food, "water": water, "energy": energy,
-		"temp": body_temp, "wet": wetness, "sick": sick}
+		"temp": body_temp, "wet": wetness, "sick": sick, "morale": morale}
 
 
 func from_dict(d: Dictionary) -> void:
@@ -36,6 +38,7 @@ func from_dict(d: Dictionary) -> void:
 	body_temp = float(d.get("temp", 37.0))
 	wetness = float(d.get("wet", 0.0))
 	sick = float(d.get("sick", 0.0))
+	morale = float(d.get("morale", 70.0))
 
 
 ## Simulates `hours` of in-game time (also used for sleeping, with a lower metabolism).
@@ -43,7 +46,8 @@ func advance(hours: float, exertion: float = 1.0, asleep: bool = false) -> void:
 	if dead:
 		return
 	var metab := 0.5 if asleep else exertion
-	food = maxf(food - HUNGER_RATE * metab * hours, 0.0)
+	var hunger_mult := 0.75 if Game.story and Game.story.backstory == "stowaway" else 1.0
+	food = maxf(food - HUNGER_RATE * metab * hunger_mult * hours, 0.0)
 	var thirst_mult := 1.6 if body_temp > 38.3 else 1.0
 	water = maxf(water - THIRST_RATE * metab * thirst_mult * hours, 0.0)
 	if asleep:
@@ -68,7 +72,9 @@ func advance(hours: float, exertion: float = 1.0, asleep: bool = false) -> void:
 	if dmg > 0.0:
 		hurt(dmg * hours)
 	elif food > 55.0 and water > 55.0 and body_temp > 36.0:
-		health = minf(health + REGEN * hours, 100.0)
+		var regen := REGEN * (1.5 if Game.story and Game.story.backstory == "medic" else 1.0)
+		health = minf(health + regen * hours, 100.0)
+	_update_morale(hours, asleep)
 	_update_status()
 
 
@@ -90,13 +96,18 @@ func eat(id: String) -> bool:
 	Game.inventory[id] = Game.count(id) - 1
 	food = minf(food + float(f["food"]), 100.0)
 	water = minf(water + float(f["water"]), 100.0)
-	if randf() < float(f["sick"]):
+	health = minf(health + float(f.get("health", 0.0)), 100.0)
+	morale = minf(morale + float(f.get("morale", 0.0)), 100.0)
+	var sick_chance := float(f["sick"]) * (0.3 if Game.story and Game.story.backstory == "medic" else 1.0)
+	if randf() < sick_chance:
 		sick = 6.0
 		Game.toast.emit("You feel sick… raw fish should be cooked first")
 	else:
 		Game.toast.emit("Ate %s" % Items.item_name(id))
 	if Game.sfx:
 		Game.sfx.play("eat")
+	if float(f["water"]) > 0.0 and Game.story:
+		Game.story.on_event("drink")
 	Game.inventory_changed.emit()
 	return true
 
@@ -105,6 +116,8 @@ func drink(amount: float) -> void:
 	water = minf(water + amount, 100.0)
 	if Game.sfx:
 		Game.sfx.play("drink")
+	if Game.story:
+		Game.story.on_event("drink")
 
 
 func reset_after_death() -> void:
@@ -134,3 +147,36 @@ func _update_status() -> void:
 		status.append("Wet")
 	if sick > 0.0:
 		status.append("Sick")
+	if morale < 25.0:
+		status.append("Despair")
+	elif morale < 45.0:
+		status.append("Lonely")
+
+
+func _update_morale(hours: float, asleep: bool) -> void:
+	var d := -1.2   # isolation slowly wears on anyone
+	var night := Game.day_night.daylight < 0.3 if Game.day_night else false
+	var fire := Game.player._fire_warmth() if Game.player else 0.0
+	if night and fire < 0.2 and not asleep:
+		d -= 5.0
+	if fire > 0.3:
+		d += 4.0
+	if asleep:
+		d += 4.0
+	if Game.weather and Game.weather.state == "storm":
+		d -= 3.0
+	if food < 20.0:
+		d -= 2.5
+	if water < 20.0:
+		d -= 2.5
+	if body_temp < 35.5:
+		d -= 2.0
+	if Game.story and Game.story.flags.get("gull_friend", false):
+		d += 1.0
+	morale = clampf(morale + d * hours, 0.0, 100.0)
+	if morale < 10.0:
+		hurt(3.0 * hours)
+
+
+func cheer(amount: float) -> void:
+	morale = clampf(morale + amount, 0.0, 100.0)

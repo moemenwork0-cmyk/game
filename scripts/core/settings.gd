@@ -12,6 +12,7 @@ var fullscreen := false
 var mouse_sens := 0.0022
 var fov := 75.0
 var volume := 0.8
+var language := "en"
 
 
 func _ready() -> void:
@@ -24,8 +25,10 @@ func _ready() -> void:
 		fov = float(cf.get_value("video", "fov", fov))
 		mouse_sens = float(cf.get_value("input", "mouse_sens", mouse_sens))
 		volume = float(cf.get_value("audio", "volume", volume))
+		language = String(cf.get_value("game", "language", language))
 	else:
 		_auto_detect()
+		language = "ar" if OS.get_locale_language() == "ar" else "en"
 		save()
 	apply_window()
 	apply_audio()
@@ -57,6 +60,7 @@ func save() -> void:
 	cf.set_value("video", "fov", fov)
 	cf.set_value("input", "mouse_sens", mouse_sens)
 	cf.set_value("audio", "volume", volume)
+	cf.set_value("game", "language", language)
 	cf.save(PATH)
 
 

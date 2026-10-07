@@ -2,7 +2,8 @@ class_name SurvivalPanel
 extends PanelContainer
 ## Tab screen: your condition, what you carry (eat from here) and crafting.
 
-var _cols: HBoxContainer
+var _cols: Control
+static var _tab := 0
 
 
 func _ready() -> void:
@@ -18,12 +19,85 @@ func _ready() -> void:
 func _rebuild() -> void:
 	if _cols:
 		_cols.queue_free()
-	_cols = HBoxContainer.new()
-	_cols.add_theme_constant_override("separation", 36)
-	add_child(_cols)
-	_cols.add_child(_status_column())
-	_cols.add_child(_inventory_column())
-	_cols.add_child(_craft_column())
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 16)
+	_cols = outer
+	add_child(outer)
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 8)
+	outer.add_child(tabs)
+	var names := [StoryData.t({"en": "Survival", "ar": "النجاة"}), StoryData.t({"en": "Journal", "ar": "اليوميات"})]
+	for i in names.size():
+		var idx := i
+		var b := UiKit.button(names[i], func() -> void:
+			_tab = idx
+			_rebuild(), 160)
+		b.custom_minimum_size.y = 38
+		if i == _tab:
+			b.add_theme_color_override("font_color", UiKit.ACCENT)
+		tabs.add_child(b)
+	if _tab == 1 and Game.story:
+		outer.add_child(_journal())
+		return
+	var cols := HBoxContainer.new()
+	cols.add_theme_constant_override("separation", 36)
+	outer.add_child(cols)
+	cols.add_child(_status_column())
+	cols.add_child(_inventory_column())
+	cols.add_child(_craft_column())
+
+
+func _journal() -> Control:
+	var st := Game.story
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 36)
+	var left := VBoxContainer.new()
+	left.custom_minimum_size.x = 280
+	left.add_theme_constant_override("separation", 8)
+	hb.add_child(left)
+	var bs := st.bio()
+	var nm := UiKit.label(StoryData.t(bs["name"]), 30, UiKit.ACCENT)
+	nm.add_theme_font_override("font", UiKit.font("Bold"))
+	left.add_child(nm)
+	left.add_child(UiKit.label(StoryData.t(bs["role"]), 17, Color(1, 1, 1, 0.8)))
+	var perk := UiKit.label(StoryData.t(bs["perk"]), 15, Color(0.6, 0.95, 0.75))
+	perk.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	perk.custom_minimum_size.x = 280
+	left.add_child(perk)
+	var mor := Game.player.vitals.morale
+	var mind := StoryData.t({"en": "Steady", "ar": "متماسك"})
+	if mor < 25.0:
+		mind = StoryData.t({"en": "Breaking", "ar": "على حافة الانهيار"})
+	elif mor < 45.0:
+		mind = StoryData.t({"en": "Lonely", "ar": "وحيد"})
+	elif mor > 75.0:
+		mind = StoryData.t({"en": "Hopeful", "ar": "متفائل"})
+	left.add_child(UiKit.label(StoryData.t({"en": "Mind: ", "ar": "الحالة النفسية: "}) + mind + "  (%d)" % int(mor), 16))
+	if not st.act_over():
+		left.add_child(UiKit.label(StoryData.t({"en": "Objective", "ar": "الهدف"}), 20, UiKit.ACCENT))
+		var g := UiKit.label(StoryData.t(st.mission_def()["title"]) + " — " + StoryData.t(st.mission_def()["goal"]), 15)
+		g.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		g.custom_minimum_size.x = 280
+		left.add_child(g)
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(620, 470)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	hb.add_child(sc)
+	var list := VBoxContainer.new()
+	list.add_theme_constant_override("separation", 12)
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(list)
+	var entries: Array = st.journal.duplicate()
+	entries.reverse()
+	for e in entries:
+		var t := float(e["time"])
+		var head := UiKit.label(StoryData.t({"en": "Day %d · %02d:%02d", "ar": "اليوم %d · %02d:%02d"}) % [int(e["day"]), int(t), int(fmod(t, 1.0) * 60.0)], 13, Color(1, 1, 1, 0.45))
+		list.add_child(head)
+		var body := UiKit.label(StoryData.t(e["text"]), 17, Color(1, 0.96, 0.88))
+		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		body.custom_minimum_size.x = 590
+		list.add_child(body)
+	return hb
 
 
 func _column(title: String, w: float) -> VBoxContainer:

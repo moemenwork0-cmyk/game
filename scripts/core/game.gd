@@ -26,6 +26,7 @@ var playing := false
 var grass_range := 70.0
 
 var weather: Weather
+var story: StoryDirector
 var ui_open := false
 
 var inventory := {}
@@ -53,6 +54,7 @@ func reset() -> void:
 	playing = false
 	day_number = 1
 	weather = null
+	story = null
 	ui_open = false
 	respawn_point = Vector3.INF
 	new_game_state()
@@ -76,6 +78,8 @@ func add_item(id: String, n: int = 1, announce: bool = true) -> void:
 		return
 	inventory[id] = int(inventory.get(id, 0)) + n
 	inventory_changed.emit()
+	if story:
+		story.on_item(id, n)
 	if announce:
 		toast.emit("+%d %s" % [n, Items.item_name(id)])
 
@@ -100,6 +104,9 @@ func has_tool(id: String) -> bool:
 ## Wears a tool down; returns false if it just broke.
 func use_tool(id: String, amount: int = 1) -> bool:
 	if not tools.has(id):
+		return true
+	# the engineer looks after his tools: every fourth use is free
+	if story and story.backstory == "engineer" and randf() < 0.25:
 		return true
 	tools[id] = maxi(int(tools[id]) - amount, 0)
 	if tools[id] == 0:

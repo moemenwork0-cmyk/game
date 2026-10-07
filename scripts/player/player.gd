@@ -519,6 +519,12 @@ func _update_hint(look: Dictionary, tool: String) -> void:
 		hint = "Palm — chop for logs; coconuts may fall" if tree.kind == "palm" else "Tree — use the Axe"
 	elif col is RigidBody3D:
 		hint = "Felled tree (%.0f kg)" % col.mass
+	elif col is StoryCrate:
+		hint = "" if col.opened else StoryData.t({"en": "[E] Open the crate", "ar": "[E] افتح الصندوق"})
+	elif col is MessageBottle:
+		hint = StoryData.t({"en": "[E] Read the message in the bottle", "ar": "[E] اقرأ الرسالة داخل الزجاجة"})
+	elif col is Object and (col as Object).has_meta("gull"):
+		hint = StoryData.t({"en": "[E] The wounded gull", "ar": "[E] النورس الجريح"})
 
 
 func _interact(look: Dictionary) -> void:
@@ -537,6 +543,12 @@ func _interact(look: Dictionary) -> void:
 		sleep_in(col)
 	elif col is BerryBush:
 		col.pick()
+	elif col is StoryCrate:
+		col.open()
+	elif col is MessageBottle:
+		col.read()
+	elif col is Object and (col as Object).has_meta("gull") and Game.story:
+		Game.story.gull_choice((col as Object).get_meta("gull"))
 
 
 func _quick_eat() -> void:
@@ -571,6 +583,8 @@ func sleep_in(bed: Bed) -> void:
 		Game.weather.advance(hours, 0.0)
 	await get_tree().create_timer(0.6).timeout
 	Game.toast.emit("You wake up rested — day %d" % Game.day_number)
+	if Game.story:
+		Game.story.on_sleep()
 	await Game.hud.fade(0.0, 1.2)
 	asleep = false
 	SaveGame.save_now()

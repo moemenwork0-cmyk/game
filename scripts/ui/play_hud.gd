@@ -11,9 +11,11 @@ const SLOT_ICONS := {"hand": "hand", "axe": "axe", "pickaxe": "pickaxe", "shovel
 	"spear": "spear", "torch": "torch", "build": "build", "place": "campfire"}
 const ITEM_ICONS := {"log": "log", "plank": "plank", "stone": "stone", "dirt": "dirt", "sand": "sand",
 	"coconut": "coconut", "berry": "berry", "fish_raw": "fishraw", "fish_cooked": "fishcooked",
-	"campfire": "campfire", "collector": "collector", "bed": "bed"}
+	"campfire": "campfire", "collector": "collector", "bed": "bed",
+	"tin": "tin", "waterbottle": "waterbottle", "medkit": "medkit", "flare": "flare"}
 const STATUS_ICONS := {"Hungry": "food", "Starving": "food", "Thirsty": "water", "Dehydrated": "water",
-	"Exhausted": "energy", "Cold": "temp", "Freezing": "temp", "Overheated": "temp", "Wet": "wet", "Sick": "sick"}
+	"Exhausted": "energy", "Cold": "temp", "Freezing": "temp", "Overheated": "temp", "Wet": "wet", "Sick": "sick",
+	"Despair": "brain", "Lonely": "brain"}
 const WEATHER_ICONS := {"clear": "sun", "cloudy": "cloud", "rain": "rain", "storm": "storm"}
 
 static var _icons := {}
@@ -31,6 +33,9 @@ var _last_health := 100.0
 var _hurt_flash := 0.0
 var _vignette: ColorRect
 var _vmat: ShaderMaterial
+var _obj_ping := 0.0
+var _obj_last := ""
+var _obj_alpha := 0.0
 
 
 static func icon(name: String) -> Texture2D:
@@ -41,9 +46,7 @@ static func icon(name: String) -> Texture2D:
 
 
 static func font(weight: String = "SemiBold") -> Font:
-	if not _fonts.has(weight):
-		_fonts[weight] = load("res://assets/fonts/Rajdhani-%s.ttf" % weight)
-	return _fonts[weight]
+	return UiKit.font(weight)
 
 
 func _ready() -> void:
@@ -241,6 +244,9 @@ func _process(delta: float) -> void:
 	var low := 1.0 - smoothstep(15.0, 40.0, v.health)
 	var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.006)
 	_vmat.set_shader_parameter("amount", clampf(low * pulse * 0.8 + _hurt_flash * 0.6, 0.0, 1.0))
+	_obj_ping = maxf(_obj_ping - delta * 0.6, 0.0)
+	# the objective stays visible after a change, then fades back to a quiet reminder
+	_obj_alpha = move_toward(_obj_alpha, 1.0 if _obj_ping > 0.0 or Game.ui_open or Input.is_action_pressed("inventory") else 0.6, delta * 2.0)
 	queue_redraw()
 
 
@@ -256,6 +262,74 @@ func _draw() -> void:
 	_draw_vitals(Vector2(32, vs.y - 34), p)
 	_draw_hotbar(Vector2(vs.x * 0.5, vs.y - 26), p)
 	_draw_effort(Vector2(vs.x * 0.5, vs.y - 104), p)
+	_draw_objective(Vector2(vs.x - 28, 28))
+	_draw_subtitle(Vector2(vs.x * 0.5, vs.y - 196), vs.x)
+
+
+func ping_objective() -> void:
+	_obj_ping = 1.0
+
+
+func _draw_objective(tr: Vector2) -> void:
+	var st := Game.story
+	if st == null or st.act_over():
+		return
+	var m := st.mission_def()
+	var title := StoryData.t(m["title"])
+	var goal := StoryData.t(m["goal"])
+	if title != _obj_last:
+		_obj_last = title
+		_obj_ping = 1.0
+	var w := 330.0
+	var f := font()
+	var lines := _wrap(goal, f, 16, w - 30)
+	var h := 52.0 + lines.size() * 20.0
+	var r := Rect2(tr.x - w, tr.y, w, h)
+	var a := _obj_alpha
+	draw_rect(r, Color(0.02, 0.03, 0.05, 0.5 * a))
+	draw_rect(Rect2(r.position, Vector2(3, h)), ACCENT * Color(1, 1, 1, a))
+	if _obj_ping > 0.0:
+		draw_rect(r.grow(_obj_ping * 6.0), ACCENT * Color(1, 1, 1, _obj_ping * 0.6), false, 2.0)
+	_icon("objective", Rect2(r.position + Vector2(14, 9), Vector2(18, 18)), ACCENT * Color(1, 1, 1, a))
+	_text(r.position + Vector2(40, 24), title.to_upper(), 18, ACCENT * Color(1, 1, 1, a), HORIZONTAL_ALIGNMENT_LEFT, "Bold")
+	for i in lines.size():
+		_text(r.position + Vector2(16, 48 + i * 20), lines[i], 16, Color(1, 1, 1, 0.82 * a))
+
+
+func _draw_subtitle(c: Vector2, vw: float) -> void:
+	var st := Game.story
+	if st == null or st.current_line == "" or st.line_alpha <= 0.0:
+		return
+	var a := st.line_alpha
+	var f := font()
+	var w := minf(vw - 120.0, 900.0)
+	var lines := _wrap(st.current_line, f, 22, w)
+	var h := lines.size() * 28.0 + 18.0
+	var y0 := c.y - h
+	var band := PackedVector2Array([Vector2(c.x - w * 0.5 - 60, y0), Vector2(c.x, y0), Vector2(c.x + w * 0.5 + 60, y0),
+		Vector2(c.x + w * 0.5 + 60, y0 + h), Vector2(c.x, y0 + h), Vector2(c.x - w * 0.5 - 60, y0 + h)])
+	var e := Color(0, 0, 0, 0)
+	var m := Color(0, 0, 0, 0.5 * a)
+	draw_polygon(PackedVector2Array([band[0], band[1], band[4], band[5]]), PackedColorArray([e, m, m, e]))
+	draw_polygon(PackedVector2Array([band[1], band[2], band[3], band[4]]), PackedColorArray([m, e, e, m]))
+	for i in lines.size():
+		_text(Vector2(c.x - w * 0.5, y0 + 32 + i * 28), lines[i], 22, Color(1, 0.96, 0.88, a), HORIZONTAL_ALIGNMENT_CENTER, "SemiBold", w)
+
+
+## Greedy word wrap for draw_string (works for Arabic too: words are kept whole).
+func _wrap(s: String, f: Font, sz: int, w: float) -> PackedStringArray:
+	var out := PackedStringArray()
+	var line := ""
+	for word in s.split(" ", false):
+		var tryl := word if line == "" else line + " " + word
+		if f.get_string_size(tryl, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x > w and line != "":
+			out.append(line)
+			line = word
+		else:
+			line = tryl
+	if line != "":
+		out.append(line)
+	return out
 
 
 func _text(pos: Vector2, s: String, sz: int, col: Color, align: int = HORIZONTAL_ALIGNMENT_LEFT, weight: String = "SemiBold", width: float = -1.0) -> void:
@@ -340,7 +414,7 @@ func _draw_vitals(base: Vector2, p: Player) -> void:
 	# ring gauges
 	var gy := y - 44
 	var gx := base.x + 22
-	var items := [["food", v.food, Color(1.0, 0.68, 0.3)], ["water", v.water, Color(0.4, 0.75, 1.0)], ["energy", v.energy, Color(0.75, 0.6, 1.0)]]
+	var items := [["food", v.food, Color(1.0, 0.68, 0.3)], ["water", v.water, Color(0.4, 0.75, 1.0)], ["energy", v.energy, Color(0.75, 0.6, 1.0)], ["brain", v.morale, Color(0.55, 0.95, 0.75)]]
 	for i in items.size():
 		var e: Array = items[i]
 		var c := Vector2(gx + i * 58, gy)
@@ -351,8 +425,8 @@ func _draw_vitals(base: Vector2, p: Player) -> void:
 		tcol = Color(0.5, 0.8, 1.0)
 	elif v.body_temp > 38.3:
 		tcol = Color(1.0, 0.55, 0.3)
-	_icon("temp", Rect2(gx + 3 * 58 - 14, gy - 12, 22, 22), tcol)
-	_text(Vector2(gx + 3 * 58 + 10, gy + 7), "%.1f°" % v.body_temp, 18, tcol, HORIZONTAL_ALIGNMENT_LEFT, "Bold")
+	_icon("temp", Rect2(gx + 4 * 58 - 14, gy - 12, 22, 22), tcol)
+	_text(Vector2(gx + 4 * 58 + 10, gy + 7), "%.1f°" % v.body_temp, 18, tcol, HORIZONTAL_ALIGNMENT_LEFT, "Bold")
 	# status chips
 	var sx := base.x
 	var sy := gy - 46

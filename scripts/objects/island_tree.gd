@@ -258,6 +258,8 @@ func fell(dir: Vector3, leave_stump: bool = true) -> void:
 		return
 	felled = true
 	remove_from_group("trees")
+	if Game.story and Game.playing:
+		Game.story.on_event("tree_felled")
 	var rb := RigidBody3D.new()
 	rb.collision_layer = Game.L_PROPS
 	rb.collision_mask = Game.L_TERRAIN | Game.L_PROPS | Game.L_STRUCT | Game.L_TREES
