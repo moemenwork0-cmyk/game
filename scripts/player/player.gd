@@ -21,7 +21,7 @@ var camera := Camera3D.new()
 var tool_pivot := Node3D.new()
 var tool_models := {}
 var vitals := Vitals.new()
-var body := BodyModel.new()
+var body := HumanModel.new()
 var yaw := 0.0
 var pitch := 0.0
 var slot := 0
@@ -158,6 +158,7 @@ func _refresh_tool_model() -> void:
 		t = "place"
 	for k in tool_models:
 		tool_models[k].visible = (k == t) and not third_person
+	body.hold(t, tool_models.get(t))
 	if _torch_light:
 		_torch_light.visible = SLOTS[slot] == "torch" and Game.has_tool("torch")
 
@@ -359,6 +360,8 @@ func _process(delta: float) -> void:
 		Game.hud.set_slot(slot)
 	if Input.is_action_just_pressed("eat"):
 		_quick_eat()
+	if OS.get_cmdline_user_args().has("--walk"):
+		Input.action_press("move_forward")
 	if Input.is_action_just_pressed("rotate"):
 		build_yaw += deg_to_rad(15.0)
 	if Input.is_action_just_pressed("rotate_back"):

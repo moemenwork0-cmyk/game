@@ -12,7 +12,8 @@ static func theme() -> Theme:
 	if _theme:
 		return _theme
 	var t := Theme.new()
-	t.default_font_size = 17
+	t.default_font = load("res://assets/fonts/Rajdhani-SemiBold.ttf")
+	t.default_font_size = 19
 	var normal := _box(Color(1, 1, 1, 0.06), Color(1, 1, 1, 0.1))
 	var hover := _box(Color(1, 1, 1, 0.13), ACCENT * Color(1, 1, 1, 0.7))
 	var pressed := _box(Color(1, 0.82, 0.45, 0.25), ACCENT)

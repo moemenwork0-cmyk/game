@@ -15,6 +15,7 @@ var _status_label: Label
 var _fade: ColorRect
 var _death: Control
 var _survival: SurvivalPanel
+var _play: PlayHud
 var _inv_label: Label
 var _clock: Label
 var _stamina: ProgressBar
@@ -43,92 +44,11 @@ func _ready() -> void:
 	_root = Control.new()
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.theme = UiKit.theme()
 	add_child(_root)
 
-	_cross = Control.new()
-	_cross.set_anchors_preset(Control.PRESET_CENTER)
-	_cross.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_cross.draw.connect(func() -> void:
-		_cross.draw_circle(Vector2.ZERO, 2.5, Color(1, 1, 1, 0.85))
-		_cross.draw_arc(Vector2.ZERO, 7.0, 0, TAU, 24, Color(1, 1, 1, 0.25), 1.0, true))
-	_root.add_child(_cross)
-
-	_slot_style = StyleBoxFlat.new()
-	_slot_style.bg_color = Color(0.05, 0.07, 0.08, 0.55)
-	_slot_style.set_corner_radius_all(8)
-	_slot_style.set_border_width_all(2)
-	_slot_style.border_color = Color(1, 1, 1, 0.12)
-	_slot_style.set_content_margin_all(6)
-	_slot_style_sel = _slot_style.duplicate()
-	_slot_style_sel.border_color = Color(1.0, 0.85, 0.45, 0.95)
-	_slot_style_sel.bg_color = Color(0.12, 0.1, 0.05, 0.7)
-
-	var bar := HBoxContainer.new()
-	bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	bar.add_theme_constant_override("separation", 6)
-	bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	bar.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	bar.position.y = -18
-	_root.add_child(bar)
-	for i in Player.SLOTS.size():
-		var pc := PanelContainer.new()
-		pc.custom_minimum_size = Vector2(92, 58)
-		pc.add_theme_stylebox_override("panel", _slot_style)
-		var vb := VBoxContainer.new()
-		vb.add_theme_constant_override("separation", 0)
-		var l1 := Label.new()
-		l1.text = "%d  %s" % [i + 1, Player.SLOT_NAMES[i]]
-		l1.add_theme_font_size_override("font_size", 13)
-		l1.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var l2 := Label.new()
-		l2.add_theme_font_size_override("font_size", 12)
-		l2.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
-		l2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		vb.add_child(l1)
-		vb.add_child(l2)
-		pc.add_child(vb)
-		bar.add_child(pc)
-		_slots.append(pc)
-		_slot_counts.append(l2)
-		_slot_names.append(l1)
-
-	_hint = Label.new()
-	_hint.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_hint.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_hint.position.y = -110
-	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hint.add_theme_font_size_override("font_size", 15)
-	_hint.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
-	_hint.add_theme_constant_override("shadow_offset_y", 1)
-	_root.add_child(_hint)
-
-	var tl := VBoxContainer.new()
-	tl.position = Vector2(20, 16)
-	_root.add_child(tl)
-	_clock = Label.new()
-	_clock.add_theme_font_size_override("font_size", 22)
-	_clock.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.7))
-	tl.add_child(_clock)
-	_stamina = _mk_bar(Color(0.95, 0.8, 0.35))
-	tl.add_child(_stamina)
-	_breath = _mk_bar(Color(0.45, 0.8, 1.0))
-	tl.add_child(_breath)
-
-	_inv_label = Label.new()
-	_inv_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_inv_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_inv_label.position = Vector2(-20, 16)
-	_inv_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_inv_label.add_theme_font_size_override("font_size", 16)
-	_inv_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.7))
-	_root.add_child(_inv_label)
-
-	_toasts = VBoxContainer.new()
-	_toasts.set_anchors_preset(Control.PRESET_CENTER_LEFT)
-	_toasts.position = Vector2(22, 0)
-	_root.add_child(_toasts)
-
-	_build_vitals()
+	_play = PlayHud.new()
+	_root.add_child(_play)
 	_fade = ColorRect.new()
 	_fade.color = Color(0, 0, 0, 0)
 	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -160,6 +80,7 @@ func _mk_bar(c: Color) -> ProgressBar:
 func _build_loading() -> void:
 	_loading = ColorRect.new()
 	_loading.color = Color(0.02, 0.04, 0.06)
+	_loading.theme = UiKit.theme()
 	_loading.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(_loading)
 	var vb := VBoxContainer.new()
@@ -294,37 +215,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		_root.visible = not _root.visible
 
 
-func set_slot(i: int) -> void:
-	for k in _slots.size():
-		_slots[k].add_theme_stylebox_override("panel", _slot_style_sel if k == i else _slot_style)
-	_refresh_inventory()
-
-
-func _build_vitals() -> void:
-	var box := VBoxContainer.new()
-	box.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	box.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	box.offset_left = 20
-	box.offset_top = -150
-	box.offset_bottom = -20
-	box.add_theme_constant_override("separation", 3)
-	_root.add_child(box)
-	for e in [["health", "Health", Color(0.9, 0.3, 0.3)], ["food", "Food", Color(0.95, 0.65, 0.3)],
-			["water", "Water", Color(0.35, 0.7, 1.0)], ["energy", "Energy", Color(0.7, 0.55, 0.95)]]:
-		var hb := HBoxContainer.new()
-		var l := UiKit.label(e[1], 13, Color(1, 1, 1, 0.75))
-		l.custom_minimum_size.x = 56
-		hb.add_child(l)
-		var b := _mk_bar(e[2])
-		b.custom_minimum_size = Vector2(150, 8)
-		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		hb.add_child(b)
-		box.add_child(hb)
-		_vbars[e[0]] = b
-	_temp_label = UiKit.label("", 13, Color(1, 1, 1, 0.75))
-	box.add_child(_temp_label)
-	_status_label = UiKit.label("", 14, Color(1.0, 0.6, 0.45))
-	box.add_child(_status_label)
+func set_slot(_i: int) -> void:
+	if _play:
+		_play.slot_changed()
 
 
 func toggle_survival_panel() -> void:
@@ -387,62 +280,12 @@ func set_underwater(s: float) -> void:
 
 
 func _refresh_inventory() -> void:
-	var lines := PackedStringArray()
-	for id in Game.inventory:
-		if int(Game.inventory[id]) > 0:
-			lines.append("%s  %d" % [Items.item_name(id), int(Game.inventory[id])])
-	var w := Game.carried_weight()
-	lines.append("%.0f / %.0f kg" % [w, Items.MAX_CARRY] + ("  (heavy!)" if w > Items.MAX_CARRY else ""))
-	_inv_label.text = "\n".join(lines)
-	var p := Game.player
-	for i in Player.SLOTS.size():
-		var s: String = Player.SLOTS[i]
-		var txt := ""
-		var nm: String = Player.SLOT_NAMES[i]
-		if Items.is_tool_item(s):
-			var d := int(Game.tools.get(s, 0))
-			txt = ("%d%%" % int(100.0 * d / Items.TOOLS[s])) if d > 0 else "craft"
-		elif s == "build" and p:
-			var k: String = Player.BUILD_KINDS[p.build_idx]
-			nm = StructurePiece.DEFS[k]["name"]
-			var cost: Dictionary = StructurePiece.DEFS[k]["cost"]
-			var id: String = cost.keys()[0]
-			txt = "×%d  (B)" % (Game.count(id) / int(cost[id]))
-		elif s == "place" and p:
-			var k2: String = Player.PLACE_KINDS[p.place_idx]
-			nm = Items.item_name(k2).replace(" kit", "")
-			txt = "×%d  (B)" % Game.count(k2)
-		_slot_counts[i].text = txt
-		_slot_names[i].text = "%d  %s" % [i + 1, nm]
+	if _play:
+		_play.queue_redraw()
 
 
 func _on_toast(text: String) -> void:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_size_override("font_size", 16)
-	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
-	_toasts.add_child(l)
-	if _toasts.get_child_count() > 6:
-		_toasts.get_child(0).queue_free()
-	var tw := l.create_tween()
-	tw.tween_interval(2.2)
-	tw.tween_property(l, "modulate:a", 0.0, 0.8)
-	tw.tween_callback(l.queue_free)
+	if _play:
+		_play.push_message(text)
 
 
-func _process(_delta: float) -> void:
-	if Game.day_night:
-		_clock.text = Game.day_night.clock_text()
-	if Game.player:
-		_stamina.value = Game.player.stamina
-		_breath.value = Game.player.breath
-		_breath.visible = Game.player.breath < 0.999
-		_hint.text = Game.player.hint
-		var v := Game.player.vitals
-		_vbars["health"].value = v.health / 100.0
-		_vbars["food"].value = v.food / 100.0
-		_vbars["water"].value = v.water / 100.0
-		_vbars["energy"].value = v.energy / 100.0
-		var w := Game.weather.state.capitalize() if Game.weather else ""
-		_temp_label.text = "Body %.1f °C  ·  %s" % [v.body_temp, w]
-		_status_label.text = "  ".join(v.status)
