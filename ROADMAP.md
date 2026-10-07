@@ -45,6 +45,14 @@ The base everything else sits on.
 - ✅ English and Arabic (Settings → Story language)
 - ⏭ Act Two: the consequences of your finale choice, the first other survivor, the boat
 
+## Phase 3.5 — First impression ✅
+- ✅ Cinematic loading screen (key art, stages, tips), branded title screen with its own music
+- ✅ Prologue film in-engine: wheelhouse with four actors (faces driven by facial bones), dialogue,
+  impact with ragdoll physics, sinking, underwater, title card, waking up on the beach
+- ✅ First launch → prologue; later → Continue; Start over hidden in a corner with confirmation
+- ✅ Full settings with key rebinding, audio buses, HUD options; English / Arabic for everything
+- ⏭ Recorded voice acting (Arabic + English) for the prologue lines
+
 ## Phase 4 — The sea: boats and other islands
 - Build a raft, then a sailing boat (physical buoyancy, sail + rudder, wind direction matters)
 - Board and steer it; anchor; storms at sea

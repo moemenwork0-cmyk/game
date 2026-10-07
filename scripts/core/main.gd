@@ -112,6 +112,12 @@ func _ready() -> void:
 	Settings.changed.connect(_on_settings_changed)
 
 	hud.set_loading(0.95, "Letting the world settle")
+	# the cover deserves a moment, even on a fast machine
+	# (counted in game time, so a recorded movie shows it too)
+	var shown := 0.0
+	while shown < 4.0 and not ("--test" in args or "--loadtest" in args):
+		await get_tree().process_frame
+		shown += get_process_delta_time()
 	for i in 40:
 		await get_tree().physics_frame
 	hud.hide_loading()

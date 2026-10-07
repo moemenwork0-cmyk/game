@@ -1,8 +1,16 @@
 # Jazira — جزيرة
 
 A tiny, physically simulated sandbox island in the spirit of Minecraft — **without the cubes**.
-Built with **Godot 4.4** (Forward+ renderer, Jolt physics). Everything (terrain, trees, rocks,
-textures, sounds) is generated procedurally in code. There are no external asset files.
+Built with **Godot 4.4** (Forward+ renderer, Jolt physics). Terrain, trees, rocks, textures,
+sound effects and music are generated in code; the people are Microsoft Rocketbox avatars (MIT).
+
+**v0.4 — the opening:** a cinematic loading screen, a branded title screen with its own theme
+(an oud-like melody in maqam Hijaz, synthesised in code), full settings (display, graphics, audio,
+controls with key rebinding, gameplay), the whole game in English and Arabic, and a ~90-second
+in-engine prologue: the Murjan in the storm, her crew face to face, the impact on the reef thrown
+by real physics, the sinking, the title, and waking up on the beach. The prologue plays the first
+time the game is started; afterwards the title screen continues your island, and "Start over"
+(bottom corner, with confirmation) erases everything.
 
 ![island](docs/island.png)
 
