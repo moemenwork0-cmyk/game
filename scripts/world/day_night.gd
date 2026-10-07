@@ -31,7 +31,7 @@ func _process(delta: float) -> void:
 func clock_text() -> String:
 	var h := int(time_hours)
 	var m := int((time_hours - h) * 60.0)
-	return "Day %d  ·  %02d:%02d" % [Game.day_number, h, m]
+	return StoryData.t({"en": "Day %d  ·  %02d:%02d", "ar": "اليوم %d  ·  %02d:%02d"}) % [Game.day_number, h, m]
 
 
 func _update(delta: float) -> void:

@@ -162,6 +162,22 @@ static func build_ship(rng: RandomNumberGenerator, wrecked: bool) -> Node3D:
 		deck_light.light_energy = 1.5
 		deck_light.position = Vector3(0, DEPTH + 3.0, 6.5)
 		root.add_child(deck_light)
+		# navigation lights: red to port, green to starboard
+		for side in [-1.0, 1.0]:
+			var nav := OmniLight3D.new()
+			nav.light_color = Color(1.0, 0.1, 0.05) if side < 0.0 else Color(0.1, 1.0, 0.3)
+			nav.omni_range = 2.5
+			nav.light_energy = 0.7
+			nav.position = Vector3(side * 3.6, DEPTH + 3.0, 7.0)
+			root.add_child(nav)
+		var search := SpotLight3D.new()
+		search.light_color = Color(1.0, 0.95, 0.85)
+		search.spot_range = 60.0
+		search.spot_angle = 14.0
+		search.light_energy = 6.0
+		search.position = Vector3(0, DEPTH + 5.2, 7.4)
+		search.rotation = Vector3(-0.12, 0, 0)
+		root.add_child(search)
 	return root
 
 

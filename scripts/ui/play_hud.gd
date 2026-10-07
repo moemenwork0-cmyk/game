@@ -262,7 +262,8 @@ func _draw() -> void:
 	_draw_vitals(Vector2(32, vs.y - 34), p)
 	_draw_hotbar(Vector2(vs.x * 0.5, vs.y - 26), p)
 	_draw_effort(Vector2(vs.x * 0.5, vs.y - 104), p)
-	_draw_objective(Vector2(vs.x - 28, 28))
+	# top-right, dropping below the compass when the screen is too narrow for both
+	_draw_objective(Vector2(vs.x - 28, 28 if vs.x - 386.0 > vs.x * 0.5 + 290.0 else 112))
 	_draw_subtitle(Vector2(vs.x * 0.5, vs.y - 196), vs.x)
 
 

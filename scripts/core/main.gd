@@ -21,10 +21,12 @@ func _ready() -> void:
 	Game.start_mode = ""
 	var args := OS.get_cmdline_user_args()
 	for a in args:
-		if a.begins_with("--test") or a.begins_with("--shot"):
+		if a.begins_with("--test") or a.begins_with("--shot") or a.begins_with("--introshot"):
 			mode = "new"
 		if a == "--loadtest":
 			mode = "load"
+		if a.begins_with("--lang="):
+			Settings.language = a.trim_prefix("--lang=")
 	var save_data := {}
 	if mode == "load":
 		save_data = SaveGame.read()
@@ -103,9 +105,45 @@ func _ready() -> void:
 	_debug_shots()
 
 
-## Rolls this playthrough's identity and mystery, and leaves the Murjan's cargo on her deck.
+func _intro_enabled() -> bool:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--test") or a.begins_with("--shot") or a == "--nointro":
+			return false
+	return true
+
+
+## After the wreck: dawn, a calm sea, face down on the beach that looks out at her.
+func _wake_up(player: Player) -> void:
+	var dir := Vector3(Wreck.POS.x, 0, Wreck.POS.z).normalized()
+	var spawn := default_spawn()
+	for r in range(44, 8, -1):
+		var x := dir.x * r
+		var z := dir.z * r
+		var h := Game.world.surface_height(x, z)
+		if h > 0.9:
+			var x2 := dir.x * (r - 2.0)
+			var z2 := dir.z * (r - 2.0)
+			spawn = Vector3(x2, Game.world.surface_height(x2, z2) + 1.0, z2)
+			break
+	player.global_position = spawn
+	player.look_toward(Vector3(Wreck.POS.x, spawn.y + 1.0, Wreck.POS.z))
+	player.pitch = -0.12
+	player.camera.current = true
+	Game.day_night.time_hours = 6.15
+	Game.day_night.day_minutes = 16.0
+	Game.weather.force("clear")
+	Game.weather.wind = 0.35
+	player.vitals.wetness = 1.0
+	player.vitals.energy = 55.0
+	player.vitals.water = 60.0
+	player.vitals.morale = 55.0
+	Game.hud.fade(0.0, 3.5)
+
+
+## Leaves the Murjan's cargo on her deck and opens the first objective
+## (start_new has already rolled who you are and why she sank).
 func _begin_story() -> void:
-	Game.story.start_new()
+	Game.story.start_pos = Game.player.global_position
 	var w: Wreck = get_tree().get_first_node_in_group("wreck")
 	if w:
 		var cr := StoryCrate.create(w.crate_position(), {"plank": 4, "tin": 1, "medkit": 1, "waterbottle": 1}, "wreck")
@@ -136,6 +174,14 @@ func start_play(data: Dictionary) -> void:
 		player.global_position = spawn
 		player.look_toward(Vector3(0, spawn.y, 0))
 		Game.day_night.time_hours = 7.2
+		Game.story.start_new()
+		if _intro_enabled():
+			Game.hud.set_gameplay_visible(false)
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+			var intro := Intro.new()
+			add_child(intro)
+			await intro.finished
+			_wake_up(player)
 		_begin_story()
 	else:
 		var pd: Dictionary = data["player"]
@@ -150,6 +196,7 @@ func start_play(data: Dictionary) -> void:
 		if data.has("story"):
 			Game.story.from_dict(data["story"])
 		else:
+			Game.story.start_new()
 			_begin_story()
 	Game.playing = true
 	Game.hud.set_gameplay_visible(true)
@@ -210,6 +257,26 @@ func _debug_shots() -> void:
 		for i in 30:
 			await get_tree().physics_frame
 		print("LOAD ", _world_summary())
+		get_tree().quit()
+		return
+	if args.has("introshot"):
+		# frames of the opening at the given seconds, then a few after waking up
+		var times: PackedFloat64Array = str(args.get("at", "3,10,17,23")).split_floats(",")
+		var intro: Intro = null
+		while intro == null:
+			await get_tree().process_frame
+			for c in get_children():
+				if c is Intro:
+					intro = c
+		for i in times.size():
+			while is_instance_valid(intro) and intro._t < times[i]:
+				await get_tree().process_frame
+			get_viewport().get_texture().get_image().save_png("%s/intro_%d.png" % [args["introshot"], i])
+		while not Game.playing:
+			await get_tree().process_frame
+		for i in 240:
+			await get_tree().process_frame
+		get_viewport().get_texture().get_image().save_png("%s/wake.png" % args["introshot"])
 		get_tree().quit()
 		return
 	if args.has("menushot"):
@@ -710,6 +777,18 @@ func _story_tests() -> void:
 	print("TEST3 ar title=%s" % StoryData.t(st.mission_def()["title"]))
 	Settings.language = "en"
 	print("TEST3 ok mission=%d (%s) journal=%d" % [st.mission, st.mission_def()["id"], st.journal.size()])
+	# the finale: a night choice, then the end-of-act card
+	var saved := st.to_dict()
+	st.mission = StoryData.MISSIONS.size() - 1
+	Game.day_night.time_hours = 21.0
+	for i in 5:
+		await get_tree().process_frame
+	Game.hud._chosen.emit(1)
+	await get_tree().create_timer(15.5).timeout
+	Game.hud._chosen.emit(0)
+	await get_tree().process_frame
+	print("TEST3 finale choice=%s act_over=%s ui_open=%s" % [st.flags.get("finale_choice", "-"), st.act_over(), Game.ui_open])
+	st.from_dict(saved)
 
 
 func _phase2_tests() -> void:

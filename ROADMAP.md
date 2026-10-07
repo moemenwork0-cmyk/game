@@ -20,7 +20,7 @@ The base everything else sits on.
 - Settings: graphics, resolution scale, fullscreen, mouse sensitivity, volume — saved to disk
 - Save / load the whole world (terrain edits, trees, items, buildings, inventory, time) + autosave
 
-## Phase 2 — The body: survival & the player character ✅ (done, character art pending)
+## Phase 2 — The body: survival & the player character ✅ (done)
 - ✅ Health, hunger, thirst, energy/sleep, body temperature, wetness, food poisoning, fall damage, drowning
 - ✅ Food: coconuts (shake them loose by chopping palms), berry bushes that regrow, fish schools + spear,
   cooking on the campfire; water: coconuts and rain collectors
@@ -28,14 +28,22 @@ The base everything else sits on.
 - ✅ Weather: clear / cloudy / rain / storm with lightning & thunder, wind that bends grass and trees and
   raises real waves (buoyancy follows them), rain fills collectors and soaks you
 - ✅ Bed: sleep through the night, respawn point; death → wake up at your bed and lose half your load
-- ✅ Third-person camera (V) with a procedurally animated placeholder body
-- ⏳ Realistic rigged character + animations (needs a 3D asset — see "Art assets" below)
+- ✅ Third-person camera (V) with a realistic human (Microsoft Rocketbox, MIT) and motion-capture animations
+- ✅ Physically modelled sound: breaking waves, gusting wind, rain, footsteps per surface, impacts, wildlife
 
-## Phase 3 — The opening story  ⏭ (next)
-- Intro: shipwreck cutscene → wake up on the beach
-- Tutorial missions woven into the story (find water, make fire, build shelter, signal fire)
-- Journal / mission log UI, objectives on screen
-- First message in a bottle → hints of the wider world
+## Phase 3 — The opening story ✅ (Act One done)
+- ✅ Intro: the Murjan in a night storm, riding the real waves, sinks → you wake on the beach facing her wreck
+- ✅ Every game rolls WHO you are (engineer / stowaway / medic — each with a memory, a guilt and a perk)
+  and WHY the ship sank (smuggled guns / a missing girl / the captain's cursed route)
+- ✅ Act One missions woven into the story: alive → thirst → driftwood → fire → first night → the wreck →
+  shelter → signal fire → the night of the signal (a finale choice that differs per mystery)
+- ✅ Mind (morale): isolation, darkness, hunger and storms wear it down; fire, sleep, company and hope restore it.
+  Low morale → nightmares, whispers, a figure at the edge of sight, lights of ships that are not there
+- ✅ Storyteller: crates and bottled letters wash ashore, a wounded gull (save it / eat it / leave it),
+  ships that pass on the horizon (unless your signal fire is burning), footprints that are not yours
+- ✅ Inner voice subtitles, journal that writes itself (Tab → Journal), objectives on screen
+- ✅ English and Arabic (Settings → Story language)
+- ⏭ Act Two: the consequences of your finale choice, the first other survivor, the boat
 
 ## Phase 4 — The sea: boats and other islands
 - Build a raft, then a sailing boat (physical buoyancy, sail + rudder, wind direction matters)
@@ -71,7 +79,7 @@ The base everything else sits on.
 
 ---
 
-### Art assets (needed from Phase 2)
+### Art assets
 Code, systems, physics, shaders, terrain and world are generated in code. Characters, animals and
 detailed props need 3D models + animations: free packs (Quaternius, Kenney, Mixamo animations) or
 paid packs (e.g. Synty), or a 3D artist.
