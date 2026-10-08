@@ -11,6 +11,8 @@ var sky_mat: ShaderMaterial
 
 const AUTOSAVE_SECONDS := 240.0
 
+static var _booted := false
+
 var _menu_cam: Camera3D
 var _menu_t := 0.0
 var _autosave_t := 0.0
@@ -18,8 +20,11 @@ var _autosave_every := AUTOSAVE_SECONDS
 
 
 func _ready() -> void:
-	# Phase 1 vertical slice: the new island cove (scenes/slice.tscn)
-	if OS.get_cmdline_user_args().has("--slice"):
+	# Phase 1 preview: the game opens straight on the new island cove (scenes/slice.tscn).
+	# Backspace there returns to this menu; the old prologue stays reachable from it.
+	var first_boot := not _booted
+	_booted = true
+	if OS.get_cmdline_user_args().has("--slice") or (first_boot and OS.get_cmdline_user_args().is_empty() and Game.start_mode == ""):
 		get_tree().change_scene_to_file.call_deferred("res://scenes/slice.tscn")
 		return
 	var mode := Game.start_mode
@@ -36,8 +41,8 @@ func _ready() -> void:
 			Settings.language = a.trim_prefix("--lang=")
 			Lang.apply(Settings.language)
 	# the very first launch on this machine goes straight into the prologue
-	if mode == "" and args.is_empty() and not SaveGame.exists():
-		mode = "prologue"
+	if mode == "" and args.is_empty() and not SaveGame.exists() and false:
+		mode = "prologue"  # disabled during the Phase 1 preview: the menu comes first
 	Game.replay = mode == "replay"
 	_want_intro = mode == "prologue" or mode == "replay"
 	if _want_intro:

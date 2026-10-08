@@ -95,7 +95,11 @@ func _ready() -> void:
 	elif shooting:
 		scatter.set_process(false)  # the screenshot tool builds around each viewpoint itself
 	else:
-		await scatter.build_static(Vector3(0, 0, 450), 900.0)
+		var cover := _loading_cover()
+		await get_tree().process_frame
+		await scatter.build_static(Vector3(0, 0, 450), 900.0, func(p: float) -> void:
+			cover.get_node("L").text = tr("Growing the jungle… %d%%") % int(p * 100.0))
+		cover.queue_free()
 	_ready_done = true
 	_apply_quality()
 
@@ -112,6 +116,26 @@ func _ready() -> void:
 		_bench()
 		return
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## Full-screen cover with a progress line while the island is planted.
+func _loading_cover() -> CanvasLayer:
+	var cl := CanvasLayer.new()
+	cl.layer = 50
+	add_child(cl)
+	var bg := ColorRect.new()
+	bg.color = Color(0.02, 0.04, 0.06)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	cl.add_child(bg)
+	var l := Label.new()
+	l.name = "L"
+	l.text = tr("Loading the island…")
+	l.add_theme_font_size_override("font_size", 28)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	cl.add_child(l)
+	return cl
 
 
 func _apply_quality() -> void:
