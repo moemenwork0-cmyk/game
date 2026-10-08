@@ -41,7 +41,7 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	for a in args:
 		if a.begins_with("--shots="):  # watchdog: never hang a headless render
-			get_tree().create_timer(1500.0).timeout.connect(get_tree().quit.bind(3))
+			get_tree().create_timer(2300.0).timeout.connect(get_tree().quit.bind(3))
 	sky = SkyRig.new()
 	add_child(sky)
 	for a in args:
@@ -87,7 +87,9 @@ func _ready() -> void:
 	scatter.setup(terrain, shore_tex.get_image(), Rect2(-1024, -1024, 2048, 2048))
 	_set_view(0)
 	await get_tree().process_frame
-	var shooting := args.any(func(a: String) -> bool: return a.begins_with("--shots="))
+	var shooting := false
+	for a in args:
+		shooting = shooting or a.begins_with("--shots=")
 	if args.has("--noscatter"):
 		scatter.set_process(false)
 	elif shooting:
