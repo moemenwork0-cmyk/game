@@ -29,7 +29,7 @@ const CLOSE := [
 const TOUR := [
 	[Vector3(-60, 2.4, 455), Vector3(120, 0.0, 900), 10.5],      # lagoon, sandstone stacks, palm islets
 	[Vector3(70, 2.2, 405), Vector3(-60, 4.0, 425), 16.6],       # low sun through the palms at the jungle edge
-	[Vector3(50, 2.2, 362), Vector3(42, 13.0, 298), 15.0, 0.8],  # the river in the jungle as a storm comes in
+	[Vector3(20, 2.6, 381), Vector3(52, 9.0, 300), 15.0, 0.8, true],  # up the river as a storm comes in (abs. height above water)
 	[Vector3(82, 2.2, 268), Vector3(82, 16.0, 150), 17.3],       # the lake in the hills at golden hour
 	[Vector3(-42, 2.0, 446), Vector3(10, 4.0, 395), 9.0],        # where the river meets the sea
 	[Vector3(240, 4.0, 560), Vector3(0, 0.0, 440), 18.0],        # the cove from the cliffs at sunset
@@ -145,13 +145,15 @@ func _ready() -> void:
 func _hero_rocks() -> void:
 	var M := "res://assets/env/models/%s.glb"
 	var sand := {"tint": Color(1.5, 1.08, 0.72), "moss": 0.7}
+	# [model, position, scale, yaw, stand up]
 	for r in [
-		["coast_land_rocks_02", Vector3(-95, 0, 508), 1.6, 0.4], ["coast_land_rocks_03", Vector3(-35, 0, 528), 1.3, 2.1],
-		["coast_rocks_05", Vector3(30, 0, 520), 1.8, 1.0], ["coast_land_rocks_03", Vector3(95, 0, 548), 1.7, 4.0],
-		["coast_rocks_05", Vector3(-150, 0, 535), 2.2, 5.1], ["coast_land_rocks_02", Vector3(-120, 0, 425), 1.9, 3.3],
-		["coast_land_rocks_03", Vector3(85, 0, 420), 1.6, 0.9], ["boulder_01", Vector3(-55, 0, 438), 2.4, 1.7],
+		["coast_land_rocks_02", Vector3(-95, 0, 512), 1.1, 0.4, true], ["coast_land_rocks_03", Vector3(-30, 0, 532), 1.0, 2.1, true],
+		["coast_rocks_05", Vector3(30, 0, 522), 1.8, 1.0, true], ["coast_land_rocks_03", Vector3(95, 0, 548), 1.2, 4.0, true],
+		["coast_land_rocks_02", Vector3(-150, 0, 540), 1.4, 5.1, true], ["coast_land_rocks_02", Vector3(-118, 0, 428), 1.3, 3.3, false],
+		["coast_land_rocks_03", Vector3(85, 0, 422), 1.5, 0.9, false], ["boulder_01", Vector3(-55, 0, 440), 2.4, 1.7, true],
+		["coast_rocks_05", Vector3(-20, 0, 505), 1.2, 3.0, true], ["boulder_01", Vector3(12, 0, 498), 1.8, 0.2, true],
 	]:
-		scatter.place(M % r[0], r[1], r[2], r[3], sand)
+		scatter.place(M % r[0], r[1], r[2], r[3], sand, r[4])
 
 
 func _loading_cover() -> CanvasLayer:
@@ -191,7 +193,10 @@ func _apply_view(v: Array) -> void:
 	var p: Vector3 = v[0]
 	var ground := terrain.data.get_height(p) if terrain.data else 0.0
 	if not is_nan(ground):
-		p.y = maxf(ground, 0.0) + p.y if v in TOUR else maxf(p.y, ground + 1.7)
+		if v.size() > 4 and v[4]:
+			p.y = maxf(ground, _water_level(p)) + p.y
+		else:
+			p.y = maxf(ground, 0.0) + p.y if v in TOUR else maxf(p.y, ground + 1.7)
 	cam.global_position = p
 	cam.look_at(v[1])
 	_yaw = cam.rotation.y
@@ -200,6 +205,21 @@ func _apply_view(v: Array) -> void:
 	sky.storm = v[3] if v.size() > 3 else 0.0
 	if is_instance_valid(ocean):
 		ocean.sea_state = 1.0 + sky.storm * 1.4
+
+
+## Fresh-water level under a point (river polyline), or the sea level.
+func _water_level(p: Vector3) -> float:
+	var best := 1e9
+	var lvl := 0.0
+	var fw := get_node_or_null("FreshWater") as FreshWater
+	if fw == null:
+		return 0.0
+	for q in fw.water_data.get("river", []):
+		var d := Vector2(float(q[0]) - p.x, float(q[1]) - p.z).length()
+		if d < best:
+			best = d
+			lvl = float(q[2])
+	return lvl if best < 20.0 else 0.0
 
 
 func _shoot_all(dir: String) -> void:

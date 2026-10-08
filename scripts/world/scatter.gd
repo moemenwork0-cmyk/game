@@ -104,7 +104,7 @@ func _rules() -> Array[Dictionary]:
 		"per_m2": 1.0 / 4.0, "water": Vector2(0.8, 12.0), "slope": Vector2(0, 40), "scale": Vector2(0.9, 1.6),
 		"sink": 0.03, "align": 0.5, "range": 110.0, "shadow": true, "foliage": true, "stream": true})
 	r.append({"name": "riverbank_bananas", "models": ["res://assets/env/models/plants_banana.glb"],
-		"per_m2": 1.0 / 40.0, "water": Vector2(2.0, 18.0), "slope": Vector2(0, 30), "scale": Vector2(1.0, 1.5),
+		"per_m2": 1.0 / 110.0, "water": Vector2(2.0, 18.0), "slope": Vector2(0, 30), "scale": Vector2(1.0, 1.5),
 		"sink": 0.05, "align": 0.1, "range": 320.0, "shadow": true, "foliage": true})
 	var P := "res://assets/env/models/plants_%s.glb"
 	r.append({"name": "tall_grass", "models": [P % "grass"],
@@ -114,7 +114,7 @@ func _rules() -> Array[Dictionary]:
 		"per_m2": 1.0 / 70.0, "behind": Vector2(-28, 25), "slope": Vector2(0, 28), "scale": Vector2(0.8, 1.5),
 		"sink": 0.0, "align": 0.3, "range": 260.0, "shadow": true, "foliage": true})
 	r.append({"name": "bananas", "models": [P % "banana"],
-		"per_m2": 1.0 / 45.0, "behind": Vector2(4, 500), "slope": Vector2(0, 28), "scale": Vector2(0.8, 1.25),
+		"per_m2": 1.0 / 130.0, "behind": Vector2(4, 500), "slope": Vector2(0, 28), "scale": Vector2(0.8, 1.25),
 		"clump": 0.02, "clump_cut": 0.55, "sink": 0.05, "align": 0.1, "range": 320.0, "shadow": true, "foliage": true})
 	r.append({"name": "taro", "models": [P % "taro"],
 		"per_m2": 1.0 / 12.0, "behind": Vector2(6, 9999), "slope": Vector2(0, 30), "scale": Vector2(0.8, 1.3),
@@ -154,7 +154,7 @@ func shore_at(x: float, z: float) -> Vector3:
 
 
 ## A single hand-placed piece (hero rocks for the cove's composition).
-func place(path: String, pos: Vector3, scale: float, yaw: float, rock: Dictionary = {}) -> void:
+func place(path: String, pos: Vector3, scale: float, yaw: float, rock: Dictionary = {}, stand_up := false) -> void:
 	var key := path + str(rock)
 	if not _variants.has(key):
 		_variants[key] = _load_variants(path, false, rock)
@@ -165,8 +165,12 @@ func place(path: String, pos: Vector3, scale: float, yaw: float, rock: Dictionar
 	var y := terrain.data.get_height(pos)
 	var mi := MeshInstance3D.new()
 	mi.mesh = v["mesh"]
-	var b: Basis = Basis(Vector3.UP, yaw) * (v["basis"] as Basis) * Basis.from_scale(Vector3.ONE * scale)
-	mi.transform = Transform3D(b, Vector3(pos.x, (y if not is_nan(y) else 0.0) + (float(v["lift"]) - float(v["height"]) * 0.3) * scale, pos.z))
+	# stand_up turns a flat scanned slab on its edge into a tall sea stack
+	var b: Basis = Basis(Vector3.UP, yaw) * (Basis(Vector3.RIGHT, PI * 0.5) if stand_up else Basis()) \
+		* (v["basis"] as Basis) * Basis.from_scale(Vector3.ONE * scale)
+	var aabb: AABB = Transform3D(b, Vector3.ZERO) * (mi.mesh as Mesh).get_aabb()
+	var ground := y if not is_nan(y) else 0.0
+	mi.transform = Transform3D(b, Vector3(pos.x, ground - aabb.position.y - aabb.size.y * 0.18, pos.z))
 	add_child(mi)
 
 
