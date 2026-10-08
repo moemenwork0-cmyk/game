@@ -230,6 +230,14 @@ func _build_cell(ri: int, cx: int, cz: int) -> void:
 			b = b * Basis(Vector3.RIGHT, rng.randf_range(-1, 1) * rule["tilt"])
 		b = b * v["basis"] * Basis.from_scale(Vector3.ONE * sc)
 		var sink: float = rule.get("sink", 0.0) * v["height"] * sc
+		# big meshes rest on the lowest ground under their footprint, not on the centre
+		var half: Vector2 = v["half"] * sc
+		if half.x > 1.5 or half.y > 1.5:
+			for c in [Vector3(half.x, 0, half.y), Vector3(-half.x, 0, half.y), Vector3(half.x, 0, -half.y), Vector3(-half.x, 0, -half.y)]:
+				var w: Vector3 = b.orthonormalized() * c * 0.8
+				var gy := data.get_height(Vector3(x + w.x, 0, z + w.z))
+				if not is_nan(gy):
+					y = minf(y, gy)
 		var origin: Vector3 = Vector3(x, y, z) + up * (float(v["lift"]) * sc - sink)
 		per_var[vi].append(Transform3D(b, origin - holder.global_position))
 	for i in vars.size():
@@ -275,7 +283,8 @@ func _load_variants(path: String, foliage: bool) -> Array:
 			var basis := _global_basis(mi)
 			var aabb: AABB = Transform3D(basis, Vector3.ZERO) * mi.mesh.get_aabb()
 			_fix_materials(mi.mesh, foliage, mi.mesh.get_aabb())
-			out.append({"mesh": mi.mesh, "basis": basis, "lift": -aabb.position.y, "height": aabb.size.y})
+			out.append({"mesh": mi.mesh, "basis": basis, "lift": -aabb.position.y, "height": aabb.size.y,
+				"half": Vector2(aabb.size.x, aabb.size.z) * 0.5})
 	root.free()
 	return out
 

@@ -38,7 +38,6 @@ func _ready() -> void:
 
 	terrain = Terrain3D.new()
 	terrain.name = "Terrain"
-	terrain.assets = load(ISLAND + "/assets.tres")
 	terrain.material.world_background = Terrain3DMaterial.NONE
 	terrain.material.auto_shader_enabled = false
 	terrain.material.dual_scaling_enabled = true
@@ -50,6 +49,7 @@ func _ready() -> void:
 	terrain.cast_shadows = RenderingServer.SHADOW_CASTING_SETTING_ON
 	add_child(terrain)
 	terrain.data_directory = ISLAND + "/data"
+	terrain.assets = load(ISLAND + "/assets.tres")
 
 	cam = Camera3D.new()
 	cam.fov = Settings.fov
