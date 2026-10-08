@@ -1,5 +1,8 @@
 # Jazira — Roadmap
 
+> **v1.0 master plan (Oct 2026):** the full design and an 11-phase production plan live in the shared doc "جزيرة — الخطة الكاملة للعبة": https://claude.ai/code/artifact/f076a2e7-ad24-42fb-9940-961872ece38c — it supersedes the phases below from Phase 4 on.
+
+
 **The goal:** a realistic life-sim / survival / nation-builder. You wash up alone on a tiny island,
 survive, then grow it into a living settlement and finally a full nation. You sail a boat you build
 yourself to other islands, meet people, trade, take on missions and follow a story. Target: a Steam release.
