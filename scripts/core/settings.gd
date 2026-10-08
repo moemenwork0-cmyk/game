@@ -178,6 +178,13 @@ func _auto_detect() -> void:
 		render_scale = 0.75
 		window_mode = 0
 		return
+	# entry-level laptop chips report as "discrete" but need the Low preset
+	var gpu := RenderingServer.get_video_adapter_name().to_upper()
+	for weak in ["940M", "930M", "920M", "MX1", "MX2", "MX3", "MX4", "GT 7", "GT 6", "GTX 9", "INTEL", "RADEON(TM) GRAPHICS", "VEGA"]:
+		if gpu.contains(weak):
+			_preset(0)
+			render_scale = 0.75
+			return
 	match RenderingServer.get_video_adapter_type():
 		RenderingDevice.DEVICE_TYPE_DISCRETE_GPU:
 			_preset(2)

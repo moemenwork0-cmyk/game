@@ -126,23 +126,29 @@ func _ready() -> void:
 	moon.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_AND_SKY
 	add_child(moon)
 
-	if not OS.get_cmdline_user_args().has("--noclouds"):
-		clouds = SunshineCloudsDriverGD.new()
-		add_child(clouds)
-		clouds.tracked_directional_lights = [sun]
-		clouds.tracked_directional_light_shadow_steps = [8]
-		clouds.wind_direction = Vector3(1.0, 0.0, 0.35)
-		clouds.build_new_clouds()
-		var c := clouds.clouds_resource
-		if c:
-			c.cloud_floor = 1100.0
-			c.cloud_ceiling = 9000.0
-			c.clouds_density = 0.6
-			c.atmospheric_density = 0.35
-			c.resolution_scale = 1 if Settings.quality >= 2 else 2
-			c.max_step_count = 160.0 if Settings.quality >= 2 else 90.0
+	# volumetric clouds are a High/Ultra feature; the sky shader's cloud deck covers Low/Medium
+	var hi := Settings.quality == 2 or Settings.quality == 3 or (Settings.quality == 4 and Settings.volumetric_fog)
+	if hi and not OS.get_cmdline_user_args().has("--noclouds"):
+		_add_clouds()
 	_build_rain()
 	_update_sun()
+
+
+func _add_clouds() -> void:
+	clouds = SunshineCloudsDriverGD.new()
+	add_child(clouds)
+	clouds.tracked_directional_lights = [sun]
+	clouds.tracked_directional_light_shadow_steps = [8]
+	clouds.wind_direction = Vector3(1.0, 0.0, 0.35)
+	clouds.build_new_clouds()
+	var c := clouds.clouds_resource
+	if c:
+		c.cloud_floor = 1100.0
+		c.cloud_ceiling = 9000.0
+		c.clouds_density = 0.6
+		c.atmospheric_density = 0.35
+		c.resolution_scale = 1 if Settings.quality >= 2 else 2
+		c.max_step_count = 160.0 if Settings.quality >= 2 else 90.0
 
 
 ## Rain: streaks in a box that follows the camera.

@@ -28,6 +28,10 @@ func setup(t: Terrain3D, shore_img: Image, rect: Rect2) -> void:
 	_clump_noise.frequency = 0.01
 	_clump_noise.fractal_octaves = 3
 	rules = _rules()
+	# draw distances follow the quality preset
+	var k: float = [0.5, 0.75, 1.0, 1.25, 1.0][clampi(Settings.quality, 0, 4)]
+	for r in rules:
+		r["range"] = float(r["range"]) * k
 
 
 ## island texture ids (tools/assets/gen_island.py)

@@ -17,14 +17,14 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "env", "mode
 
 # id: (triangle budget for the whole asset, max texture size)
 BUDGET = {
-	"coast_rocks_01": (60000, 2048), "coast_rocks_02": (60000, 2048), "coast_rocks_03": (45000, 2048),
-	"coast_rocks_05": (20000, 1024), "coast_land_rocks_02": (30000, 2048), "coast_land_rocks_03": (30000, 2048),
-	"coastal_cliff_01": (60000, 2048), "coastal_cliff_02": (60000, 2048), "sand_rocks_small_01": (20000, 1024),
+	"coast_rocks_01": (60000, 1024), "coast_rocks_02": (60000, 1024), "coast_rocks_03": (45000, 1024),
+	"coast_rocks_05": (20000, 1024), "coast_land_rocks_02": (30000, 1024), "coast_land_rocks_03": (30000, 1024),
+	"coastal_cliff_01": (60000, 1024), "coastal_cliff_02": (60000, 1024), "sand_rocks_small_01": (20000, 1024),
 	"boulder_01": (12000, 1024), "rock_moss_set_01": (30000, 1024), "rock_moss_set_02": (24000, 1024),
 	"rock_07": (3000, 512), "rock_09": (2000, 512), "stone_01": (2500, 512), "lambis_shell": (2500, 512),
 	"dead_tree_trunk": (10000, 1024), "dead_tree_trunk_02": (12000, 1024), "tree_stump_01": (8000, 1024),
 	"root_cluster_01": (15000, 1024), "dry_branches_medium_01": (6000, 512),
-	"island_tree_01": (110000, 2048), "island_tree_02": (90000, 2048), "island_tree_03": (110000, 2048),
+	"island_tree_01": (110000, 1024), "island_tree_02": (90000, 1024), "island_tree_03": (110000, 1024),
 	"shrub_01": (15000, 1024), "shrub_02": (20000, 1024), "shrub_03": (6000, 512), "shrub_04": (6000, 1024),
 	"pachira_aquatica_01": (25000, 1024), "fern_02": (6232, 1024), "grass_medium_01": (8000, 1024),
 	"grass_medium_02": (5000, 1024), "grass_bermuda_01": (2000, 512), "nettle_plant": (8000, 512),

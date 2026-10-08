@@ -232,6 +232,9 @@ func _unhandled_input(e: InputEvent) -> void:
 		match e.keycode:
 			KEY_ESCAPE:
 				Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else Input.MOUSE_MODE_CAPTURED
+			KEY_BACKSPACE, KEY_F10:
+				Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+				get_tree().change_scene_to_file("res://scenes/main.tscn")
 			KEY_T:
 				sky.hour += 1.0
 			KEY_C:
@@ -260,5 +263,5 @@ func _process(delta: float) -> void:
 	var sp := _speed * (6.0 if Input.is_key_pressed(KEY_SHIFT) else 1.0)
 	cam.global_position += dir.normalized() * sp * delta
 	if _label:
-		_label.text = "%d fps   %.1f h   pos %s   [1-6 views, T time, C sea, wheel speed]" % [
+		_label.text = "%d fps   %.1f h   pos %s   [1-8 views, T time, C sea, wheel speed, Backspace menu]" % [
 			Engine.get_frames_per_second(), sky.hour, str(cam.global_position.round())]

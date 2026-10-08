@@ -18,6 +18,7 @@ boot_splash/use_filter=true
 
 Settings="*res://scripts/core/settings.gd"
 Game="*res://scripts/core/game.gd"
+Updater="*res://scripts/core/updater.gd"
 
 [display]
 

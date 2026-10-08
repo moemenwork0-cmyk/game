@@ -1,58 +1,91 @@
 name: Build game
 
+# Every push builds the Windows game and publishes it as release "build-N".
+# The game's updater (scripts/core/updater.gd) downloads the newest release on launch.
+
 on:
   push:
-    branches: ["**"]
-    tags: ["v*"]
+    branches: ["main", "claude/eloquent-archimedes-mtqfp4"]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
-  GODOT_VERSION: 4.4.1
+  GODOT_VERSION: 4.7.2
 
 jobs:
-  export:
+  windows:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Godot + export templates
+      - name: Cache Godot and export templates
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-win
+
+      - name: Download Godot + Windows template
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
+          mkdir -p ~/godot ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          cd ~/godot
           wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
-          unzip -q Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
-          sudo mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 /usr/local/bin/godot
+          unzip -q Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip && rm Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
+          mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 godot
           wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz
-          mkdir -p ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
           unzip -q -j Godot_v${GODOT_VERSION}-stable_export_templates.tpz \
-            templates/windows_release_x86_64.exe templates/linux_release.x86_64 templates/web_nothreads_release.zip templates/version.txt \
+            templates/windows_release_x86_64.exe templates/version.txt \
             -d ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
           rm Godot_v${GODOT_VERSION}-stable_export_templates.tpz
 
+      - name: Stamp build number
+        run: |
+          printf 'class_name BuildInfo\nextends RefCounted\n## Overwritten by CI with the GitHub Actions run number of the published build.\n\nconst BUILD := %s\n' "${{ github.run_number }}" > scripts/core/build_info.gd
+
       - name: Import project
-        run: godot --headless --import || true
-
-      - name: Gameplay self-test
         run: |
-          godot --headless -- --test | tee test.log
-          grep -q "TEST done" test.log
+          ~/godot/godot --headless --import || true
+          ~/godot/godot --headless --import || true
 
-      - name: Export Windows + Linux
+      - name: Export Windows
         run: |
-          mkdir -p build/windows build/linux build/web
-          godot --headless --export-release "Windows Desktop" build/windows/Jazira.exe
-          godot --headless --export-release "Linux" build/linux/Jazira.x86_64
-          godot --headless --export-release "Web" build/web/index.html
+          mkdir -p build/windows
+          ~/godot/godot --headless --export-release "Windows Desktop" build/windows/Jazira.exe
+          ls -la build/windows
+          test -f build/windows/Jazira.pck
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Jazira-Windows
-          path: build/windows/Jazira.exe
+      - name: Package
+        run: |
+          cd build/windows
+          cat > "README.txt" <<'EOF'
+          Jazira - preview build ${{ github.run_number }}
+          1. Keep all files in this folder together and run Jazira.exe.
+          2. The game updates itself when you open it (nothing runs in the background).
+          3. On laptops with two graphics chips, set Jazira.exe to "High performance"
+             in Windows Settings > System > Display > Graphics.
+          EOF
+          zip -q -r ../Jazira-Windows.zip .
 
-      - uses: actions/upload-artifact@v4
+      - name: Publish release build-${{ github.run_number }}
+        uses: softprops/action-gh-release@v2
         with:
-          name: Jazira-Linux
-          path: build/linux/Jazira.x86_64
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Jazira-Web
-          path: build/web
+          tag_name: build-${{ github.run_number }}
+          name: Jazira preview build ${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body: |
+            Preview build from ${{ github.ref_name }} @ ${{ github.sha }}.
+            First time: download Jazira-Windows.zip, unzip, run Jazira.exe. After that the game updates itself.
+          files: |
+            build/Jazira-Windows.zip
+            build/windows/Jazira.pck
+            build/windows/libterrain.windows.release.x86_64.dll

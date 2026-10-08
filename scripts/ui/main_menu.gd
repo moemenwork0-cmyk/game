@@ -71,6 +71,9 @@ func _ready() -> void:
 	else:
 		_items.add_child(_item(n, tr("New Game"), "", func() -> void: Game.restart("prologue")))
 		n += 1
+	_items.add_child(_item(n, tr("Explore the new island"), tr("Preview"), func() -> void:
+		get_tree().change_scene_to_file("res://scenes/slice.tscn")))
+	n += 1
 	_items.add_child(_item(n, tr("Settings"), "", _open_settings))
 	n += 1
 	_items.add_child(_item(n, tr("Credits"), "", _open_credits))
