@@ -40,6 +40,10 @@ var _label: Label
 func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	for a in args:
+		if a.begins_with("--quality="):  # render farm / benchmarks: force a preset
+			Settings._preset(int(a.trim_prefix("--quality=")))
+			Settings.render_scale = 1.0
+	for a in args:
 		if a.begins_with("--shots="):  # watchdog: never hang a headless render
 			get_tree().create_timer(2300.0).timeout.connect(get_tree().quit.bind(3))
 	sky = SkyRig.new()
