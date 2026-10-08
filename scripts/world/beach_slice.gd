@@ -30,6 +30,9 @@ var _label: Label
 
 func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
+	for a in args:
+		if a.begins_with("--shots="):  # watchdog: never hang a headless render
+			get_tree().create_timer(1500.0).timeout.connect(get_tree().quit.bind(3))
 	sky = SkyRig.new()
 	add_child(sky)
 	for a in args:
@@ -38,18 +41,19 @@ func _ready() -> void:
 
 	terrain = Terrain3D.new()
 	terrain.name = "Terrain"
-	terrain.collision.mode = Terrain3DCollision.DYNAMIC_GAME
+	add_child(terrain)
+	await get_tree().process_frame  # Terrain3D builds its subsystems on entering the tree
 	terrain.mesh_size = 48
 	terrain.mesh_lods = 7
 	terrain.vertex_spacing = 1.0
 	terrain.cast_shadows = RenderingServer.SHADOW_CASTING_SETTING_ON
-	add_child(terrain)
-	terrain.data_directory = ISLAND + "/data"
-	terrain.assets = load(ISLAND + "/assets.tres")
+	terrain.collision.mode = Terrain3DCollision.DYNAMIC_GAME
 	terrain.material.world_background = Terrain3DMaterial.NONE
 	terrain.material.auto_shader_enabled = false
 	terrain.material.dual_scaling_enabled = true
 	terrain.material.macro_variation_enabled = true
+	terrain.data_directory = ISLAND + "/data"
+	terrain.assets = load(ISLAND + "/assets.tres")
 	print("terrain: regions %d, textures %d" % [terrain.data.get_region_count(), terrain.assets.get_texture_count()])
 
 	cam = Camera3D.new()
