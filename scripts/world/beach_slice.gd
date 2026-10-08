@@ -14,6 +14,8 @@ const VIEWS := [
 	[Vector3(100, 0, 465), Vector3(-200, 0.0, 560), 17.8],      # sunset over the sea, looking west
 	[Vector3(-250, 160, 900), Vector3(0, 20, 300), 7.0],        # aerial sunrise over the island
 	[Vector3(0, 0, 340), Vector3(-40, 6, 280), 12.0],           # inside the jungle edge
+	[Vector3(-20, 0, 432), Vector3(10, 9, 330), 15.0, 1.0],     # a tropical storm rolls in over the jungle
+	[Vector3(30, 0, 455), Vector3(80, 0, 1000), 11.0],          # the lagoon and the palm islets
 ]
 
 var terrain: Terrain3D
@@ -121,6 +123,9 @@ func _set_view(i: int) -> void:
 	_yaw = cam.rotation.y
 	_pitch = cam.rotation.x
 	sky.hour = v[2]
+	sky.storm = v[3] if v.size() > 3 else 0.0
+	if is_instance_valid(ocean):
+		ocean.sea_state = 1.0 + sky.storm * 1.4
 
 
 func _shoot_all(dir: String) -> void:

@@ -16,6 +16,7 @@ var _variants := {}          # glb path -> Array of {mesh, basis, lift}
 var _cells := {}             # "rule:cx:cz" -> Node3D
 var _stream_t := 0.0
 var _density_scale := 1.0
+var _clump_noise := FastNoiseLite.new()
 
 
 func setup(t: Terrain3D, shore_img: Image, rect: Rect2) -> void:
@@ -23,6 +24,9 @@ func setup(t: Terrain3D, shore_img: Image, rect: Rect2) -> void:
 	shore = shore_img
 	shore_rect = rect
 	_density_scale = [0.35, 0.6, 1.0, 1.4][clampi(Settings.grass, 0, 3)]
+	_clump_noise.seed = 77
+	_clump_noise.frequency = 0.01
+	_clump_noise.fractal_octaves = 3
 	rules = _rules()
 
 
@@ -36,13 +40,16 @@ func _rules() -> Array[Dictionary]:
 	# --- coast ---------------------------------------------------------------------
 	r.append({"name": "coast_rocks", "models": [M % "coast_rocks_05", M % "coast_land_rocks_02", M % "coast_land_rocks_03"],
 		"per_m2": 1.0 / 900.0, "shore": Vector2(-18, 10), "tex": [BASALT, WET], "scale": Vector2(0.7, 1.6),
-		"sink": 0.35, "align": 0.6, "range": 1400.0, "shadow": true})
+		"sink": 0.35, "align": 0.6, "range": 1400.0, "shadow": true,
+		"rock": {"tint": Color(1.28, 1.02, 0.78), "moss": 0.55}})
 	r.append({"name": "beach_rocks", "models": [M % "sand_rocks_small_01", M % "boulder_01"],
 		"per_m2": 1.0 / 5000.0, "shore": Vector2(-6, 40), "tex": [SAND, SANDROCK], "scale": Vector2(0.6, 1.3),
-		"sink": 0.3, "align": 0.8, "range": 600.0, "shadow": true})
+		"sink": 0.3, "align": 0.8, "range": 600.0, "shadow": true,
+		"rock": {"tint": Color(1.22, 1.0, 0.8), "moss": 0.3}})
 	r.append({"name": "cliffs", "models": [M % "coastal_cliff_01", M % "coastal_cliff_02"],
 		"per_m2": 1.0 / 2600.0, "shore": Vector2(-8, 30), "tex": [BASALT, CLIFF], "slope": Vector2(14, 90),
-		"scale": Vector2(0.6, 1.0), "sink": 0.45, "align": 0.0, "range": 2500.0, "shadow": true})
+		"scale": Vector2(0.6, 1.0), "sink": 0.45, "align": 0.0, "range": 2500.0, "shadow": true,
+		"rock": {"tint": Color(1.2, 0.98, 0.8), "moss": 0.8}})
 	r.append({"name": "driftwood", "models": [M % "dead_tree_trunk", M % "dead_tree_trunk_02", M % "dry_branches_medium_01"],
 		"per_m2": 1.0 / 700.0, "height": Vector2(1.0, 3.0), "tex": [SAND, WET, SANDROCK], "scale": Vector2(0.7, 1.2),
 		"sink": 0.15, "align": 1.0, "tilt": 0.0, "range": 260.0, "shadow": true})
@@ -67,13 +74,27 @@ func _rules() -> Array[Dictionary]:
 		"sink": 0.2, "align": 0.7, "range": 300.0, "shadow": true})
 	r.append({"name": "mossy_rocks", "models": [M % "rock_moss_set_01", M % "rock_moss_set_02"],
 		"per_m2": 1.0 / 900.0, "behind": Vector2(10, 9999), "scale": Vector2(0.6, 1.5),
-		"sink": 0.35, "align": 0.7, "range": 500.0, "shadow": true})
+		"sink": 0.35, "align": 0.7, "range": 500.0, "shadow": true,
+		"rock": {"tint": Color(1.1, 1.0, 0.9), "moss": 0.9}})
 	r.append({"name": "shrubs", "models": [M % "shrub_02", M % "pachira_aquatica_01", M % "shrub_04", M % "fern_02"],
 		"per_m2": 1.0 / 30.0, "behind": Vector2(-6, 9999), "slope": Vector2(0, 38), "scale": Vector2(0.7, 1.4),
 		"sink": 0.05, "align": 0.3, "range": 140.0, "shadow": true, "foliage": true, "stream": true})
 	r.append({"name": "ferns", "models": [M % "fern_02", M % "shrub_03", M % "nettle_plant", M % "weed_plant_02"],
 		"per_m2": 1.0 / 6.0, "behind": Vector2(8, 9999), "slope": Vector2(0, 40), "scale": Vector2(0.8, 1.6),
 		"sink": 0.02, "align": 0.6, "range": 60.0, "shadow": false, "foliage": true, "stream": true})
+	var P := "res://assets/env/models/plants_%s.glb"
+	r.append({"name": "tall_grass", "models": [P % "grass"],
+		"per_m2": 1.0 / 2.2, "behind": Vector2(-10, 9999), "slope": Vector2(0, 35), "scale": Vector2(0.8, 1.4),
+		"clump": 0.035, "clump_cut": 0.42, "sink": 0.03, "align": 0.6, "range": 75.0, "shadow": true, "foliage": true, "stream": true})
+	r.append({"name": "saplings", "models": [P % "sapling"],
+		"per_m2": 1.0 / 70.0, "behind": Vector2(-28, 25), "slope": Vector2(0, 28), "scale": Vector2(0.8, 1.5),
+		"sink": 0.0, "align": 0.3, "range": 260.0, "shadow": true, "foliage": true})
+	r.append({"name": "bananas", "models": [P % "banana"],
+		"per_m2": 1.0 / 45.0, "behind": Vector2(4, 500), "slope": Vector2(0, 28), "scale": Vector2(0.8, 1.25),
+		"clump": 0.02, "clump_cut": 0.55, "sink": 0.05, "align": 0.1, "range": 320.0, "shadow": true, "foliage": true})
+	r.append({"name": "taro", "models": [P % "taro"],
+		"per_m2": 1.0 / 12.0, "behind": Vector2(6, 9999), "slope": Vector2(0, 30), "scale": Vector2(0.8, 1.3),
+		"clump": 0.05, "clump_cut": 0.5, "sink": 0.02, "align": 0.4, "range": 110.0, "shadow": true, "foliage": true, "stream": true})
 	r.append({"name": "grass", "models": [M % "grass_medium_01", M % "grass_medium_02"],
 		"per_m2": 1.0 / 1.6, "behind": Vector2(-14, 9999), "tex": [GRASS, FOREST, SAND, LEAVES], "slope": Vector2(0, 32),
 		"scale": Vector2(0.8, 1.5), "sink": 0.02, "align": 0.8, "range": 55.0, "shadow": false, "foliage": true, "stream": true})
@@ -221,6 +242,11 @@ func _build_cell(ri: int, cx: int, cz: int) -> void:
 			var tex_id := int(tid.x) if tid.z < 0.5 else int(tid.y)
 			if not (tex_id in rule["tex"]):
 				continue
+		if rule.has("clump"):
+			# plants grow in patches: keep only where a low-frequency noise is high
+			var cn := _clump_noise.get_noise_2d(x * rule["clump"] * 100.0, z * rule["clump"] * 100.0) * 0.5 + 0.5
+			if cn < rule["clump_cut"]:
+				continue
 		var vi := rng.randi() % vars.size()
 		var v: Dictionary = vars[vi]
 		var sc := rng.randf_range(rule["scale"].x, rule["scale"].y)
@@ -263,12 +289,12 @@ func _get_variants(rule: Dictionary) -> Array:
 	var all: Array = []
 	for path in rule["models"]:
 		if not _variants.has(path):
-			_variants[path] = _load_variants(path, rule.get("foliage", false))
+			_variants[path] = _load_variants(path, rule.get("foliage", false), rule.get("rock", {}))
 		all.append_array(_variants[path])
 	return all
 
 
-func _load_variants(path: String, foliage: bool) -> Array:
+func _load_variants(path: String, foliage: bool, rock: Dictionary = {}) -> Array:
 	var out: Array = []
 	if not ResourceLoader.exists(path):
 		push_warning("scatter: missing " + path)
@@ -282,7 +308,7 @@ func _load_variants(path: String, foliage: bool) -> Array:
 			var mi := n as MeshInstance3D
 			var basis := _global_basis(mi)
 			var aabb: AABB = Transform3D(basis, Vector3.ZERO) * mi.mesh.get_aabb()
-			_fix_materials(mi.mesh, foliage, mi.mesh.get_aabb())
+			_fix_materials(mi.mesh, foliage, mi.mesh.get_aabb(), rock)
 			out.append({"mesh": mi.mesh, "basis": basis, "lift": -aabb.position.y, "height": aabb.size.y,
 				"half": Vector2(aabb.size.x, aabb.size.z) * 0.5})
 	root.free()
@@ -299,11 +325,14 @@ func _global_basis(n: Node3D) -> Basis:
 
 
 const FOLIAGE_SHADER := preload("res://shaders/foliage.gdshader")
+const ROCK_SHADER := preload("res://shaders/rock.gdshader")
+const MOSS_TEX := preload("res://assets/env/textures/moss_col.jpg")
+const MOSS_NRM := preload("res://assets/env/textures/moss_nrm.jpg")
 
 
 ## Vegetation gets the wind/transmission shader; everything else keeps its imported
 ## material with tidied-up filtering and alpha.
-func _fix_materials(mesh: Mesh, foliage: bool, aabb: AABB) -> void:
+func _fix_materials(mesh: Mesh, foliage: bool, aabb: AABB, rock: Dictionary = {}) -> void:
 	for s in mesh.get_surface_count():
 		var m := mesh.surface_get_material(s) as StandardMaterial3D
 		if m == null:
@@ -311,6 +340,22 @@ func _fix_materials(mesh: Mesh, foliage: bool, aabb: AABB) -> void:
 		var name := m.resource_name.to_lower()
 		var leafy := m.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED or name.contains("lea") \
 			or name.contains("grass") or name.contains("fern") or name.contains("frond")
+		if not foliage and not rock.is_empty():
+			var rm := ShaderMaterial.new()
+			rm.shader = ROCK_SHADER
+			rm.set_shader_parameter("albedo_tex", m.albedo_texture)
+			if m.normal_enabled and m.normal_texture:
+				rm.set_shader_parameter("normal_tex", m.normal_texture)
+				rm.set_shader_parameter("use_normal", true)
+			if m.roughness_texture:
+				rm.set_shader_parameter("orm_tex", m.roughness_texture)
+				rm.set_shader_parameter("use_orm", true)
+			rm.set_shader_parameter("tint", rock.get("tint", Color.WHITE))
+			rm.set_shader_parameter("moss_amount", rock.get("moss", 0.5))
+			rm.set_shader_parameter("moss_tex", MOSS_TEX)
+			rm.set_shader_parameter("moss_nrm", MOSS_NRM)
+			mesh.surface_set_material(s, rm)
+			continue
 		if not foliage:
 			if m.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
 				m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR

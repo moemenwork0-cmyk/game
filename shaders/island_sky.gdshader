@@ -20,6 +20,7 @@ uniform float star_intensity = 1.0;
 uniform float cloud_coverage : hint_range(0.0, 1.0) = 0.4;
 uniform float cloud_opacity : hint_range(0.0, 1.0) = 1.0;
 uniform vec2 cloud_offset = vec2(0.0);
+uniform float storm : hint_range(0.0, 1.0) = 0.0;
 uniform vec3 ground_color : source_color = vec3(0.06, 0.08, 0.09);
 
 const float R_E = 6360e3;
@@ -173,10 +174,13 @@ void sky() {
 		float self_shadow = clamp(1.0 - (fbm((cp + sd.xz * 0.05) * 1.3) - n) * 3.0, 0.3, 1.0);
 		float fwd = pow(max(dot(rd, sd), 0.0), 8.0);
 		vec3 ccol = mix(col * 0.65 + vec3(0.03), sun_col * (0.6 + 0.8 * fwd) * self_shadow + col * 0.25, sun_up);
+		// storm clouds: heavy, dark slate undersides with lighter tops where they billow
+		ccol = mix(ccol, vec3(0.05, 0.06, 0.07) * (0.6 + 0.8 * detail) * (0.3 + sun_up), storm);
 		ccol = mix(ccol, col * 0.4 + vec3(0.004, 0.005, 0.008), night);
 		float fade = smoothstep(0.0, 0.18, rd.y);
 		col = mix(col, ccol, dens * cloud_opacity * fade);
 	}
+	col = mix(col, col * vec3(0.32, 0.35, 0.38) + vec3(0.012), storm * 0.85);
 	if (rd.y < 0.0) {
 		col = mix(col, ground_color * (0.2 + 0.8 * clamp(sd.y * 4.0, 0.02, 1.0)), smoothstep(0.0, -0.08, rd.y));
 	}

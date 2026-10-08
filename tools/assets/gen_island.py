@@ -70,11 +70,17 @@ headland = (np.exp(-((rim_ang + 2.35) / 0.28) ** 2) + np.exp(-((rim_ang + 0.8) /
 headland *= np.exp(-np.abs(dc - cove_r) / 90)
 in_cove = np.exp(-((rim_ang + 1.57) / 0.55) ** 2) * np.exp(-np.maximum(0, dc - cove_r) / 200)
 
+# small palm islets out on the reef, in view of the wake-up beach
+ISLETS = [(-260, 990, 55), (215, 1070, 38), (540, 890, 70), (-640, 770, 45), (60, 1250, 30)]
+for ix, iz, ir in ISLETS:
+	di = np.hypot(X - ix, Z - iz)
+	d = np.maximum(d, ir * (1.0 + 0.25 * noise(40, 2, seed=20 + ix % 7)) - di)
 land = d > 0
 land = ndimage.binary_opening(land, iterations=3)
 lab, nlab = ndimage.label(land)
 sizes = ndimage.sum(land, lab, range(1, nlab + 1))
-land = lab == (1 + int(np.argmax(sizes)))  # one island, no specks
+keep = [i + 1 for i, sz in enumerate(sizes) if sz > 1500]  # the island and its islets, no specks
+land = np.isin(lab, keep)
 dist_in = ndimage.distance_transform_edt(land)
 dist_out = ndimage.distance_transform_edt(~land)
 sd = np.where(land, dist_in, -dist_out).astype(np.float32)
