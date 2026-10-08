@@ -74,11 +74,11 @@ func _ready() -> void:
 	env.fog_aerial_perspective = 0.45
 	env.fog_sky_affect = 0.0
 	env.volumetric_fog_enabled = Settings.volumetric_fog
-	env.volumetric_fog_density = 0.009
+	env.volumetric_fog_density = 0.0025
 	env.volumetric_fog_albedo = Color(0.92, 0.95, 1.0)
 	env.volumetric_fog_anisotropy = 0.78  # strong forward scatter: sun shafts through the palms
 	env.volumetric_fog_length = 128.0
-	env.volumetric_fog_ambient_inject = 0.4
+	env.volumetric_fog_ambient_inject = 0.15
 	env.volumetric_fog_sky_affect = 0.0
 	env.adjustment_enabled = true
 	env.adjustment_saturation = 1.15 * Settings.saturation
@@ -115,7 +115,7 @@ func _ready() -> void:
 	sun.shadow_normal_bias = 1.4
 	sun.shadow_blur = 1.2
 	sun.light_angular_distance = 0.6
-	sun.light_volumetric_fog_energy = 2.2
+	sun.light_volumetric_fog_energy = 1.2
 	sun.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_AND_SKY
 	add_child(sun)
 	moon = DirectionalLight3D.new()
@@ -147,6 +147,9 @@ func _add_clouds() -> void:
 		c.cloud_ceiling = 9000.0
 		c.clouds_density = 0.6
 		c.atmospheric_density = 0.35
+		# the addon defaults this to pure red, which tints cloud shadows on real GPUs
+		c.ambient_occlusion_color = Color(0.22, 0.25, 0.3, 0.5)
+		c.cloud_ambient_tint = Color(0.13, 0.19, 0.24)
 		c.resolution_scale = 1 if Settings.quality >= 2 else 2
 		c.max_step_count = 160.0 if Settings.quality >= 2 else 90.0
 
@@ -170,11 +173,11 @@ func _build_rain() -> void:
 	pm.collision_mode = ParticleProcessMaterial.COLLISION_HIDE_ON_CONTACT
 	rain.process_material = pm
 	var q := QuadMesh.new()
-	q.size = Vector2(0.012, 0.75)
+	q.size = Vector2(0.005, 0.55)
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.albedo_color = Color(0.75, 0.8, 0.88, 0.28)
+	m.albedo_color = Color(0.7, 0.75, 0.82, 0.16)
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
 	m.billboard_keep_scale = true
 	q.material = m
@@ -239,13 +242,14 @@ func _update_sun() -> void:
 	env.fog_light_energy = lerpf(0.05, 1.0, day)
 	env.volumetric_fog_emission_energy = 0.0
 	if clouds and clouds.clouds_resource:
-		clouds.clouds_resource.clouds_coverage = lerpf(0.55, 0.92, cloudiness)
+		clouds.clouds_resource.clouds_coverage = lerpf(lerpf(0.55, 0.92, cloudiness), 1.0, storm)
+		clouds.clouds_resource.clouds_density = lerpf(0.6, 1.6, storm)
 	# the 2D cloud deck stands in for volumetric clouds when those are off
 	var cov := lerpf(lerpf(0.3, 0.85, cloudiness), 1.0, storm)
 	sky_mat.set_shader_parameter("cloud_coverage", cov)
-	sky_mat.set_shader_parameter("cloud_opacity", 0.35 if clouds and storm < 0.3 else 1.0)
+	sky_mat.set_shader_parameter("cloud_opacity", 0.0 if clouds else 1.0)
 	sky_mat.set_shader_parameter("storm", storm)
-	env.volumetric_fog_density = lerpf(0.009, 0.03, storm)
+	env.volumetric_fog_density = lerpf(0.0025, 0.012, storm)
 	env.fog_density = lerpf(0.12, 0.6, storm)
 	env.fog_depth_begin = lerpf(900.0, 150.0, storm)
 	RenderingServer.global_shader_parameter_set(&"wind_strength", lerpf(0.5, 1.6, storm))
