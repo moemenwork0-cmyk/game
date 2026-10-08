@@ -1,0 +1,116 @@
+[gd_resource type="Terrain3DAssets" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/env/terrain/coast_sand_01_alb.webp" id="1_mqgq6"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/coast_sand_01_nrm.webp" id="2_k8y34"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/damp_sand_alb.webp" id="3_s8o14"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/damp_sand_nrm.webp" id="4_a45cv"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/coral_gravel_alb.webp" id="5_8855w"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/coral_gravel_nrm.webp" id="6_pl0pg"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/coast_sand_rocks_02_alb.webp" id="7_5y5j0"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/coast_sand_rocks_02_nrm.webp" id="8_kmo5d"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/forest_ground_04_alb.webp" id="9_bot83"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/forest_ground_04_nrm.webp" id="10_mq8r6"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/leaves_forest_ground_alb.webp" id="11_5k2lc"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/leaves_forest_ground_nrm.webp" id="12_qnce8"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/aerial_grass_rock_alb.webp" id="13_w5hfo"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/aerial_grass_rock_nrm.webp" id="14_fb0gj"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/cliff_side_alb.webp" id="15_3yee5"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/cliff_side_nrm.webp" id="16_q1fxv"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/dark_rock_alb.webp" id="17_poxuk"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/dark_rock_nrm.webp" id="18_jhct8"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/mossy_rock_alb.webp" id="19_qkdt1"]
+[ext_resource type="Texture2D" path="res://assets/env/terrain/mossy_rock_nrm.webp" id="20_d6uc2"]
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_84b02"]
+name = "coast_sand_01"
+albedo_texture = ExtResource("1_mqgq6")
+normal_texture = ExtResource("2_k8y34")
+uv_scale = 0.22
+detiling_rotation = 0.6
+detiling_shift = 0.3
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_qkw3j"]
+name = "damp_sand"
+id = 1
+albedo_texture = ExtResource("3_s8o14")
+normal_texture = ExtResource("4_a45cv")
+roughness = -0.1
+uv_scale = 0.22
+detiling_rotation = 0.6
+detiling_shift = 0.3
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_qrqtb"]
+name = "coral_gravel"
+id = 2
+albedo_texture = ExtResource("5_8855w")
+normal_texture = ExtResource("6_pl0pg")
+uv_scale = 0.3
+detiling_rotation = 0.8
+detiling_shift = 0.4
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_syr8u"]
+name = "coast_sand_rocks_02"
+id = 3
+albedo_texture = ExtResource("7_5y5j0")
+normal_texture = ExtResource("8_kmo5d")
+uv_scale = 0.18
+detiling_rotation = 0.6
+detiling_shift = 0.3
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_pdtua"]
+name = "forest_ground_04"
+id = 4
+albedo_texture = ExtResource("9_bot83")
+normal_texture = ExtResource("10_mq8r6")
+uv_scale = 0.25
+detiling_rotation = 0.8
+detiling_shift = 0.4
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_yjjgm"]
+name = "leaves_forest_ground"
+id = 5
+albedo_texture = ExtResource("11_5k2lc")
+normal_texture = ExtResource("12_qnce8")
+uv_scale = 0.28
+detiling_rotation = 0.8
+detiling_shift = 0.4
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_cl02c"]
+name = "aerial_grass_rock"
+id = 6
+albedo_texture = ExtResource("13_w5hfo")
+normal_texture = ExtResource("14_fb0gj")
+uv_scale = 0.12
+detiling_rotation = 0.6
+detiling_shift = 0.3
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_fhcgi"]
+name = "cliff_side"
+id = 7
+albedo_texture = ExtResource("15_3yee5")
+normal_texture = ExtResource("16_q1fxv")
+normal_depth = 1.2
+uv_scale = 0.06
+detiling_rotation = 0.3
+detiling_shift = 0.15
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_qslbl"]
+name = "dark_rock"
+id = 8
+albedo_texture = ExtResource("17_poxuk")
+normal_texture = ExtResource("18_jhct8")
+normal_depth = 1.2
+detiling_rotation = 0.4
+detiling_shift = 0.2
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_e3jmv"]
+name = "mossy_rock"
+id = 9
+albedo_texture = ExtResource("19_qkdt1")
+normal_texture = ExtResource("20_d6uc2")
+uv_scale = 0.12
+detiling_rotation = 0.5
+detiling_shift = 0.25
+
+[resource]
+texture_list = Array[Terrain3DTextureAsset]([SubResource("Terrain3DTextureAsset_84b02"), SubResource("Terrain3DTextureAsset_qkw3j"), SubResource("Terrain3DTextureAsset_qrqtb"), SubResource("Terrain3DTextureAsset_syr8u"), SubResource("Terrain3DTextureAsset_pdtua"), SubResource("Terrain3DTextureAsset_yjjgm"), SubResource("Terrain3DTextureAsset_cl02c"), SubResource("Terrain3DTextureAsset_fhcgi"), SubResource("Terrain3DTextureAsset_qslbl"), SubResource("Terrain3DTextureAsset_e3jmv")])

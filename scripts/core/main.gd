@@ -18,6 +18,10 @@ var _autosave_every := AUTOSAVE_SECONDS
 
 
 func _ready() -> void:
+	# Phase 1 vertical slice: the new island cove (scenes/slice.tscn)
+	if OS.get_cmdline_user_args().has("--slice"):
+		get_tree().change_scene_to_file.call_deferred("res://scenes/slice.tscn")
+		return
 	var mode := Game.start_mode
 	Game.start_mode = ""
 	var args := OS.get_cmdline_user_args()
