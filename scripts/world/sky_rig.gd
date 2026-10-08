@@ -57,11 +57,11 @@ func _ready() -> void:
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_DEPTH
-	env.fog_depth_begin = 300.0
+	env.fog_depth_begin = 900.0
 	env.fog_depth_end = 9000.0
 	env.fog_depth_curve = 1.6
-	env.fog_density = 0.35
-	env.fog_aerial_perspective = 0.75
+	env.fog_density = 0.12
+	env.fog_aerial_perspective = 0.45
 	env.fog_sky_affect = 0.0
 	env.volumetric_fog_enabled = Settings.volumetric_fog
 	env.volumetric_fog_density = 0.0035

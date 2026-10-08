@@ -170,7 +170,7 @@ bleach = smooth(1.5, 4.0, height) * smooth(10, -10, s)
 tint += np.array([0.06, 0.05, 0.02]) * bleach[..., None]
 wet = smooth(1.5, 0.4, height) * (sd > -30)
 tint *= (1 - 0.18 * wet)[..., None]
-rough = np.clip(0.5 - 0.35 * wet, 0, 1)  # 0.5 = neutral
+rough = np.clip(0.5 - 0.12 * wet, 0, 1)  # 0.5 = neutral; lower = wetter (subtle, avoids mirror patches)
 color = np.dstack([np.clip(tint * 0.92, 0, 1), rough])  # multiplies albedo; 0.5 alpha = neutral roughness
 color8 = (color * 255 + 0.5).astype(np.uint8)
 

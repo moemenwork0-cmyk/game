@@ -16,6 +16,8 @@ from PIL import Image
 CACHE = os.environ.get("ASSET_CACHE", os.path.expanduser("~/asset_cache"))
 OUT = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "env", "terrain")
 SIZE = 2048
+# colour grading per texture: (gain RGB) - pale, warm coral sand for the beach
+GRADE = {"coast_sand_01": (1.32, 1.24, 1.08), "damp_sand": (1.12, 1.06, 0.95), "coast_sand_rocks_02": (1.18, 1.12, 1.0)}
 
 
 def load(path: str, mode: str) -> np.ndarray:
@@ -28,6 +30,8 @@ def load(path: str, mode: str) -> np.ndarray:
 def pack(asset_id: str) -> None:
 	src = os.path.join(CACHE, "tex", asset_id)
 	diff = load(f"{src}/diff.jpg", "RGB")
+	if asset_id in GRADE:
+		diff = np.clip(diff * np.array(GRADE[asset_id], np.float32), 0, 1)
 	h = load(f"{src}/disp.jpg", "L")
 	lo, hi = np.percentile(h, 0.5), np.percentile(h, 99.5)
 	h = np.clip((h - lo) / max(1e-4, hi - lo), 0.0, 1.0)
