@@ -128,12 +128,20 @@ func shore_at(x: float, z: float) -> Vector2:
 	return a.lerp(b, tz)
 
 
+## Drop every cell (used by the screenshot tool between viewpoints).
+func clear() -> void:
+	for k in _cells:
+		_cells[k].queue_free()
+	_cells.clear()
+
+
 ## Fill every non-streamed rule within radius of a point (load time).
-func build_static(center: Vector3, radius: float, progress: Callable = Callable()) -> void:
+## include_streamed builds the dense near layers too (screenshots, no waiting for streaming).
+func build_static(center: Vector3, radius: float, progress: Callable = Callable(), include_streamed := false) -> void:
 	var n := 0
 	var todo := []
 	for ri in rules.size():
-		if rules[ri].get("stream", false):
+		if rules[ri].get("stream", false) and not include_streamed:
 			continue
 		var rad := minf(radius, rules[ri]["range"])
 		var c0 := Vector2i(floori((center.x - rad) / CELL), floori((center.z - rad) / CELL))

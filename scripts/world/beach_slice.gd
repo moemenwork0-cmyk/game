@@ -18,6 +18,13 @@ const VIEWS := [
 	[Vector3(30, 0, 455), Vector3(80, 0, 1000), 11.0],          # the lagoon and the palm islets
 ]
 
+# close-up review shots: position, look-at, hour, storm
+const CLOSE := [
+	[Vector3(-25, 0, 446), Vector3(-160, 1.2, 478), 9.0],       # on the beach: sand, surf, palms, rocks
+	[Vector3(-8, 0, 372), Vector3(-55, 2.5, 330), 15.5],        # in the vegetation at the jungle edge
+	[Vector3(-20, 0, 432), Vector3(10, 9, 330), 15.0, 1.0],     # a storm rolling in over the jungle
+]
+
 var terrain: Terrain3D
 var ocean: OceanFFT
 var sky: SkyRig
@@ -80,10 +87,13 @@ func _ready() -> void:
 	scatter.setup(terrain, shore_tex.get_image(), Rect2(-1024, -1024, 2048, 2048))
 	_set_view(0)
 	await get_tree().process_frame
-	if not args.has("--noscatter"):
-		await scatter.build_static(Vector3(0, 0, 450), 900.0)
-	else:
+	var shooting := args.any(func(a: String) -> bool: return a.begins_with("--shots="))
+	if args.has("--noscatter"):
 		scatter.set_process(false)
+	elif shooting:
+		scatter.set_process(false)  # the screenshot tool builds around each viewpoint itself
+	else:
+		await scatter.build_static(Vector3(0, 0, 450), 900.0)
 	_ready_done = true
 	_apply_quality()
 
@@ -113,7 +123,10 @@ func _apply_quality() -> void:
 
 
 func _set_view(i: int) -> void:
-	var v: Array = VIEWS[i % VIEWS.size()]
+	_apply_view(VIEWS[i % VIEWS.size()])
+
+
+func _apply_view(v: Array) -> void:
 	var p: Vector3 = v[0]
 	var ground := terrain.data.get_height(p) if terrain.data else 0.0
 	if not is_nan(ground):
@@ -136,13 +149,20 @@ func _shoot_all(dir: String) -> void:
 			frames = int(a.trim_prefix("--frames="))
 	_label.visible = false
 	var only := -1
+	var list: Array = VIEWS
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
 			only = int(a.trim_prefix("--only="))
-	for i in VIEWS.size():
+		if a == "--close":
+			list = CLOSE
+	var near := 260.0
+	for i in list.size():
 		if only >= 0 and i != only:
 			continue
-		_set_view(i)
+		_apply_view(list[i])
+		if not OS.get_cmdline_user_args().has("--noscatter"):
+			scatter.clear()
+			await scatter.build_static(cam.global_position, near, Callable(), true)
 		for f in frames:
 			await get_tree().process_frame
 		var img := get_viewport().get_texture().get_image()
