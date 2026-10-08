@@ -38,10 +38,6 @@ func _ready() -> void:
 
 	terrain = Terrain3D.new()
 	terrain.name = "Terrain"
-	terrain.material.world_background = Terrain3DMaterial.NONE
-	terrain.material.auto_shader_enabled = false
-	terrain.material.dual_scaling_enabled = true
-	terrain.material.macro_variation_enabled = true
 	terrain.collision.mode = Terrain3DCollision.DYNAMIC_GAME
 	terrain.mesh_size = 48
 	terrain.mesh_lods = 7
@@ -50,6 +46,11 @@ func _ready() -> void:
 	add_child(terrain)
 	terrain.data_directory = ISLAND + "/data"
 	terrain.assets = load(ISLAND + "/assets.tres")
+	terrain.material.world_background = Terrain3DMaterial.NONE
+	terrain.material.auto_shader_enabled = false
+	terrain.material.dual_scaling_enabled = true
+	terrain.material.macro_variation_enabled = true
+	print("terrain: regions %d, textures %d" % [terrain.data.get_region_count(), terrain.assets.get_texture_count()])
 
 	cam = Camera3D.new()
 	cam.fov = Settings.fov
