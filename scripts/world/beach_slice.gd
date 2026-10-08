@@ -29,7 +29,7 @@ const CLOSE := [
 const TOUR := [
 	[Vector3(-60, 2.4, 455), Vector3(120, 0.0, 900), 10.5],      # lagoon, sandstone stacks, palm islets
 	[Vector3(70, 2.2, 405), Vector3(-60, 4.0, 425), 16.6],       # low sun through the palms at the jungle edge
-	[Vector3(22, 2.0, 374), Vector3(52, 12.0, 300), 15.0, 0.8],  # the river in the jungle as a storm comes in
+	[Vector3(50, 2.2, 362), Vector3(42, 13.0, 298), 15.0, 0.8],  # the river in the jungle as a storm comes in
 	[Vector3(82, 2.2, 268), Vector3(82, 16.0, 150), 17.3],       # the lake in the hills at golden hour
 	[Vector3(-42, 2.0, 446), Vector3(10, 4.0, 395), 9.0],        # where the river meets the sea
 	[Vector3(240, 4.0, 560), Vector3(0, 0.0, 440), 18.0],        # the cove from the cliffs at sunset
@@ -105,6 +105,7 @@ func _ready() -> void:
 	scatter.name = "Scatter"
 	add_child(scatter)
 	scatter.setup(terrain, shore_tex.get_image(), Rect2(-1024, -1024, 2048, 2048))
+	_hero_rocks()
 	_set_view(0)
 	await get_tree().process_frame
 	var shooting := false
@@ -139,6 +140,20 @@ func _ready() -> void:
 
 
 ## Full-screen cover with a progress line while the island is planted.
+## Big sandstone stacks placed by hand where the cove's composition wants them:
+## standing in the shallows and at the back of the beach (cf. the reference shots).
+func _hero_rocks() -> void:
+	var M := "res://assets/env/models/%s.glb"
+	var sand := {"tint": Color(1.5, 1.08, 0.72), "moss": 0.7}
+	for r in [
+		["coast_land_rocks_02", Vector3(-95, 0, 508), 1.6, 0.4], ["coast_land_rocks_03", Vector3(-35, 0, 528), 1.3, 2.1],
+		["coast_rocks_05", Vector3(30, 0, 520), 1.8, 1.0], ["coast_land_rocks_03", Vector3(95, 0, 548), 1.7, 4.0],
+		["coast_rocks_05", Vector3(-150, 0, 535), 2.2, 5.1], ["coast_land_rocks_02", Vector3(-120, 0, 425), 1.9, 3.3],
+		["coast_land_rocks_03", Vector3(85, 0, 420), 1.6, 0.9], ["boulder_01", Vector3(-55, 0, 438), 2.4, 1.7],
+	]:
+		scatter.place(M % r[0], r[1], r[2], r[3], sand)
+
+
 func _loading_cover() -> CanvasLayer:
 	var cl := CanvasLayer.new()
 	cl.layer = 50
@@ -216,7 +231,10 @@ func _shoot_all(dir: String) -> void:
 		var img := get_viewport().get_texture().get_image()
 		img.save_jpg("%s/view_%d.jpg" % [dir, i], 0.92)
 		print("shot ", i)
+	print("SHOTS DONE")
 	get_tree().quit()
+	await get_tree().create_timer(3.0).timeout
+	OS.kill(OS.get_process_id())
 
 
 ## Flies through every viewpoint (10 s each) and reports frame times. The result is

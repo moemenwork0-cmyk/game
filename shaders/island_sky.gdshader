@@ -7,7 +7,7 @@ render_mode use_debanding;
  * LIGHT0 = sun, LIGHT1 = moon.
  */
 
-uniform float exposure = 18.0;
+uniform float exposure = 11.0;
 uniform vec3 rayleigh_beta = vec3(5.8e-6, 13.5e-6, 33.1e-6);
 uniform float mie_beta = 2.1e-5;
 uniform float mie_g = 0.78;

@@ -49,7 +49,7 @@ func _ready() -> void:
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.tonemap_white = 8.0
-	env.tonemap_exposure = 1.0
+	env.tonemap_exposure = 0.9
 	env.ssao_enabled = true
 	env.ssao_radius = 1.6
 	env.ssao_intensity = 2.2
@@ -98,7 +98,7 @@ func _ready() -> void:
 	cam_attr.auto_exposure_min_sensitivity = 60.0
 	cam_attr.auto_exposure_max_sensitivity = 800.0
 	cam_attr.auto_exposure_speed = 0.6
-	cam_attr.auto_exposure_scale = 0.3
+	cam_attr.auto_exposure_scale = 0.24
 	world_env.camera_attributes = cam_attr
 	add_child(world_env)
 
@@ -127,8 +127,9 @@ func _ready() -> void:
 	add_child(moon)
 
 	# volumetric clouds are a High/Ultra feature; the sky shader's cloud deck covers Low/Medium
-	var hi := Settings.quality == 2 or Settings.quality == 3 or (Settings.quality == 4 and Settings.volumetric_fog)
-	if hi and not OS.get_cmdline_user_args().has("--noclouds"):
+	# Volumetric clouds stay off until their lighting is tuned (they render dark on real GPUs);
+	# the sky shader's cloud deck is used instead. Opt in with --vclouds to work on them.
+	if OS.get_cmdline_user_args().has("--vclouds"):
 		_add_clouds()
 	_build_rain()
 	_update_sun()

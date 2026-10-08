@@ -88,7 +88,7 @@ func _rules() -> Array[Dictionary]:
 		"sink": 0.02, "align": 0.6, "range": 60.0, "shadow": false, "foliage": true, "stream": true})
 	# sandstone stacks standing in the lagoon, and big outcrops at the back of the beach
 	r.append({"name": "sea_rocks", "models": [M % "coast_rocks_05", M % "coast_land_rocks_02", M % "coast_land_rocks_03", M % "boulder_01"],
-		"per_m2": 1.0 / 1300.0, "height": Vector2(-3.2, -0.3), "shore": Vector2(-90, -3), "scale": Vector2(0.5, 1.4),
+		"per_m2": 1.0 / 500.0, "height": Vector2(-3.2, -0.3), "shore": Vector2(-90, -3), "scale": Vector2(0.5, 1.4),
 		"sink": 0.3, "align": 0.3, "range": 1400.0, "shadow": true,
 		"rock": {"tint": Color(1.45, 1.05, 0.72), "moss": 0.35}})
 	r.append({"name": "beach_outcrops", "models": [M % "coast_land_rocks_02", M % "coast_land_rocks_03", M % "rock_moss_set_01"],
@@ -151,6 +151,23 @@ func shore_at(x: float, z: float) -> Vector3:
 	var a := Vector3(p00.r, p00.g, p00.b).lerp(Vector3(p10.r, p10.g, p10.b), tx)
 	var b := Vector3(p01.r, p01.g, p01.b).lerp(Vector3(p11.r, p11.g, p11.b), tx)
 	return a.lerp(b, tz)
+
+
+## A single hand-placed piece (hero rocks for the cove's composition).
+func place(path: String, pos: Vector3, scale: float, yaw: float, rock: Dictionary = {}) -> void:
+	var key := path + str(rock)
+	if not _variants.has(key):
+		_variants[key] = _load_variants(path, false, rock)
+	var vars: Array = _variants[key]
+	if vars.is_empty() or terrain == null:
+		return
+	var v: Dictionary = vars[0]
+	var y := terrain.data.get_height(pos)
+	var mi := MeshInstance3D.new()
+	mi.mesh = v["mesh"]
+	var b: Basis = Basis(Vector3.UP, yaw) * (v["basis"] as Basis) * Basis.from_scale(Vector3.ONE * scale)
+	mi.transform = Transform3D(b, Vector3(pos.x, (y if not is_nan(y) else 0.0) + (float(v["lift"]) - float(v["height"]) * 0.3) * scale, pos.z))
+	add_child(mi)
 
 
 ## Drop every cell (used by the screenshot tool between viewpoints).
