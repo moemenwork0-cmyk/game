@@ -16,6 +16,7 @@ var _bar: ProgressBar
 var _downloading := ""
 var _queue: Array = []
 var _dir := ""
+var _tag := ""
 
 
 func _ready() -> void:
@@ -39,6 +40,16 @@ func _on_release(result: int, code: int, _h: PackedStringArray, body: PackedByte
 		return
 	var tag: String = j.get("tag_name", "")
 	if not tag.begins_with("build-") or int(tag.trim_prefix("build-")) <= BuildInfo.BUILD:
+		return
+	_tag = tag
+	if _last_attempt() == tag:
+		# we already installed this one and are still on the old build: don't loop
+		_save_attempt("")
+		_show(tag)
+		_bar.visible = false
+		_label.text = tr("The update could not be installed automatically.\nPlease download it from github.com/%s/releases") % REPO
+		await get_tree().create_timer(8.0).timeout
+		_panel.queue_free()
 		return
 	for a in j.get("assets", []):
 		if String(a.get("name", "")) in FILES:
@@ -81,18 +92,40 @@ func _process(_d: float) -> void:
 
 func _install() -> void:
 	_label.text = tr("Installing the update…")
-	var exe := OS.get_executable_path()
+	_save_attempt(_tag)
+	var exe := OS.get_executable_path().replace("/", "\\")
 	var bat := _dir.path_join("jazira_update.bat")
-	var lines := ["@echo off", "timeout /t 2 /nobreak >nul"]
+	# The game must have fully closed (and antivirus finished scanning) before its data
+	# file can be replaced, so each move is retried for up to a minute.
+	var lines := ["@echo off", "setlocal enabledelayedexpansion", "set n=0", "timeout /t 2 /nobreak >nul"]
 	for f in FILES:
-		lines.append('if exist "%s.new" move /y "%s.new" "%s" >nul' % [_dir.path_join(f), _dir.path_join(f), _dir.path_join(f)])
+		var p := _dir.path_join(f).replace("/", "\\")
+		var lbl := f.get_basename().replace(".", "_")
+		lines.append(":retry_%s" % lbl)
+		lines.append('if exist "%s.new" move /y "%s.new" "%s" >nul 2>&1' % [p, p, p])
+		lines.append('if exist "%s.new" (set /a n+=1 & if !n! lss 60 (timeout /t 1 /nobreak >nul & goto retry_%s))' % [p, lbl])
 	lines.append('start "" "%s"' % exe)
 	lines.append('del "%~f0"')
 	var fa := FileAccess.open(bat, FileAccess.WRITE)
 	fa.store_string("\r\n".join(PackedStringArray(lines)) + "\r\n")
 	fa.close()
-	OS.create_process("cmd.exe", ["/c", bat])
+	OS.create_process("cmd.exe", ["/c", bat.replace("/", "\\")])
 	get_tree().quit()
+
+
+## Remembers which release we tried to install, so a failed install is reported
+## once instead of being downloaded again and again.
+func _save_attempt(tag: String) -> void:
+	var cf := ConfigFile.new()
+	cf.set_value("update", "tried", tag)
+	cf.save("user://update.cfg")
+
+
+func _last_attempt() -> String:
+	var cf := ConfigFile.new()
+	if cf.load("user://update.cfg") != OK:
+		return ""
+	return String(cf.get_value("update", "tried", ""))
 
 
 func _show(tag: String) -> void:
