@@ -168,6 +168,9 @@ macro = noise(200, 4, seed=10)
 tint *= (1.0 + 0.08 * macro)[..., None]
 bleach = smooth(1.5, 4.0, height) * smooth(10, -10, s)
 tint += np.array([0.06, 0.05, 0.02]) * bleach[..., None]
+# under the jungle canopy the ground reads green from afar (moss, seedlings, shade)
+canopy = smooth(10, 60, s) * (1 - smooth(30, 45, slope) * 0.6)
+tint *= (1 - canopy[..., None] * np.array([0.35, 0.12, 0.45]))
 wet = smooth(1.5, 0.4, height) * (sd > -30)
 tint *= (1 - 0.18 * wet)[..., None]
 rough = np.clip(0.5 - 0.12 * wet, 0, 1)  # 0.5 = neutral; lower = wetter (subtle, avoids mirror patches)

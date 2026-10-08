@@ -71,8 +71,8 @@ func _ready() -> void:
 	env.volumetric_fog_ambient_inject = 0.4
 	env.volumetric_fog_sky_affect = 0.0
 	env.adjustment_enabled = true
-	env.adjustment_saturation = 1.08 * Settings.saturation
-	env.adjustment_contrast = 1.04 * Settings.contrast
+	env.adjustment_saturation = 1.15 * Settings.saturation
+	env.adjustment_contrast = 1.12 * Settings.contrast
 	env.adjustment_brightness = Settings.brightness
 	var args := OS.get_cmdline_user_args()
 	if args.has("--nogi"):
@@ -88,7 +88,7 @@ func _ready() -> void:
 	cam_attr.auto_exposure_min_sensitivity = 60.0
 	cam_attr.auto_exposure_max_sensitivity = 800.0
 	cam_attr.auto_exposure_speed = 0.6
-	cam_attr.auto_exposure_scale = 0.42
+	cam_attr.auto_exposure_scale = 0.3
 	world_env.camera_attributes = cam_attr
 	add_child(world_env)
 

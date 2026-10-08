@@ -57,10 +57,10 @@ func _rules() -> Array[Dictionary]:
 		"per_m2": 1.0 / 1400.0, "behind": Vector2(16, 400), "slope": Vector2(0, 26), "scale": Vector2(1.0, 1.25),
 		"sink": 0.0, "align": 0.0, "range": 2000.0, "shadow": true, "foliage": true})
 	r.append({"name": "edge_trees", "models": [M % "island_tree_02", M % "island_tree_01"],
-		"per_m2": 1.0 / 260.0, "behind": Vector2(-2, 40), "slope": Vector2(0, 30), "scale": Vector2(0.8, 1.35),
+		"per_m2": 1.0 / 110.0, "behind": Vector2(-2, 40), "slope": Vector2(0, 30), "scale": Vector2(0.8, 1.35),
 		"sink": 0.2, "align": 0.0, "range": 1600.0, "shadow": true, "foliage": true})
 	r.append({"name": "jungle_trees", "models": [M % "island_tree_03", M % "island_tree_01", M % "island_tree_02"],
-		"per_m2": 1.0 / 140.0, "behind": Vector2(30, 9999), "slope": Vector2(0, 36), "scale": Vector2(1.0, 1.9),
+		"per_m2": 1.0 / 55.0, "behind": Vector2(30, 9999), "slope": Vector2(0, 36), "scale": Vector2(1.0, 1.9),
 		"sink": 0.3, "align": 0.0, "range": 1600.0, "shadow": true, "foliage": true})
 	r.append({"name": "roots", "models": [M % "root_cluster_01", M % "tree_stump_01"],
 		"per_m2": 1.0 / 2500.0, "behind": Vector2(5, 9999), "slope": Vector2(0, 30), "scale": Vector2(0.8, 1.2),
