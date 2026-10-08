@@ -11,3 +11,5 @@
   (see `assets/characters/ROCKETBOX_LICENSE.md`). Commercial use allowed; keep the licence notice.
 - Engine: [Godot Engine](https://godotengine.org) (MIT). Physics: Jolt (MIT).
 - **Sound effects and music** — synthesised in code for this game (physical modelling, Karplus–Strong); no samples.
+- **Terrain3D** — terrain system by Cory Petkovsek, Roope Palmroos and contributors, **MIT License**
+  (`addons/terrain_3d/LICENSE.txt`), built from source (commit 854a457) for Linux and Windows.
