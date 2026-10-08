@@ -99,8 +99,8 @@ func _install() -> void:
 	# file can be replaced, so each move is retried for up to a minute.
 	var lines := ["@echo off", "setlocal enabledelayedexpansion", "set n=0", "timeout /t 2 /nobreak >nul"]
 	for f in FILES:
-		var p := _dir.path_join(f).replace("/", "\\")
-		var lbl := f.get_basename().replace(".", "_")
+		var p := _dir.path_join(String(f)).replace("/", "\\")
+		var lbl := String(f).get_basename().replace(".", "_")
 		lines.append(":retry_%s" % lbl)
 		lines.append('if exist "%s.new" move /y "%s.new" "%s" >nul 2>&1' % [p, p, p])
 		lines.append('if exist "%s.new" (set /a n+=1 & if !n! lss 60 (timeout /t 1 /nobreak >nul & goto retry_%s))' % [p, lbl])
