@@ -5,7 +5,9 @@ Writes raw little-endian files that tools/build_island.gd imports into Terrain3D
   height.f32   float32 metres          (N x N)
   control.u32  Terrain3D control bits (N x N)
   color.rgba8  macro tint + roughness  (N x N x 4)
-  shore.f32    RG: signed distance to the coast (m, + inland), distance behind the dry beach
+  shore.f32    RGB: signed distance to the coast (m, + inland), distance behind the dry beach,
+               distance to fresh water (m, negative inside the lake/river)
+  water.json   the lake (centre, radius, level) and the river polyline (x, z, level, half width)
 
 The wake-up beach is a sheltered crescent cove on the south (+Z) side, held
 between two basalt headlands, with a fringing reef offshore and jungle hills behind.
@@ -13,7 +15,10 @@ between two basalt headlands, with a fringing reef offshore and jungle hills beh
 import os
 import sys
 
+import json
+
 import numpy as np
+from scipy.spatial import cKDTree
 from scipy import ndimage
 
 N = 2048            # metres (1 m vertex spacing)
@@ -122,6 +127,51 @@ wl = smooth(-14, 2, sd)
 height = h_sea * (1 - wl) + h_land * wl
 height = ndimage.gaussian_filter(height.astype(np.float32), 0.8)
 
+# --- fresh water: a lake in the hills and a river winding down to the cove ----------------
+LAKE = (82.0, 200.0, 58.0, 15.0)            # x, z, radius, water level
+RIVER_PTS = np.array([(82, 236), (72, 262), (52, 300), (34, 342), (14, 388), (-4, 426), (-16, 470)], np.float32)
+
+
+def catmull(pts, step=2.0):
+	out = []
+	p = np.vstack([pts[0], pts, pts[-1]])
+	for i in range(1, len(p) - 2):
+		seg = np.linalg.norm(p[i + 1] - p[i])
+		n = max(2, int(seg / step))
+		for k in range(n):
+			t = k / n
+			t2, t3 = t * t, t * t * t
+			out.append(0.5 * ((2 * p[i]) + (-p[i - 1] + p[i + 1]) * t + (2 * p[i - 1] - 5 * p[i] + 4 * p[i + 1] - p[i + 2]) * t2
+				+ (-p[i - 1] + 3 * p[i] - 3 * p[i + 1] + p[i + 2]) * t3))
+	out.append(pts[-1])
+	return np.array(out, np.float32)
+
+
+river = catmull(RIVER_PTS)
+seg = np.r_[0, np.cumsum(np.linalg.norm(np.diff(river, axis=0), axis=1))]
+tt = seg / seg[-1]
+river_level = LAKE[3] * (1 - tt) ** 1.25 + 0.25 * tt          # lake level down to the sea
+river_half = 5.0 + 4.0 * tt                                    # widens towards the mouth
+meander = noise(60, 2, seed=30)
+pts_xz = np.stack([X.ravel(), Z.ravel()], 1)
+dist, idx = cKDTree(river).query(pts_xz, distance_upper_bound=140.0)
+dist = np.where(np.isfinite(dist), dist, 999.0).reshape(N, N).astype(np.float32)
+idx = np.clip(idx, 0, len(river) - 1).reshape(N, N)
+lvl = river_level[idx]
+hw = river_half[idx] * (1.0 + 0.15 * meander)
+bed = lvl - 1.6 * np.clip(1 - (dist / hw) ** 2, 0, 1) - 0.25
+bank = lvl + 0.35 + np.maximum(0, dist - hw) * 0.32 + np.maximum(0, dist - hw - 12) * 0.25
+carve = np.where(dist < hw, bed, bank)
+river_mask = dist < 140
+height = np.where(river_mask & (sd > -5), np.minimum(height, carve), height)
+# the lake basin
+dl = np.hypot(X - LAKE[0], Z - LAKE[1]) - LAKE[2] * (1 + 0.12 * noise(50, 2, seed=31))
+lake_bed = LAKE[3] - 0.3 - 4.5 * np.clip(-dl / LAKE[2], 0, 1) ** 0.6
+lake_bank = LAKE[3] + 0.35 + np.maximum(0, dl) * 0.3 + np.maximum(0, dl - 15) * 0.3
+height = np.minimum(height, np.where(dl < 0, lake_bed, lake_bank))
+height = ndimage.gaussian_filter(height.astype(np.float32), 0.6)
+water_d = np.minimum(dist - hw, dl).astype(np.float32)        # < 0 inside fresh water
+
 # --- slope ----------------------------------------------------------------------------
 gz, gx = np.gradient(height)
 slope = np.degrees(np.arctan(np.hypot(gx, gz)))
@@ -161,6 +211,11 @@ put(inland & (slope > 26) & (slope <= 34), FOREST, MOSS, np.clip(smooth(26, 34, 
 put((rocky > 0.4) & (sd > -6) & (s < 4), BASALT, WET, np.clip(smooth(1.5, 0.4, height), 0, 1))
 put((headland > 0.2) & (sd > -8) & (slope > 16), BASALT, CLIFF, np.clip(patch * 0.5 + 0.3, 0, 1))
 
+# river bed gravel, wet muddy banks, mossy stones along the water
+put(water_d < 0.5, GRAVEL, WET, np.clip(0.4 + patch * 0.6, 0, 1))
+put((water_d >= 0.5) & (water_d < 4) & (sd > 0), WET, MOSS, np.clip(smooth(0.5, 4, water_d) + patch * 0.3, 0, 1))
+put((water_d >= 4) & (water_d < 14) & (sd > 20), LEAVES, MOSS, np.clip(0.6 - smooth(4, 14, water_d) * 0.5 + patch * 0.3, 0, 1))
+
 blend8 = (np.clip(blend, 0, 1) * 255).astype(np.uint32)
 uv_angle = (rng.integers(0, 16, (N, N))).astype(np.uint32)
 uv_angle = ndimage.zoom(rng.integers(0, 16, (N // 8, N // 8)), 8, order=0).astype(np.uint32)
@@ -187,7 +242,10 @@ os.makedirs(OUT, exist_ok=True)
 height.astype("<f4").tofile(os.path.join(OUT, "height.f32"))
 control.astype("<u4").tofile(os.path.join(OUT, "control.u32"))
 color8.tofile(os.path.join(OUT, "color.rgba8"))
-np.dstack([sd, s]).astype("<f4").tofile(os.path.join(OUT, "shore.f32"))  # R: shore distance, G: metres behind the beach
+np.dstack([sd, s, water_d]).astype("<f4").tofile(os.path.join(OUT, "shore.f32"))  # R: coast, G: behind beach, B: fresh water
+json.dump({"lake": {"x": LAKE[0], "z": LAKE[1], "radius": LAKE[2], "level": LAKE[3]},
+	"river": [[float(p[0]), float(p[1]), float(l), float(w)] for p, l, w in zip(river[::2], river_level[::2], river_half[::2])]},
+	open(os.path.join(OUT, "water.json"), "w"))
 print("height range", float(height.min()), float(height.max()), "land %", float(land.mean() * 100))
 
 # preview
@@ -198,7 +256,7 @@ try:
 	img = pal[base] * (1 - blend[..., None]) + pal[over] * blend[..., None]
 	shade = np.clip(1 - (gx - gz) * 0.6, 0.4, 1.5)[..., None]
 	img = img * shade
-	water = height < 0
+	water = (height < 0) | (water_d < 0)
 	depth = np.clip(-height / 20, 0, 1)[..., None]
 	img = np.where(water[..., None], img * (1 - depth * 0.8) * np.array([0.5, 0.85, 1.0]) + np.array([0, 40, 70]) * depth, img)
 	Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)).resize((1024, 1024)).save(os.path.join(OUT, "preview.jpg"), quality=88)

@@ -25,6 +25,17 @@ const CLOSE := [
 	[Vector3(-20, 0, 432), Vector3(10, 9, 330), 15.0, 1.0],     # a storm rolling in over the jungle
 ]
 
+# review tour: position, look-at, hour, storm (heights are metres above the ground)
+const TOUR := [
+	[Vector3(-60, 2.4, 455), Vector3(120, 0.0, 900), 10.5],      # lagoon, sandstone stacks, palm islets
+	[Vector3(70, 2.2, 405), Vector3(-60, 4.0, 425), 16.6],       # low sun through the palms at the jungle edge
+	[Vector3(22, 2.0, 374), Vector3(52, 12.0, 300), 15.0, 0.8],  # the river in the jungle as a storm comes in
+	[Vector3(82, 2.2, 268), Vector3(82, 16.0, 150), 17.3],       # the lake in the hills at golden hour
+	[Vector3(-42, 2.0, 446), Vector3(10, 4.0, 395), 9.0],        # where the river meets the sea
+	[Vector3(240, 4.0, 560), Vector3(0, 0.0, 440), 18.0],        # the cove from the cliffs at sunset
+	[Vector3(10, 1.8, 448), Vector3(0, 6.0, 700), 21.5],         # the beach under the moon
+]
+
 var terrain: Terrain3D
 var ocean: OceanFFT
 var sky: SkyRig
@@ -82,6 +93,11 @@ func _ready() -> void:
 	ocean.name = "Ocean"
 	add_child(ocean)
 	ocean.set_shore(shore_tex, -1024, -1024, 2048)
+
+	var fresh := FreshWater.new()
+	fresh.name = "FreshWater"
+	add_child(fresh)
+	fresh.setup(ISLAND + "/water.json")
 
 	if OS.get_cmdline_user_args().has("--noocean"):
 		ocean.queue_free()
@@ -160,7 +176,7 @@ func _apply_view(v: Array) -> void:
 	var p: Vector3 = v[0]
 	var ground := terrain.data.get_height(p) if terrain.data else 0.0
 	if not is_nan(ground):
-		p.y = maxf(p.y, ground + 1.7)
+		p.y = maxf(ground, 0.0) + p.y if v in TOUR else maxf(p.y, ground + 1.7)
 	cam.global_position = p
 	cam.look_at(v[1])
 	_yaw = cam.rotation.y
@@ -185,6 +201,8 @@ func _shoot_all(dir: String) -> void:
 			only = int(a.trim_prefix("--only="))
 		if a == "--close":
 			list = CLOSE
+		if a == "--tour":
+			list = TOUR
 	var near := 260.0
 	for i in list.size():
 		if only >= 0 and i != only:

@@ -60,9 +60,14 @@ func _run() -> void:
 	print("save assets: ", ResourceSaver.save(assets, OUT + "/assets.tres"))
 
 	# shore distance (metres, + inland) at 4 m resolution, for scatter rules and the ocean
-	var sd := _img(src + "/shore.f32", Image.FORMAT_RGF)
+	var sd := _img(src + "/shore.f32", Image.FORMAT_RGBF)
 	sd.resize(N / 4, N / 4, Image.INTERPOLATE_BILINEAR)
 	print("save shore: ", ResourceSaver.save(ImageTexture.create_from_image(sd), OUT + "/shore.res"))
+	# lake and river layout for the fresh-water meshes
+	var wj := FileAccess.get_file_as_string(src + "/water.json")
+	var f := FileAccess.open(OUT + "/water.json", FileAccess.WRITE)
+	f.store_string(wj)
+	f.close()
 	quit()
 
 

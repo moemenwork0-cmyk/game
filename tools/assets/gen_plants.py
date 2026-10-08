@@ -143,11 +143,27 @@ def paint_taro(w=1024, h=1024):
 		ex = notch[0] + math.cos(a) * w * 0.48
 		ey = notch[1] - math.sin(a) * h * 0.48 if k != 0 else notch[1] - h * 0.42
 		d.line([notch, (ex, ey)], fill=(110, 150, 70, 255), width=6 if k == 0 else 4)
+	# secondary veins branching off the main ones
+	rng = random.Random(9)
+	for k in range(-4, 5):
+		a = math.radians(90 + k * 20)
+		for j in range(1, 7):
+			t = j / 7
+			px = notch[0] + math.cos(a) * w * 0.48 * t
+			py = notch[1] - (math.sin(a) * h * 0.48 if k != 0 else h * 0.42) * t
+			for side in (-1, 1):
+				b = a + side * math.radians(55)
+				d.line([(px, py), (px + math.cos(b) * w * 0.07, py - math.sin(b) * h * 0.07)], fill=(92, 138, 62, 255), width=2)
 	arr = np.array(img).astype(np.float32)
-	# glossy lighter centre, darker rim
 	yy, xx = np.mgrid[0:h, 0:w]
 	r = np.hypot(xx - cx, yy - h * 0.45) / (w * 0.45)
-	arr[..., :3] *= (1.12 - 0.3 * np.clip(r, 0, 1))[..., None]
+	# darker, deeper green with organic mottling, sun-bleached spots and a yellowed rim
+	mott = np.array(Image.fromarray((np.random.default_rng(4).random((h // 16, w // 16)) * 255).astype(np.uint8)).resize((w, h), Image.BICUBIC)).astype(np.float32) / 255.0
+	fine = np.array(Image.fromarray((np.random.default_rng(5).random((h // 4, w // 4)) * 255).astype(np.uint8)).resize((w, h), Image.BICUBIC)).astype(np.float32) / 255.0
+	shade = (0.78 + 0.32 * mott + 0.12 * fine) * (1.05 - 0.35 * np.clip(r, 0, 1))
+	arr[..., :3] *= shade[..., None] * np.array([0.82, 0.9, 0.78])
+	rim = np.clip((r - 0.82) * 5, 0, 1)[..., None]
+	arr[..., :3] = arr[..., :3] * (1 - rim * 0.5) + np.array([150, 140, 60]) * rim * 0.5
 	img = bleed(Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGBA"))
 	img.save(os.path.join(TMP, "taro_col.png"))
 	vein = np.array(img.convert("L")).astype(np.float32) / 255.0

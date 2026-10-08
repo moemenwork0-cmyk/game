@@ -45,15 +45,15 @@ func _rules() -> Array[Dictionary]:
 	r.append({"name": "coast_rocks", "models": [M % "coast_rocks_05", M % "coast_land_rocks_02", M % "coast_land_rocks_03"],
 		"per_m2": 1.0 / 900.0, "shore": Vector2(-18, 10), "tex": [BASALT, WET], "scale": Vector2(0.7, 1.6),
 		"sink": 0.35, "align": 0.6, "range": 1400.0, "shadow": true,
-		"rock": {"tint": Color(1.28, 1.02, 0.78), "moss": 0.55}})
+		"rock": {"tint": Color(1.45, 1.05, 0.72), "moss": 0.55}})
 	r.append({"name": "beach_rocks", "models": [M % "sand_rocks_small_01", M % "boulder_01"],
 		"per_m2": 1.0 / 5000.0, "shore": Vector2(-6, 40), "tex": [SAND, SANDROCK], "scale": Vector2(0.6, 1.3),
 		"sink": 0.3, "align": 0.8, "range": 600.0, "shadow": true,
-		"rock": {"tint": Color(1.22, 1.0, 0.8), "moss": 0.3}})
+		"rock": {"tint": Color(1.4, 1.05, 0.75), "moss": 0.6}})
 	r.append({"name": "cliffs", "models": [M % "coastal_cliff_01", M % "coastal_cliff_02"],
 		"per_m2": 1.0 / 2600.0, "shore": Vector2(-8, 30), "tex": [BASALT, CLIFF], "slope": Vector2(14, 90),
 		"scale": Vector2(0.6, 1.0), "sink": 0.45, "align": 0.0, "range": 2500.0, "shadow": true,
-		"rock": {"tint": Color(1.2, 0.98, 0.8), "moss": 0.8}})
+		"rock": {"tint": Color(1.35, 1.02, 0.76), "moss": 0.8}})
 	r.append({"name": "driftwood", "models": [M % "dead_tree_trunk", M % "dead_tree_trunk_02", M % "dry_branches_medium_01"],
 		"per_m2": 1.0 / 700.0, "height": Vector2(1.0, 3.0), "tex": [SAND, WET, SANDROCK], "scale": Vector2(0.7, 1.2),
 		"sink": 0.15, "align": 1.0, "tilt": 0.0, "range": 260.0, "shadow": true})
@@ -86,6 +86,26 @@ func _rules() -> Array[Dictionary]:
 	r.append({"name": "ferns", "models": [M % "fern_02", M % "shrub_03", M % "nettle_plant", M % "weed_plant_02"],
 		"per_m2": 1.0 / 6.0, "behind": Vector2(8, 9999), "slope": Vector2(0, 40), "scale": Vector2(0.8, 1.6),
 		"sink": 0.02, "align": 0.6, "range": 60.0, "shadow": false, "foliage": true, "stream": true})
+	# sandstone stacks standing in the lagoon, and big outcrops at the back of the beach
+	r.append({"name": "sea_rocks", "models": [M % "coast_rocks_05", M % "coast_land_rocks_02", M % "coast_land_rocks_03", M % "boulder_01"],
+		"per_m2": 1.0 / 1300.0, "height": Vector2(-3.2, -0.3), "shore": Vector2(-90, -3), "scale": Vector2(0.5, 1.4),
+		"sink": 0.3, "align": 0.3, "range": 1400.0, "shadow": true,
+		"rock": {"tint": Color(1.45, 1.05, 0.72), "moss": 0.35}})
+	r.append({"name": "beach_outcrops", "models": [M % "coast_land_rocks_02", M % "coast_land_rocks_03", M % "rock_moss_set_01"],
+		"per_m2": 1.0 / 2200.0, "behind": Vector2(-45, 10), "slope": Vector2(0, 25), "scale": Vector2(0.9, 1.8),
+		"sink": 0.25, "align": 0.5, "range": 1400.0, "shadow": true,
+		"rock": {"tint": Color(1.45, 1.05, 0.72), "moss": 0.85}})
+	# the river: mossy stones in and along the water, lush banks
+	r.append({"name": "river_rocks", "models": [M % "rock_moss_set_01", M % "rock_moss_set_02", M % "boulder_01"],
+		"per_m2": 1.0 / 70.0, "water": Vector2(-4.0, 3.0), "height": Vector2(0.0, 40.0), "scale": Vector2(0.35, 1.0),
+		"sink": 0.35, "align": 0.6, "range": 500.0, "shadow": true,
+		"rock": {"tint": Color(1.15, 1.0, 0.85), "moss": 0.9}})
+	r.append({"name": "riverbank", "models": [M % "fern_02", "res://assets/env/models/plants_taro.glb", "res://assets/env/models/plants_grass.glb"],
+		"per_m2": 1.0 / 4.0, "water": Vector2(0.8, 12.0), "slope": Vector2(0, 40), "scale": Vector2(0.9, 1.6),
+		"sink": 0.03, "align": 0.5, "range": 110.0, "shadow": true, "foliage": true, "stream": true})
+	r.append({"name": "riverbank_bananas", "models": ["res://assets/env/models/plants_banana.glb"],
+		"per_m2": 1.0 / 40.0, "water": Vector2(2.0, 18.0), "slope": Vector2(0, 30), "scale": Vector2(1.0, 1.5),
+		"sink": 0.05, "align": 0.1, "range": 320.0, "shadow": true, "foliage": true})
 	var P := "res://assets/env/models/plants_%s.glb"
 	r.append({"name": "tall_grass", "models": [P % "grass"],
 		"per_m2": 1.0 / 2.2, "behind": Vector2(-10, 9999), "slope": Vector2(0, 35), "scale": Vector2(0.8, 1.4),
@@ -109,12 +129,13 @@ func _rules() -> Array[Dictionary]:
 
 
 ## Shore field at a point: x = distance to the coast (m, + inland), y = metres behind
-## the dry beach (negative on the sand). Outside the island map: open sea.
-func shore_at(x: float, z: float) -> Vector2:
+## the dry beach (negative on the sand), z = distance to fresh water (negative inside the
+## lake or river). Outside the island map: open sea.
+func shore_at(x: float, z: float) -> Vector3:
 	var u := (x - shore_rect.position.x) / shore_rect.size.x
 	var v := (z - shore_rect.position.y) / shore_rect.size.y
 	if u < 0.0 or v < 0.0 or u >= 1.0 or v >= 1.0:
-		return Vector2(-2000.0, -2000.0)
+		return Vector3(-2000.0, -2000.0, 999.0)
 	var w := shore.get_width()
 	var h := shore.get_height()
 	var fx := u * w - 0.5
@@ -127,8 +148,8 @@ func shore_at(x: float, z: float) -> Vector2:
 	var p10 := shore.get_pixel(ix + 1, iz)
 	var p01 := shore.get_pixel(ix, iz + 1)
 	var p11 := shore.get_pixel(ix + 1, iz + 1)
-	var a := Vector2(p00.r, p00.g).lerp(Vector2(p10.r, p10.g), tx)
-	var b := Vector2(p01.r, p01.g).lerp(Vector2(p11.r, p11.g), tx)
+	var a := Vector3(p00.r, p00.g, p00.b).lerp(Vector3(p10.r, p10.g, p10.b), tx)
+	var b := Vector3(p01.r, p01.g, p01.b).lerp(Vector3(p11.r, p11.g, p11.b), tx)
 	return a.lerp(b, tz)
 
 
@@ -242,6 +263,12 @@ func _build_cell(ri: int, cx: int, cz: int) -> void:
 			var br: Vector2 = rule["behind"]
 			if sh.y < br.x or sh.y > br.y:
 				continue
+		if rule.has("water"):
+			var wr: Vector2 = rule["water"]
+			if sh.z < wr.x or sh.z > wr.y:
+				continue
+		elif sh.z < 0.8:
+			continue  # nothing grows in the lake or the river
 		var nrm := data.get_normal(Vector3(x, y, z))
 		if not nrm.is_finite():
 			continue
