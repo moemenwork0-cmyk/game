@@ -98,6 +98,9 @@ func _ready() -> void:
 	cam_attr.auto_exposure_min_sensitivity = 60.0
 	cam_attr.auto_exposure_max_sensitivity = 800.0
 	cam_attr.auto_exposure_speed = 0.6
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--shots="):
+			cam_attr.auto_exposure_speed = 12.0  # screenshots: adapt within the settle frames
 	cam_attr.auto_exposure_scale = 0.15
 	world_env.camera_attributes = cam_attr
 	add_child(world_env)

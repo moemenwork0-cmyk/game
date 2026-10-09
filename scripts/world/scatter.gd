@@ -67,6 +67,10 @@ func _rules() -> Array[Dictionary]:
 	r.append({"name": "jungle_palms", "models": [M % "palms"],
 		"per_m2": 1.0 / 1400.0, "behind": Vector2(16, 400), "slope": Vector2(0, 26), "scale": Vector2(1.0, 1.25),
 		"sink": 0.0, "align": 0.0, "range": 2000.0, "shadow": true, "foliage": true})
+	# a solid wall of undergrowth where the sand meets the jungle
+	r.append({"name": "edge_shrubs", "models": [M % "shrub_02", M % "pachira_aquatica_01", "res://assets/env/models/plants_banana.glb", M % "fern_02"],
+		"per_m2": 1.0 / 9.0, "behind": Vector2(-6, 45), "slope": Vector2(0, 32), "scale": Vector2(1.0, 1.8),
+		"sink": 0.05, "align": 0.3, "range": 260.0, "shadow": true, "foliage": true})
 	r.append({"name": "edge_trees", "models": [M % "island_tree_02", M % "island_tree_01"],
 		"per_m2": 1.0 / 55.0, "behind": Vector2(-4, 40), "slope": Vector2(0, 30), "scale": Vector2(0.8, 1.35),
 		"sink": 0.2, "align": 0.0, "range": 1600.0, "shadow": true, "foliage": true})

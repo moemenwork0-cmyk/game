@@ -192,7 +192,7 @@ def put(mask, b, o=None, bl=None):
 
 
 # underwater
-put(height < 0.6, WET, GRAVEL, np.clip(smooth(-1, -6, height) * 0.8 + patch * 0.4, 0, 1))
+put(height < 0.6, WET, GRAVEL, np.clip(smooth(-1.5, -6, height) * (0.75 + patch * 0.4), 0, 1))  # coral gravel only out in the water
 put((height < -0.5) & (reef > 1.2), BASALT, GRAVEL, np.clip(0.5 + patch, 0, 1))
 # swash zone -> dry sand
 put((height >= 0.6) & (height < 1.6), SAND, WET, np.clip(1 - smooth(0.6, 1.6, height), 0, 1))
