@@ -147,11 +147,12 @@ func _hero_rocks() -> void:
 	var sand := {"tint": Color(1.5, 1.08, 0.72), "moss": 0.7}
 	# [model, position, scale, yaw, stand up]
 	for r in [
-		["coast_land_rocks_02", Vector3(-95, 0, 512), 1.1, 0.4, true], ["coast_land_rocks_03", Vector3(-30, 0, 532), 1.0, 2.1, true],
-		["coast_rocks_05", Vector3(30, 0, 522), 1.8, 1.0, true], ["coast_land_rocks_03", Vector3(95, 0, 548), 1.2, 4.0, true],
-		["coast_land_rocks_02", Vector3(-150, 0, 540), 1.4, 5.1, true], ["coast_land_rocks_02", Vector3(-118, 0, 428), 1.3, 3.3, false],
-		["coast_land_rocks_03", Vector3(85, 0, 422), 1.5, 0.9, false], ["boulder_01", Vector3(-55, 0, 440), 2.4, 1.7, true],
-		["coast_rocks_05", Vector3(-20, 0, 505), 1.2, 3.0, true], ["boulder_01", Vector3(12, 0, 498), 1.8, 0.2, true],
+		["coast_land_rocks_02", Vector3(-78, 0, 461), 2.6, 0.5, false], ["coast_land_rocks_03", Vector3(-30, 0, 488), 2.4, 2.1, true],
+		["coast_rocks_05", Vector3(22, 0, 497), 3.2, 1.0, true], ["coast_land_rocks_03", Vector3(72, 0, 512), 2.6, 4.0, true],
+		["coast_land_rocks_02", Vector3(-112, 0, 498), 2.8, 5.1, true], ["coast_land_rocks_02", Vector3(-125, 0, 430), 2.2, 3.3, false],
+		["coast_land_rocks_03", Vector3(88, 0, 425), 2.4, 0.9, false], ["boulder_01", Vector3(-48, 0, 470), 3.5, 1.7, true],
+		["coast_rocks_05", Vector3(118, 0, 528), 3.0, 3.0, true], ["boulder_01", Vector3(-5, 0, 478), 2.6, 0.2, true],
+		["coast_rocks_05", Vector3(-170, 0, 520), 3.4, 2.4, true],
 	]:
 		scatter.place(M % r[0], r[1], r[2], r[3], sand, r[4])
 

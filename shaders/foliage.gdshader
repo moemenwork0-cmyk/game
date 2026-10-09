@@ -14,6 +14,8 @@ uniform sampler2D albedo_tex : source_color, filter_linear_mipmap_anisotropic, r
 uniform sampler2D normal_tex : hint_roughness_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D orm_tex : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform vec4 albedo_color : source_color = vec4(1.0);
+// olive, sun-warmed tropical greens (matched to the reference shots)
+uniform vec3 leaf_tint = vec3(1.06, 1.0, 0.58);
 uniform bool use_normal = false;
 uniform bool use_orm = false;
 uniform float alpha_cut = 0.45;
@@ -49,7 +51,7 @@ void vertex() {
 void fragment() {
 	vec4 a = texture(albedo_tex, UV) * albedo_color;
 	if (a.a < alpha_cut) discard;
-	ALBEDO = a.rgb;
+	ALBEDO = is_leaf ? a.rgb * leaf_tint : a.rgb;
 	vec3 orm = use_orm ? texture(orm_tex, UV).rgb : vec3(1.0, roughness, 0.0);
 	ROUGHNESS = orm.g;
 	METALLIC = 0.0;

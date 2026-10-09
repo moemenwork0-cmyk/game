@@ -62,13 +62,13 @@ func _rules() -> Array[Dictionary]:
 		"sink": 0.2, "align": 1.0, "range": 45.0, "shadow": false, "stream": true})
 	# --- jungle edge and interior ------------------------------------------------------
 	r.append({"name": "palms", "models": [M % "palms"],
-		"per_m2": 1.0 / 240.0, "behind": Vector2(-30, 16), "slope": Vector2(0, 26), "scale": Vector2(0.85, 1.15),
+		"per_m2": 1.0 / 110.0, "behind": Vector2(-30, 16), "slope": Vector2(0, 26), "scale": Vector2(0.85, 1.15),
 		"sink": 0.0, "align": 0.0, "range": 2000.0, "shadow": true, "foliage": true})
 	r.append({"name": "jungle_palms", "models": [M % "palms"],
 		"per_m2": 1.0 / 1400.0, "behind": Vector2(16, 400), "slope": Vector2(0, 26), "scale": Vector2(1.0, 1.25),
 		"sink": 0.0, "align": 0.0, "range": 2000.0, "shadow": true, "foliage": true})
 	r.append({"name": "edge_trees", "models": [M % "island_tree_02", M % "island_tree_01"],
-		"per_m2": 1.0 / 110.0, "behind": Vector2(-2, 40), "slope": Vector2(0, 30), "scale": Vector2(0.8, 1.35),
+		"per_m2": 1.0 / 55.0, "behind": Vector2(-4, 40), "slope": Vector2(0, 30), "scale": Vector2(0.8, 1.35),
 		"sink": 0.2, "align": 0.0, "range": 1600.0, "shadow": true, "foliage": true})
 	r.append({"name": "jungle_trees", "models": [M % "island_tree_03", M % "island_tree_01", M % "island_tree_02"],
 		"per_m2": 1.0 / 55.0, "behind": Vector2(30, 9999), "slope": Vector2(0, 36), "scale": Vector2(1.0, 1.9),
