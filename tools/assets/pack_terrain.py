@@ -18,7 +18,7 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "env", "terr
 SIZE = 2048
 # colour grading per texture (gain RGB), matched to the reference shots: warm,
 # reddish-brown tropical sand rather than pale yellow
-GRADE = {"coast_sand_01": (1.08, 0.86, 0.64), "damp_sand": (0.9, 0.74, 0.58), "coast_sand_rocks_02": (1.0, 0.8, 0.6),
+GRADE = {"coast_sand_01": (1.2, 1.02, 0.8), "damp_sand": (0.98, 0.85, 0.7), "coast_sand_rocks_02": (1.1, 0.95, 0.76),
 	"forest_ground_04": (1.0, 0.92, 0.7), "leaves_forest_ground": (1.0, 0.9, 0.68), "aerial_grass_rock": (1.0, 1.0, 0.7)}
 
 

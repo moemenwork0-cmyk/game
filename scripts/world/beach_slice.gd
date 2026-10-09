@@ -146,13 +146,14 @@ func _hero_rocks() -> void:
 	var M := "res://assets/env/models/%s.glb"
 	var sand := {"tint": Color(1.5, 1.08, 0.72), "moss": 0.7}
 	# [model, position, scale, yaw, stand up]
+	# rounded boulders read as natural sandstone; the flat scans look odd stood on edge
 	for r in [
-		["coast_land_rocks_02", Vector3(-78, 0, 461), 2.6, 0.5, false], ["coast_land_rocks_03", Vector3(-30, 0, 488), 2.4, 2.1, true],
-		["coast_rocks_05", Vector3(22, 0, 497), 3.2, 1.0, true], ["coast_land_rocks_03", Vector3(72, 0, 512), 2.6, 4.0, true],
-		["coast_land_rocks_02", Vector3(-112, 0, 498), 2.8, 5.1, true], ["coast_land_rocks_02", Vector3(-125, 0, 430), 2.2, 3.3, false],
-		["coast_land_rocks_03", Vector3(88, 0, 425), 2.4, 0.9, false], ["boulder_01", Vector3(-48, 0, 470), 3.5, 1.7, true],
-		["coast_rocks_05", Vector3(118, 0, 528), 3.0, 3.0, true], ["boulder_01", Vector3(-5, 0, 478), 2.6, 0.2, true],
-		["coast_rocks_05", Vector3(-170, 0, 520), 3.4, 2.4, true],
+		["coast_land_rocks_02", Vector3(-80, 0, 458), 2.2, 0.5, false], ["boulder_01", Vector3(-32, 0, 486), 5.0, 2.1, false],
+		["rock_moss_set_01", Vector3(20, 0, 496), 3.2, 1.0, false], ["boulder_01", Vector3(70, 0, 510), 6.0, 4.0, false],
+		["boulder_01", Vector3(-112, 0, 497), 5.5, 5.1, false], ["coast_land_rocks_02", Vector3(-125, 0, 430), 2.2, 3.3, false],
+		["coast_land_rocks_03", Vector3(88, 0, 425), 2.4, 0.9, false], ["rock_moss_set_01", Vector3(-50, 0, 470), 2.6, 1.7, false],
+		["boulder_01", Vector3(118, 0, 528), 7.0, 3.0, false], ["boulder_01", Vector3(-5, 0, 478), 3.6, 0.2, false],
+		["boulder_01", Vector3(-170, 0, 520), 6.5, 2.4, false],
 	]:
 		scatter.place(M % r[0], r[1], r[2], r[3], sand, r[4])
 
@@ -230,18 +231,19 @@ func _shoot_all(dir: String) -> void:
 		if a.begins_with("--frames="):
 			frames = int(a.trim_prefix("--frames="))
 	_label.visible = false
-	var only := -1
+	var only: Array[int] = []
 	var list: Array = VIEWS
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
-			only = int(a.trim_prefix("--only="))
+			for k in a.trim_prefix("--only=").split(","):
+				only.append(int(k))
 		if a == "--close":
 			list = CLOSE
 		if a == "--tour":
 			list = TOUR
 	var near := 260.0
 	for i in list.size():
-		if only >= 0 and i != only:
+		if not only.is_empty() and not (i in only):
 			continue
 		_apply_view(list[i])
 		if not OS.get_cmdline_user_args().has("--noscatter"):

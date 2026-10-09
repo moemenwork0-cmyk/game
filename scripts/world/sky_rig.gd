@@ -234,9 +234,9 @@ func _update_sun() -> void:
 	var md := -d
 	moon.look_at_from_position(Vector3.ZERO, -md, Vector3.UP if absf(md.y) < 0.99 else Vector3.FORWARD)
 	var night := smoothstep(0.0, -0.15, elev)
-	moon.light_energy = 0.12 * night
+	moon.light_energy = 0.35 * night
 	moon.shadow_enabled = night > 0.01
-	_ambient = lerpf(0.25, 1.0, day) * (1.0 - storm * 0.45)
+	_ambient = lerpf(0.6, 1.0, day) * (1.0 - storm * 0.45)
 	env.ambient_light_energy = _ambient
 	env.ambient_light_sky_contribution = 1.0
 	env.fog_light_color = Color(0.62, 0.74, 0.86).lerp(Color(0.95, 0.62, 0.42), warm * day)
