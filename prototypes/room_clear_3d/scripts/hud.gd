@@ -54,9 +54,10 @@ var _u := 1.0
 
 func _ready() -> void:
 	layer = 10
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	font = load("res://assets/fonts/Rajdhani-Bold.ttf")
 	font_mid = load("res://assets/fonts/Rajdhani-SemiBold.ttf")
-	for k in ["heart", "bullet", "target", "crosshair", "reload", "chevron", "arrow", "shield_ok", "shield_fail", "skull", "play"]:
+	for k in ["heart", "bullet", "target", "crosshair", "reload", "chevron", "arrow", "shield_ok", "shield_fail", "skull", "play", "rotate"]:
 		icons[k] = load("res://assets/ui/%s.svg" % k)
 	var th := Theme.new()
 	th.default_font = font
@@ -90,16 +91,25 @@ func _ready() -> void:
 
 func _layout() -> void:
 	var s := overlay.size
-	_u = clampf(minf(s.y / 720.0, s.x / 1280.0) * 1.25, 0.75, 1.6)
-	stick_r = 74.0 * _u
-	stick_home = Vector2(stick_r + 70.0 * _u, s.y - stick_r - 54.0 * _u)
-	fire_r = 66.0 * _u
-	fire_c = Vector2(s.x - fire_r - 64.0 * _u, s.y - fire_r - 60.0 * _u)
-	reload_r = 40.0 * _u
-	reload_c = fire_c + Vector2(-fire_r - 58.0 * _u, fire_r * 0.45)
+	var base := clampf(s.y / 720.0, 0.85, 1.5)
+	var touch := uses_touch()
+	_u = base * (1.2 if touch else 1.0)       # phones: HUD text a bit larger
+	var cu := base * 1.45                      # thumb-sized controls
+	var m := 22.0 * _u
+	stick_r = 66.0 * cu
+	stick_home = Vector2(m + stick_r + 30.0 * cu, s.y - m - stick_r - 12.0 * cu)
+	fire_r = 54.0 * cu
+	fire_c = Vector2(s.x - m - fire_r - 30.0 * cu, s.y - m - fire_r - 16.0 * cu)
+	reload_r = 27.0 * cu
+	reload_c = fire_c + Vector2(-fire_r - reload_r - 22.0 * cu, fire_r * 0.3)
 	if stick_id < 0:
 		stick_base = stick_home
 		stick_knob = stick_home
+
+
+## Touch controls are only drawn on touch devices (or once a touch has been seen).
+func uses_touch() -> bool:
+	return touch_seen or OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios")
 
 
 func _process(delta: float) -> void:
@@ -113,6 +123,9 @@ func _process(delta: float) -> void:
 		m[1] -= rd
 	dmg_marks = dmg_marks.filter(func(m: Array) -> bool: return m[1] > 0.0)
 	_layout()
+	var portrait := overlay.size.y > overlay.size.x and uses_touch()
+	if get_tree().paused != (portrait and playing):
+		get_tree().paused = portrait and playing
 	if player:
 		var low := clampf((40.0 - player.hp) / 40.0, 0.0, 1.0) if player.alive else 0.0
 		(vignette.material as ShaderMaterial).set_shader_parameter("hurt", hurt_k)
@@ -220,7 +233,7 @@ func release_all() -> void:
 # ------------------------------------------------------------------ events from the game
 
 func show_banner() -> void:
-	banner_t = 3.0
+	banner_t = 2.8
 
 
 func on_hit_enemy(head: bool) -> void:
@@ -243,34 +256,41 @@ func on_alert(kind: String) -> void:
 
 # ------------------------------------------------------------------ drawing
 
-func _txt(p: Vector2, s: String, size: float, col: Color, align := HORIZONTAL_ALIGNMENT_LEFT, f: Font = null, width := -1.0) -> void:
+func _txt(p: Vector2, s: String, size: float, col: Color, align := HORIZONTAL_ALIGNMENT_LEFT, f: Font = null) -> void:
 	var fo := f if f else font
-	var w := width
 	var pos := p
-	if align != HORIZONTAL_ALIGNMENT_LEFT and w < 0:
-		w = 800.0
+	var w := -1.0
+	if align != HORIZONTAL_ALIGNMENT_LEFT:
+		w = 900.0
 		pos.x -= w * (0.5 if align == HORIZONTAL_ALIGNMENT_CENTER else 1.0)
-	overlay.draw_string(fo, pos + Vector2(1.5, 2), s, align, w, int(size), Color(0, 0, 0, col.a * 0.6))
+	overlay.draw_string(fo, pos + Vector2(0, 1.5), s, align, w, int(size), Color(0, 0, 0, col.a * 0.55))
 	overlay.draw_string(fo, pos, s, align, w, int(size), col)
 
 
 func _icon(k: String, c: Vector2, size: float, mod := Color.WHITE, rot := 0.0) -> void:
 	var tex: Texture2D = icons[k]
-	if rot != 0.0:
-		overlay.draw_set_transform(c, rot, Vector2.ONE)
-		overlay.draw_texture_rect(tex, Rect2(-Vector2.ONE * size * 0.5, Vector2.ONE * size), false, mod)
-		overlay.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	else:
-		overlay.draw_texture_rect(tex, Rect2(c - Vector2.ONE * size * 0.5, Vector2.ONE * size), false, mod)
+	overlay.draw_set_transform(c, rot, Vector2.ONE)
+	overlay.draw_texture_rect(tex, Rect2(-Vector2.ONE * size * 0.5, Vector2.ONE * size), false, mod)
+	overlay.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
-func _panel(r: Rect2, accent := AMBER) -> void:
+func _bar(r: Rect2, k: float, col: Color) -> void:
+	var rad := r.size.y * 0.5
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(1, 1, 1, 0.13)
+	bg.set_corner_radius_all(int(rad))
+	overlay.draw_style_box(bg, r)
+	if k > 0.001:
+		var fg := StyleBoxFlat.new()
+		fg.bg_color = col
+		fg.set_corner_radius_all(int(rad))
+		overlay.draw_style_box(fg, Rect2(r.position, Vector2(maxf(r.size.x * clampf(k, 0.0, 1.0), r.size.y), r.size.y)))
+
+
+func _pill(r: Rect2, a := 0.42) -> void:
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = PANEL
-	sb.set_corner_radius_all(int(8 * _u))
-	sb.border_color = Color(accent, 0.35)
-	sb.set_border_width_all(1)
-	sb.border_width_left = int(4 * _u)
+	sb.bg_color = Color(0.02, 0.025, 0.02, a)
+	sb.set_corner_radius_all(int(r.size.y * 0.5))
 	overlay.draw_style_box(sb, r)
 
 
@@ -279,62 +299,63 @@ func _draw_overlay() -> void:
 		return
 	var u := _u
 	var s := overlay.size
+	if s.y > s.x and uses_touch():
+		overlay.draw_rect(Rect2(Vector2.ZERO, s), Color(0.02, 0.025, 0.02, 0.96))
+		_icon("rotate", s * 0.5 - Vector2(0, 40 * u), 110 * u, Color.WHITE, -0.5 + sin(_t * 2.0) * 0.5)
+		_txt(Vector2(s.x * 0.5, s.y * 0.5 + 60 * u), "ROTATE YOUR PHONE", 26 * u, INK, HORIZONTAL_ALIGNMENT_CENTER)
+		return
 	if not playing and start_screen.visible:
 		return
-	# damage direction arcs
+	var m := 22.0 * u
+	# damage direction
 	if player.alive and cam:
 		var pc := cam.unproject_position(player.global_position + Vector3(0, 1.2, 0))
-		for m in dmg_marks:
-			var a: float = m[0]
-			var k: float = clampf(m[1] / 1.2, 0.0, 1.0)
-			overlay.draw_arc(pc, 120.0 * u, a - 0.45, a + 0.45, 24, Color(1, 0.15, 0.1, k * 0.85), 10.0 * u, true)
+		for d in dmg_marks:
+			var k: float = clampf(d[1] / 1.2, 0.0, 1.0)
+			overlay.draw_arc(pc, 92.0 * u, d[0] - 0.4, d[0] + 0.4, 20, Color(1, 0.2, 0.15, k * 0.9), 5.0 * u, true)
 	_draw_target(u, s)
 	if not playing and not end_screen.visible:
 		return
-	# --- health panel
-	var x := 20.0 * u
-	var y := 16.0 * u
-	_panel(Rect2(x, y, 300 * u, 100 * u))
-	var beat := 1.0 + (0.12 * maxf(sin(_t * 9.0), 0.0) if player.hp < 35 and player.alive else 0.0)
-	_icon("heart", Vector2(x + 34 * u, y + 30 * u), 38 * u * beat)
-	var bx := x + 64 * u
-	var bw := 170 * u
+	# --- status (top-left): compact, no box
+	var x := m
+	var y := m
 	var hp_k := clampf(player.hp / player.max_hp, 0.0, 1.0)
 	var col := GREEN if hp_k > 0.5 else (AMBER if hp_k > 0.25 else RED)
-	var segs := 10
-	for i in segs:
-		var sx := bx + i * bw / segs
-		var on := float(i + 1) / segs <= hp_k + 0.049
-		overlay.draw_rect(Rect2(sx, y + 22 * u, bw / segs - 3 * u, 16 * u), col if on else Color(1, 1, 1, 0.08))
-	_txt(Vector2(x + 290 * u, y + 40 * u), str(int(ceil(player.hp))), 30 * u, INK, HORIZONTAL_ALIGNMENT_RIGHT)
-	# --- ammo
-	_icon("bullet", Vector2(x + 34 * u, y + 72 * u), 36 * u)
+	var beat := 1.0 + (0.15 * maxf(sin(_t * 9.0), 0.0) if player.hp < 35 and player.alive else 0.0)
+	_icon("heart", Vector2(x + 10 * u, y + 10 * u), 19 * u * beat)
+	_bar(Rect2(x + 26 * u, y + 7 * u, 118 * u, 6 * u), hp_k, col)
+	_txt(Vector2(x + 152 * u, y + 16 * u), str(int(ceil(player.hp))), 18 * u, INK)
+	var ay := y + 36 * u
+	_icon("bullet", Vector2(x + 10 * u, ay), 18 * u)
 	if player.is_reloading():
-		overlay.draw_rect(Rect2(bx, y + 64 * u, bw, 14 * u), Color(1, 1, 1, 0.08))
-		overlay.draw_rect(Rect2(bx, y + 64 * u, bw * player.reload_progress(), 14 * u), AMBER)
-		_txt(Vector2(bx, y + 95 * u), "RELOADING", 15 * u, AMBER, HORIZONTAL_ALIGNMENT_LEFT, font_mid)
+		_bar(Rect2(x + 26 * u, ay - 3 * u, 118 * u, 6 * u), player.reload_progress(), AMBER)
+		_txt(Vector2(x + 152 * u, ay + 5 * u), "RELOADING", 13 * u, AMBER, HORIZONTAL_ALIGNMENT_LEFT, font_mid)
 	else:
-		var pw := bw / player.mag_size
-		for i in player.mag_size:
-			var c := INK if i < player.ammo else Color(1, 1, 1, 0.09)
-			if i < player.ammo and player.ammo <= 8:
-				c = AMBER
-			overlay.draw_rect(Rect2(bx + i * pw, y + 62 * u, maxf(pw - 2.0 * u, 1.0), 20 * u), c)
-	_txt(Vector2(x + 290 * u, y + 84 * u), str(player.ammo), 30 * u, RED if player.ammo == 0 else INK, HORIZONTAL_ALIGNMENT_RIGHT)
-	# --- objective chip
-	var label := "ELIMINATE THE TARGET" if enemy and enemy.alive else "TARGET ELIMINATED"
-	var tw := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, int(24 * u)).x
-	var cw := tw + 80 * u
-	var cr := Rect2(s.x * 0.5 - cw * 0.5, 16 * u, cw, 50 * u)
-	_panel(cr, GREEN if enemy and not enemy.alive else AMBER)
-	_icon("target", Vector2(cr.position.x + 30 * u, cr.position.y + 25 * u), 32 * u)
-	_txt(Vector2(cr.position.x + 56 * u, cr.position.y + 34 * u), label, 24 * u, GREEN if enemy and not enemy.alive else INK)
-	if player.ammo == 0 and not player.is_reloading() and player.alive:
-		_txt(Vector2(s.x * 0.5, s.y - 40 * u), "NO AMMO  —  RELOAD", 26 * u, Color(RED, 0.6 + 0.4 * sin(_t * 9.0)), HORIZONTAL_ALIGNMENT_CENTER)
-	elif player.ammo <= 6 and not player.is_reloading() and player.alive:
-		_txt(Vector2(s.x * 0.5, s.y - 40 * u), "LOW AMMO", 22 * u, Color(AMBER, 0.85), HORIZONTAL_ALIGNMENT_CENTER)
+		var ac := RED if player.ammo == 0 else (AMBER if player.ammo <= 8 else Color(0.95, 0.9, 0.75))
+		_bar(Rect2(x + 26 * u, ay - 3 * u, 118 * u, 6 * u), float(player.ammo) / player.mag_size, ac)
+		_txt(Vector2(x + 152 * u, ay + 6 * u), str(player.ammo), 18 * u, ac)
+		_txt(Vector2(x + 152 * u + font.get_string_size(str(player.ammo), HORIZONTAL_ALIGNMENT_LEFT, -1, int(18 * u)).x + 3 * u, ay + 6 * u), "/ %d" % player.mag_size, 13 * u, Color(INK, 0.55), HORIZONTAL_ALIGNMENT_LEFT, font_mid)
+	# --- objective (top-centre): slim pill
+	var done := enemy != null and not enemy.alive
+	var label := "TARGET ELIMINATED" if done else "ELIMINATE THE TARGET"
+	var fs := 15 * u
+	var tw := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
+	var pw := tw + 46 * u
+	var pr := Rect2(s.x * 0.5 - pw * 0.5, m - 4 * u, pw, 28 * u)
+	_pill(pr)
+	_icon("target", pr.position + Vector2(16 * u, 14 * u), 16 * u, GREEN if done else Color.WHITE)
+	_txt(pr.position + Vector2(30 * u, 19.5 * u), label, fs, GREEN if done else INK)
+	# --- hints
+	if player.alive and not player.is_reloading():
+		if player.ammo == 0:
+			_txt(Vector2(s.x * 0.5, s.y - m - 6 * u), "NO AMMO — RELOAD", 16 * u, Color(RED, 0.6 + 0.4 * sin(_t * 9.0)), HORIZONTAL_ALIGNMENT_CENTER)
+		elif player.ammo <= 6:
+			_txt(Vector2(s.x * 0.5, s.y - m - 6 * u), "LOW AMMO", 14 * u, Color(AMBER, 0.8), HORIZONTAL_ALIGNMENT_CENTER)
 	if playing:
-		_draw_controls(u)
+		if uses_touch():
+			_draw_controls(u)
+		elif _t < 14.0:
+			_txt(Vector2(s.x * 0.5, s.y - m - 6 * u), "WASD  move    ·    MOUSE  aim    ·    CLICK  fire    ·    R  reload", 14 * u, Color(INK, 0.55), HORIZONTAL_ALIGNMENT_CENTER, font_mid)
 	if banner_t > 0.0:
 		_draw_banner(u, s)
 
@@ -342,90 +363,88 @@ func _draw_overlay() -> void:
 func _draw_target(u: float, s: Vector2) -> void:
 	if enemy == null or cam == null or not enemy.alive:
 		return
-	var wp := enemy.head_pos() + Vector3(0, 0.55, 0)
+	var wp := enemy.head_pos() + Vector3(0, 0.45, 0)
 	var behind := cam.is_position_behind(wp)
 	var sp := cam.unproject_position(wp)
-	var m := 50.0 * u
-	var on := not behind and sp.x > m and sp.x < s.x - m and sp.y > 90 * u and sp.y < s.y - m
+	var m := 40.0 * u
+	var on := not behind and sp.x > m and sp.x < s.x - m and sp.y > 70 * u and sp.y < s.y - m
 	if on:
-		var bob := sin(_t * 4.0) * 4.0 * u
-		_icon("chevron", sp + Vector2(0, bob), 34 * u)
-		var bw := 64 * u
-		var by := sp.y - 30 * u + bob
-		overlay.draw_rect(Rect2(sp.x - bw * 0.5 - 1, by - 1, bw + 2, 7 * u + 2), Color(0, 0, 0, 0.6))
-		overlay.draw_rect(Rect2(sp.x - bw * 0.5, by, bw * enemy.hp / enemy.max_hp, 7 * u), RED)
-		_txt(Vector2(sp.x, by - 6 * u), "TARGET", 16 * u, Color(1, 0.82, 0.78), HORIZONTAL_ALIGNMENT_CENTER)
+		var bob := sin(_t * 4.0) * 3.0 * u
+		_icon("chevron", sp + Vector2(0, bob), 18 * u)
+		var bw := 34 * u
+		var by := sp.y - 17 * u + bob
+		_bar(Rect2(sp.x - bw * 0.5, by, bw, 4 * u), enemy.hp / enemy.max_hp, RED)
 		if alert_t > 0.0:
-			var a := clampf(alert_t, 0.0, 1.0)
 			var big := 1.0 + maxf(0.0, alert_t - 1.9) * 2.0
-			_txt(Vector2(sp.x + 34 * u, by + 10 * u), alert_txt, 40 * u * big, Color(RED if alert_txt == "!" else AMBER, a))
+			_txt(Vector2(sp.x + 22 * u, by + 12 * u), alert_txt, 24 * u * big, Color(RED if alert_txt == "!" else AMBER, clampf(alert_t, 0.0, 1.0)))
 		if hit_t > 0.0:
 			var c := cam.unproject_position(enemy.chest_pos())
-			var hc := Color(1, 0.25, 0.2) if hit_head else Color(1, 1, 1)
+			var hc := Color(1, 0.3, 0.25) if hit_head else Color(1, 1, 1)
 			hc.a = hit_t / 0.22
-			var g := 9 * u
-			var l := 20 * u
 			for d in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
-				overlay.draw_line(c + d * g, c + d * l, hc, 3.0 * u, true)
+				overlay.draw_line(c + d * 6 * u, c + d * 13 * u, hc, 2.0 * u, true)
 			if hit_head:
-				_txt(c + Vector2(0, -40 * u), "HEADSHOT", 22 * u, hc, HORIZONTAL_ALIGNMENT_CENTER)
+				_txt(c + Vector2(0, -26 * u), "HEADSHOT", 14 * u, hc, HORIZONTAL_ALIGNMENT_CENTER)
 	else:
 		var center := s * 0.5
-		var dir := (sp - center)
+		var dir := sp - center
 		if behind:
 			dir = -dir
 		var ang := dir.angle()
-		var e := Vector2(clampf(center.x + cos(ang) * s.x, m, s.x - m), clampf(center.y + sin(ang) * s.y, 100 * u, s.y - m))
-		overlay.draw_circle(e, 26 * u, Color(0.05, 0.06, 0.05, 0.75))
-		_icon("target", e, 34 * u, Color(1, 0.55, 0.5))
-		_icon("arrow", e + Vector2(cos(ang), sin(ang)) * 38 * u, 28 * u, Color.WHITE, ang)
-		var dist := enemy.global_position.distance_to(player.global_position)
-		_txt(e + Vector2(0, 48 * u), "%dm" % int(dist), 18 * u, Color(1, 0.82, 0.78), HORIZONTAL_ALIGNMENT_CENTER)
+		var e := Vector2(clampf(center.x + cos(ang) * s.x, m, s.x - m), clampf(center.y + sin(ang) * s.y, 70 * u, s.y - m))
+		overlay.draw_circle(e, 15 * u, Color(0.02, 0.025, 0.02, 0.55))
+		overlay.draw_arc(e, 15 * u, 0, TAU, 32, Color(1, 0.35, 0.28, 0.8), 1.5 * u, true)
+		_icon("target", e, 16 * u, Color(1, 0.6, 0.55))
+		_icon("arrow", e + Vector2(cos(ang), sin(ang)) * 24 * u, 14 * u, Color.WHITE, ang)
+		_txt(e + Vector2(0, 30 * u), "%dm" % int(enemy.global_position.distance_to(player.global_position)), 12 * u, Color(1, 0.85, 0.8), HORIZONTAL_ALIGNMENT_CENTER)
 
 
-func _draw_controls(u: float) -> void:
-	if touch_seen or OS.has_feature("mobile") or OS.has_feature("web") or true:
-		# stick
-		var act := stick_id >= 0
-		overlay.draw_circle(stick_base, stick_r, Color(0.05, 0.07, 0.05, 0.35 if act else 0.22))
-		overlay.draw_arc(stick_base, stick_r, 0, TAU, 48, Color(INK, 0.4 if act else 0.25), 3.0 * u, true)
-		for i in 4:
-			var a := i * PI / 2
-			var p := stick_base + Vector2(cos(a), sin(a)) * stick_r * 0.78
-			_icon("arrow", p, 18 * u, Color(INK, 0.35), a)
-		overlay.draw_circle(stick_knob + Vector2(2, 4), stick_r * 0.42, Color(0, 0, 0, 0.3))
-		overlay.draw_circle(stick_knob, stick_r * 0.42, Color(0.85, 0.88, 0.82, 0.75 if act else 0.5))
-		overlay.draw_circle(stick_knob - Vector2(stick_r * 0.1, stick_r * 0.12), stick_r * 0.16, Color(1, 1, 1, 0.3))
-		# fire
-		var held := fire_ids.size() > 0 or mouse_fire
-		var fr := fire_r * (0.93 if held else 1.0)
-		overlay.draw_circle(fire_c, fr, Color(0.75, 0.16, 0.12, 0.78 if held else 0.55))
-		overlay.draw_arc(fire_c, fr, 0, TAU, 56, Color(1, 0.65, 0.55, 0.8), 3.0 * u, true)
-		if held:
-			overlay.draw_arc(fire_c, fr + 8 * u + sin(_t * 30.0) * 2.0 * u, 0, TAU, 56, Color(1, 0.5, 0.4, 0.35), 3.0 * u, true)
-		_icon("crosshair", fire_c - Vector2(0, 6 * u), fr * 1.05)
-		_txt(Vector2(fire_c.x, fire_c.y + fr * 0.78), "FIRE", 17 * u, Color(1, 0.9, 0.86), HORIZONTAL_ALIGNMENT_CENTER)
-		# reload
-		overlay.draw_circle(reload_c, reload_r, Color(0.05, 0.07, 0.05, 0.6))
-		var rc := Color(RED, 0.95) if player.ammo == 0 else Color(INK, 0.45)
-		overlay.draw_arc(reload_c, reload_r, 0, TAU, 40, rc, 3.0 * u, true)
-		if player.is_reloading():
-			overlay.draw_arc(reload_c, reload_r - 2 * u, -PI / 2, -PI / 2 + TAU * player.reload_progress(), 40, AMBER, 5.0 * u, true)
-		_icon("reload", reload_c, reload_r * 1.25, Color(INK, 0.95))
+func _draw_controls(_hu: float) -> void:
+	var u := fire_r / 54.0
+	# movement stick: thin ring + soft knob
+	var act := stick_id >= 0
+	overlay.draw_circle(stick_base, stick_r, Color(0, 0, 0, 0.22 if act else 0.14))
+	overlay.draw_arc(stick_base, stick_r, 0, TAU, 64, Color(1, 1, 1, 0.38 if act else 0.22), 2.0 * u, true)
+	for i in 4:
+		var a := i * PI / 2
+		_icon("arrow", stick_base + Vector2(cos(a), sin(a)) * (stick_r - 11 * u), 10 * u, Color(1, 1, 1, 0.3), a)
+	var kr := 25.0 * u
+	overlay.draw_circle(stick_knob, kr, Color(1, 1, 1, 0.5 if act else 0.32))
+	overlay.draw_arc(stick_knob, kr, 0, TAU, 40, Color(1, 1, 1, 0.75), 1.5 * u, true)
+	# fire: dark glass disc, red ring, ammo arc around it
+	var held := fire_ids.size() > 0 or mouse_fire
+	var fr := fire_r * (0.94 if held else 1.0)
+	overlay.draw_circle(fire_c, fr, Color(0.75, 0.12, 0.08, 0.42) if held else Color(0, 0, 0, 0.3))
+	overlay.draw_arc(fire_c, fr, 0, TAU, 64, Color(1, 0.38, 0.3, 0.9), 2.5 * u, true)
+	var ak := float(player.ammo) / player.mag_size
+	overlay.draw_arc(fire_c, fr + 7 * u, -PI / 2, -PI / 2 + TAU, 64, Color(1, 1, 1, 0.12), 3.0 * u, true)
+	if ak > 0.0:
+		overlay.draw_arc(fire_c, fr + 7 * u, -PI / 2, -PI / 2 + TAU * ak, 64, Color(1, 0.92, 0.75, 0.7) if ak > 0.27 else Color(AMBER, 0.9), 3.0 * u, true)
+	_icon("crosshair", fire_c, fr * 0.95, Color(1, 1, 1, 0.95))
+	# reload: small glass disc with progress ring
+	overlay.draw_circle(reload_c, reload_r, Color(0, 0, 0, 0.3))
+	var rc := Color(RED, 0.95) if player.ammo == 0 else Color(1, 1, 1, 0.4)
+	overlay.draw_arc(reload_c, reload_r, 0, TAU, 40, rc, 2.0 * u, true)
+	if player.is_reloading():
+		overlay.draw_arc(reload_c, reload_r, -PI / 2, -PI / 2 + TAU * player.reload_progress(), 40, AMBER, 3.5 * u, true)
+	_icon("reload", reload_c, reload_r * 1.1, Color(1, 1, 1, 0.9))
 
 
 func _draw_banner(u: float, s: Vector2) -> void:
-	var k := clampf(minf((3.0 - banner_t) / 0.35, banner_t / 0.5), 0.0, 1.0)
+	var k := clampf(minf((2.8 - banner_t) / 0.3, banner_t / 0.45), 0.0, 1.0)
 	var e := 1.0 - pow(1.0 - k, 3.0)
-	var w := 560 * u
-	var h := 104 * u
-	var r := Rect2(s.x * 0.5 - w * 0.5 + (1.0 - e) * 120 * u, s.y * 0.34 - h * 0.5, w, h)
-	overlay.draw_rect(r, Color(0.04, 0.05, 0.04, 0.86 * e))
-	overlay.draw_rect(Rect2(r.position, Vector2(w * e, 4 * u)), Color(AMBER, e))
-	overlay.draw_rect(Rect2(r.position + Vector2(0, h - 4 * u), Vector2(w * e, 4 * u)), Color(AMBER, e))
-	_icon("target", r.position + Vector2(58 * u, h * 0.5), 64 * u, Color(1, 1, 1, e))
-	_txt(r.position + Vector2(108 * u, h * 0.5 - 12 * u), "NEW OBJECTIVE", 20 * u, Color(AMBER, e), HORIZONTAL_ALIGNMENT_LEFT, font_mid)
-	_txt(r.position + Vector2(106 * u, h * 0.5 + 26 * u), "ELIMINATE THE TARGET", 40 * u, Color(INK, e))
+	var w := 360 * u
+	var h := 54 * u
+	var r := Rect2(s.x * 0.5 - w * 0.5, 62 * u - (1.0 - e) * 20 * u, w, h)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.02, 0.025, 0.02, 0.72 * e)
+	sb.set_corner_radius_all(int(8 * u))
+	sb.border_width_left = int(3 * u)
+	sb.border_color = Color(AMBER, e)
+	overlay.draw_style_box(sb, r)
+	_icon("target", r.position + Vector2(30 * u, h * 0.5), 28 * u, Color(1, 1, 1, e))
+	_txt(r.position + Vector2(56 * u, h * 0.5 - 6 * u), "NEW OBJECTIVE", 12 * u, Color(AMBER, e), HORIZONTAL_ALIGNMENT_LEFT, font_mid)
+	_txt(r.position + Vector2(56 * u, h * 0.5 + 15 * u), "ELIMINATE THE TARGET", 22 * u, Color(INK, e))
 
 
 # ------------------------------------------------------------------ screens
@@ -533,13 +552,15 @@ func _build_start(root: Control) -> void:
 	l3.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	vb.add_child(l3)
 	box.add_child(card)
-	box.add_child(_label("LEFT THUMB  move + aim      ·      RIGHT THUMB  fire      ·      ↻  reload", 18, Color(0.62, 0.65, 0.58), font_mid))
+	box.add_child(_label("LEFT THUMB  move + aim      ·      RIGHT THUMB  fire      ·      BUTTON  reload", 18, Color(0.62, 0.65, 0.58), font_mid))
 	var sp := Control.new()
 	sp.custom_minimum_size = Vector2(0, 8)
 	box.add_child(sp)
 	var play := _button("PLAY", "play")
 	play.pressed.connect(func() -> void:
 		Sfx.play("click")
+		if OS.has_feature("web"):
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 		play_pressed.emit())
 	box.add_child(play)
 	var t := play.create_tween().set_loops()

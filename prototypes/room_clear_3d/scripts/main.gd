@@ -34,6 +34,11 @@ func _ready() -> void:
 	add_child(enemy)
 	enemy.global_position = level.enemy_spawn
 	player.target = enemy
+	if OS.has_feature("web_android") or OS.has_feature("web_ios"):
+		# phone browsers: keep the moonlight, the player's weapon light and one lamp shadowed
+		enemy.rifle.light.shadow_enabled = false
+		for i in level.lamps.size():
+			level.lamps[i].shadow_enabled = i == 0
 	cam = GameCamera.new()
 	add_child(cam)
 	cam.follow = player
@@ -119,7 +124,9 @@ func _environment() -> void:
 	moon.directional_shadow_max_distance = 28.0
 	moon.light_volumetric_fog_energy = 0.0
 	add_child(moon)
-	if OS.has_feature("mobile"):
+	if OS.has_feature("web"):
+		get_viewport().msaa_3d = Viewport.MSAA_2X
+	if OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios"):
 		get_viewport().scaling_3d_scale = 0.8
 		env.ssao_enabled = false
 		env.volumetric_fog_enabled = false
