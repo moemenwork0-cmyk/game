@@ -16,7 +16,8 @@ var player: Player
 var route: Array[Vector3] = []
 var state := S.PATROL
 var aware := false
-var difficulty := 1.0              ## 0.6 .. 1.4 from the mission number
+var difficulty := 1.0              ## 0.45 (first mission) .. 1.15 (last)
+var escape_to := Vector3.INF       ## runner: bolts here once he knows you are coming
 
 var _wp := 0
 var _wait := 0.0
@@ -83,7 +84,7 @@ func _ready() -> void:
 			_speed_run = 3.4
 			max_hp = 90.0
 		"heavy":
-			damage = 6.5 * difficulty
+			damage = 5.0 * difficulty
 			spread = 0.055
 			fire_interval = 0.085
 			armor = 0.45
@@ -103,6 +104,10 @@ func _ready() -> void:
 			damage = 7.5 * difficulty
 			spread = 0.045
 			fire_interval = 0.12
+	# early missions: fewer hit points, looser aim (still dangerous if you stand in the open)
+	var ease := 1.0 - _dk()
+	max_hp *= 1.0 - 0.25 * ease
+	spread *= 1.0 + 0.5 * ease
 	hp = max_hp
 	mag_size = maxi(mag_size, 6)
 	ammo = mag_size
@@ -135,9 +140,18 @@ func _add_light_cone() -> void:
 	m.proximity_fade_distance = 0.5
 	_cone.material_override = m
 	_cone.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	rifle.light.add_child(_cone)
+	# the beam hangs off a holder next to the light so the light can be culled on its own
+	var holder := Node3D.new()
+	rifle.light.get_parent().add_child(holder)
+	holder.transform = rifle.light.transform
+	holder.add_child(_cone)
 	_cone.rotation.x = PI / 2
 	_cone.position.z = -3.25
+
+
+## 0 on the first mission, 1 on the last.
+func _dk() -> float:
+	return clampf((difficulty - 0.45) / 0.7, 0.0, 1.0)
 
 
 func set_state(s: S) -> void:
@@ -174,7 +188,7 @@ func alert_to(pos: Vector3) -> void:
 
 
 func _on_hurt(_amount: float, from: Vector3) -> void:
-	if not alive:
+	if not alive or hp <= 0.0:
 		return
 	_last_known = player.global_position if player else from
 	_lost_t = 0.0
@@ -205,6 +219,9 @@ func think(delta: float) -> void:
 		_sense_t = 0.1
 		_sense()
 		_check_grenades()
+	if escape_to != Vector3.INF and aware:
+		_run_for_it(delta)
+		return
 	if _sees:
 		_lost_t = 0.0
 		_aim_time += delta
@@ -349,6 +366,18 @@ func think(delta: float) -> void:
 	_shoot(yaw_p, dist)
 
 
+## Runner target: sprints for his escape point and never stops to fight.
+func _run_for_it(delta: float) -> void:
+	crouching = false
+	aim_up = 0.3
+	var d := _nav(escape_to)
+	move_target = d * 3.5
+	if d != Vector3.ZERO:
+		aim_yaw = rotate_toward(aim_yaw, atan2(-d.x, -d.z), 9.0 * delta)
+	if _cone:
+		_cone.visible = false
+
+
 func _shoot(yaw_p: float, dist: float) -> void:
 	if not _sees or _reaction > 0.0 or state in [S.PATROL, S.FLEE] or is_reloading() or is_throwing():
 		return
@@ -367,9 +396,9 @@ func _shoot(yaw_p: float, dist: float) -> void:
 		if fire(aim_pt, extra):
 			_burst -= 1
 			if _burst == 0:
-				_burst_pause = randf_range(0.55, 1.1) / clampf(difficulty, 0.6, 1.4)
+				_burst_pause = randf_range(0.6, 1.1) * lerpf(2.0, 1.0, _dk())
 	elif _burst_pause <= 0.0:
-		_burst = 1 if pellets > 1 else randi_range(3, 5)
+		_burst = 1 if pellets > 1 else randi_range(2, 4) + int(_dk() > 0.5)
 
 
 var spread_mul := 1.0
@@ -405,7 +434,7 @@ func _sense() -> void:
 			break
 	if _sees and not aware:
 		aware = true
-		_reaction = lerpf(0.75, 0.4, clampf(difficulty - 0.6, 0.0, 1.0))
+		_reaction = lerpf(1.15, 0.45, _dk())
 		alerted.emit("!")
 		Sfx.play_at("alert", eye_pos(), -4.0, 1.2)
 	if _sees:

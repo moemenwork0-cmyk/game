@@ -12,6 +12,10 @@ var t := 0.0
 var taken := {}
 var log_t := 0.0
 var _goal_i := 0
+var _stuck := 0.0
+var _side := Vector2.ZERO
+var _side_t := 0.0
+var fair := false        ## --fair: no health cushion (difficulty check)
 
 
 func _ready() -> void:
@@ -20,6 +24,7 @@ func _ready() -> void:
 		if a.begins_with("--bot="): mode = a.split("=")[1]
 		if a.begins_with("--mission="): mission_index = int(a.split("=")[1])
 		if a.begins_with("--shots="): out = a.split("=")[1]
+		if a == "--fair": fair = true
 	DirAccess.make_dir_recursive_absolute(out)
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--quality="):
@@ -138,15 +143,28 @@ func _mission_flow(delta: float) -> void:
 		print("   goal=%s path=%d" % [gl.snapped(Vector3.ONE * 0.1), m.level.find_path(p.global_position, gl).size()])
 		print("t=%.1f hp=%d ammo=%d nades=%d score=%d stage=%d kills=%d alive=%d %s pos=%s" % [t, p.hp, p.ammo, p.grenades, m.score, m.stage, m.kills, alive, str(st), p.global_position.snapped(Vector3.ONE * 0.1)])
 	if m.state == "play" and p.alive:
-		p.max_hp = 400.0 if t < 1.0 else p.max_hp   # bot gets a cushion so it can finish the run
-		if t < 1.0:
-			p.hp = 400.0
+		if not fair:
+			p.max_hp = 400.0 if t < 1.0 else p.max_hp   # bot gets a cushion so it can finish the run
+			if t < 1.0:
+				p.hp = 400.0
 		var goal := _goal(m)
 		var path: PackedVector3Array = m.level.find_path(p.global_position, goal)
 		var mv := Vector2.ZERO
 		if path.size() > 0:
 			var d := path[0] - p.global_position
 			mv = Vector2(d.x, d.z).normalized()
+		# wriggle free of furniture that got shoved into the way
+		if mv.length() > 0.1 and Vector2(p.velocity.x, p.velocity.z).length() < 0.4:
+			_stuck += delta
+		else:
+			_stuck = 0.0
+		if _stuck > 1.2:
+			_stuck = 0.0
+			_side = mv.orthogonal() * (1.0 if randf() < 0.5 else -1.0)
+			_side_t = 0.7
+		if _side_t > 0.0:
+			_side_t -= delta
+			mv = (_side - mv * 0.5).normalized()
 		var target: Soldier = null
 		for e in m.enemies:
 			if e.alive and e.global_position.distance_to(p.global_position) < 14.0 and p.can_see(e):
@@ -181,20 +199,14 @@ func _mission_flow(delta: float) -> void:
 		elif t - float(taken["g6_end_wait"]) > 4.0:
 			_shot("g6_end_%02d" % mission_index)
 			if t - float(taken["g6_end_wait"]) > 4.5:
-				print("END state=", m.state, " score=", m.score, " kills=", m.kills, " hp=", p.hp)
+				print("END win=", m.get_meta("win", false), " reason=", m.get_meta("reason", ""), " t=", int(m.play_time), " state=", m.state, " score=", m.score, " kills=", m.kills, " hp=", p.hp)
 				get_tree().quit()
 
 
 func _goal(m: Mission) -> Vector3:
-	match m.type:
-		"eliminate":
-			if m.target and m.target.alive:
-				return m.target.global_position
-		"intel", "rescue", "defuse":
-			if m.stage == 0 and m.objective_zone:
-				return m.objective_zone.global_position
-			if m.extract_zone.active:
-				return m.extract_zone.global_position
+	var g: Vector3 = m.route_goal()
+	if g != Vector3.INF:
+		return g
 	for e in m.enemies:
 		if e.alive:
 			return e.global_position

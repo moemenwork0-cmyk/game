@@ -5,18 +5,18 @@ generated from a seed (rooms, doors, furniture, lights, guards), so maps load in
 same mission always gives the same building.
 
 ## بالعربي
-- **حملة 12 مهمة** بأنواع مختلفة: اغتيال هدف، تطهير المبنى، استرجاع معلومات، إنقاذ رهينة، تفكيك قنبلة بوقت.
-  ومعاها **Quick Op**: مبنى ومهمة عشوائيين كل مرة.
-- **الخرايط بتتولد أوتوماتيك** (BSP): غرف، أبواب حقيقية بتتزق، شبابيك، أثاث على حسب نوع الغرفة
-  (مكتب، مخزن، مخزن سلاح، صالة، غرفة قيادة)، مع ضمان إن كل الطرق مفتوحة.
-- **عساكر أعداء بأنواع**: بندقية، شوتجن بيهجم عليك، تقيل لابس درع، والهدف نفسه. بينادوا على بعض،
-  بيستخبوا ورا السواتر، وبيهربوا من القنابل، وكشافاتهم باينة فتقدر تلعب تخفّي.
-- **تحكم بجويستيكين** (حركة + تصويب وضرب) مع تصويب مساعد ذكي، وأزرار Reload وقنبلة و Dash.
-- **4 أسلحة** بتتفتح مع التقدم (M4, MP5, شوتجن, AK)، وقنابل بانفجار فيزيائي.
-- **نجوم وسكور ورتب وXP**، وقائمة رئيسية 3D، وشاشة تجهيز، وإعدادات (جودة، تصويب مساعد، FPS، صوت).
+- **حملة 12 مهمة، كل مهمة مختلفة**: اغتيال هدف، سحب لابتوب، جمع 3 مستندات من غرف مختلفة، تطهير المبنى،
+  إنقاذ رهينة، تفكيك قنبلة بوقت، تفخيخ 3 مخازن سلاح والهروب قبل الانفجار، تسلل من غير ما حد يشوفك
+  (لو شافوك بيضرب إنذار وييجي فريق دعم)، مطاردة هدف بيهرب لعربيته، إنقاذ رهينتين، الدفاع عن غرفة اللاسلكي
+  لحد ما الهليكوبتر توصل، والمهمة الأخيرة تطهير كامل. ومعاها **Quick Op**: مبنى ومهمة عشوائيين.
+- **صعوبة متدرجة**: أول المهمات أسهل (الأعداء أبطأ في رد الفعل وتصويبهم أوسع)، والصحة بترجع لوحدها لما تبعد عن الضرب.
+- **خريطة صغيرة دايرية** بتلف مع اللاعب، وعليها **خط متحرك بيوريك الطريق** للهدف، ومعاه أسهم مضيئة على الأرض.
+- **أزرار بستايل ألعاب الموبايل**: زجاج كاكي بإطار فضي، زر ضرب كبير بطلقة، قنبلة، جري، ريلود، وجويستيك بحلقة رفيعة.
+- **الخرايط بتتولد أوتوماتيك** (BSP) من رقم ثابت لكل مهمة، فبتحمل فورًا.
+- **أصوات** لكل حاجة (ضرب، خطوات، انفجارات، إنذار، لاسلكي، موسيقى) جاهزة في `assets/sfx`.
 
 ## Run
-- **Phone**: install the APK from the session (or export it yourself, below). Landscape, touch only.
+- **Phone (fastest)**: install `dist/RoomClear.apk` (Android 64-bit; allow "install unknown apps"). Landscape, touch only.
 - **Desktop preview**: open `prototypes/room_clear_3d/project.godot` in Godot 4.7 and press F5.
   WASD move · mouse aim · LMB fire · R reload (touch controls also work with a touchscreen).
 
@@ -43,7 +43,7 @@ scripts/soldier.gd   avatar, mocap locomotion, weapons, recoil, reload, dash, gr
 scripts/aim_rig.gd   SkeletonModifier3D: torso twist, recoil, head look, two-bone arm IK
 scripts/player.gd    twin-stick / mouse aim, aim assist, laser sight
 scripts/enemy.gd     rifleman / shotgunner / heavy / target AI
-scripts/hud.gd       mission HUD, radar, touch controls, pause, debrief
+scripts/hud.gd       mission HUD, minimap + route, touch controls, pause, debrief
 scripts/menu.gd      3D main menu, campaign, briefing, loadout, settings
 scripts/fx.gd        pooled particles, tracers, decals, explosions, popups (autoload)
 scripts/sfx.gd       sounds (pre-rendered in assets/sfx, synthesised as fallback) (autoload)

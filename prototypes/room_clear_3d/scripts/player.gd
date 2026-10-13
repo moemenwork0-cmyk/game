@@ -18,6 +18,7 @@ var _laser: MeshInstance3D
 var _dot: MeshInstance3D
 var _laser_mat := StandardMaterial3D.new()
 var _xray_a := 0.0
+var _since_hurt := 99.0
 
 
 func _ready() -> void:
@@ -32,7 +33,8 @@ func _ready() -> void:
 	hp = max_hp
 	_face = aim_yaw
 	aim_up = 1.0
-	rifle.light.shadow_enabled = Game.quality >= 1
+	hurt.connect(func(_a: float, _f: Vector3) -> void: _since_hurt = 0.0)
+	rifle.light.shadow_enabled = Game.quality >= 2
 	rifle.light.light_energy = 4.5
 	# soft key light that keeps the operator readable in dark rooms
 	var key := OmniLight3D.new()
@@ -68,6 +70,10 @@ func _ready() -> void:
 ## Laser sight from the muzzle to whatever it touches; brighter while the assist has a target.
 func _process(delta: float) -> void:
 	super._process(delta)
+	# out of the fight for a few seconds: patch yourself up
+	_since_hurt += delta
+	if alive and _since_hurt > 4.0 and hp < max_hp:
+		hp = minf(hp + 6.0 * delta, max_hp)
 	if not alive:
 		_laser.visible = false
 		_dot.visible = false
@@ -140,7 +146,7 @@ func _assist(face: float, shooting: bool) -> float:
 		return face
 	var best: Soldier
 	var best_err := 1e9
-	var cone := deg_to_rad(16.0 if shooting else 11.0)
+	var cone := deg_to_rad(24.0 if shooting else 14.0)
 	if mouse_aim and input_aim.length() < 0.2:
 		cone = deg_to_rad(5.0)
 	for n in get_tree().get_nodes_in_group("enemies"):

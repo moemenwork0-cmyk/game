@@ -33,8 +33,6 @@ var mouse_fire := false
 var touch_seen := false
 
 # feedback
-var intro_t := 0.0
-var intro := {}
 var hurt_k := 0.0
 var dmg_marks: Array = []      # [angle, t]
 var hit_marks: Array = []      # [enemy, t, head]
@@ -48,6 +46,11 @@ var _t := 0.0
 var _u := 1.0
 var _fps_t := 0.0
 var _fps := 0
+var map_r := 66.0
+var map_c := Vector2.ZERO
+var route := PackedVector3Array()
+var _route_t := 0.0
+var _route_goal := Vector3.INF
 
 
 func _ready() -> void:
@@ -106,17 +109,22 @@ func _layout() -> void:
 	var s := overlay.size
 	var base := clampf(s.y / 720.0, 0.85, 1.6)
 	_u = base * (1.45 if uses_touch() else 1.0)
-	var m := 24.0 * base
+	var m := 20.0 * base
 	stick_r = 70.0 * base * 1.3
 	move_home = Vector2(m + stick_r + 30.0 * base, s.y - m - stick_r - 10.0 * base)
 	aim_home = Vector2(s.x - m - stick_r - 34.0 * base, s.y - m - stick_r - 10.0 * base)
-	var br := 31.0 * base * 1.25
-	var ring := stick_r + br + 24.0 * base
-	# action buttons on an arc around the fire stick, clear of each other and of the ring
-	for e in [["reload", 182.0], ["grenade", 222.0], ["dash", 262.0]]:
+	var br := 31.0 * base * 1.3
+	var ring := stick_r * 0.78 + br + 22.0 * base
+	# action buttons on an arc around the fire button, clear of each other
+	for e in [["reload", 180.0], ["grenade", 222.0], ["dash", 264.0]]:
 		var a := deg_to_rad(e[1])
 		btn[e[0]] = [aim_home + Vector2(cos(a), sin(a)) * ring, br]
-	btn["pause"] = [Vector2(s.x - m - radar_w() - 30.0 * _u, m + 20.0 * _u), 20.0 * _u]
+	# square pause + settings stacked on the right edge, minimap just left of them
+	var sq := 21.0 * base * (1.2 if uses_touch() else 1.0)
+	btn["pause"] = [Vector2(s.x - m - sq, m + sq), sq]
+	btn["settings"] = [Vector2(s.x - m - sq, m + sq * 3.0 + 10.0 * base), sq]
+	map_r = 66.0 * base * (1.12 if uses_touch() else 1.0)
+	map_c = Vector2(s.x - m - sq * 2.0 - 16.0 * base - map_r, m + map_r + 2.0 * base)
 	if move_id < 0:
 		move_base = move_home
 		move_knob = move_home
@@ -125,16 +133,11 @@ func _layout() -> void:
 		aim_knob = aim_home
 
 
-func radar_w() -> float:
-	return (150.0 if uses_touch() else 200.0) * _u
-
-
 func _process(delta: float) -> void:
 	var rd := delta / maxf(Engine.time_scale, 0.05)
 	if get_tree().paused:
 		rd = delta
 	_t += rd
-	intro_t = maxf(intro_t - rd, 0.0)
 	hurt_k = maxf(hurt_k - rd * 1.4, 0.0)
 	obj_flash = maxf(obj_flash - rd * 1.5, 0.0)
 	for e in dmg_marks:
@@ -158,6 +161,7 @@ func _process(delta: float) -> void:
 		_fps = int(Engine.get_frames_per_second())
 		_fps_t = 0.0
 	_layout()
+	_update_route(rd)
 	if mission:
 		score_shown = lerpf(score_shown, mission.score, 1.0 - exp(-8.0 * rd))
 	if player:
@@ -199,7 +203,7 @@ func _input(event: InputEvent) -> void:
 				return
 			for k in btn:
 				var b: Array = btn[k]
-				if k != "pause" and not uses_touch():
+				if not (k in ["pause", "settings"]) and not uses_touch():
 					continue
 				if e.position.distance_to(b[0]) < b[1] * 1.3:
 					_press(k)
@@ -307,9 +311,9 @@ func release_all() -> void:
 
 # ------------------------------------------------------------------ events
 
-func show_intro(title: String, obj: String, icon: String) -> void:
-	intro = {"title": title, "obj": obj, "icon": icon}
-	intro_t = 3.4
+## Mission start: no banner over the game, the objective chip just flashes.
+func show_intro(_title: String, _obj: String, _icon: String) -> void:
+	obj_flash = 1.0
 
 
 func on_player_hurt(from: Vector3) -> void:
@@ -366,9 +370,8 @@ func _draw_overlay() -> void:
 			_draw_weapon_card(u, Vector2(s.x - 24 * u, s.y - 24 * u))
 			if _t < 12.0:
 				K.text(ci, Vector2(s.x * 0.5, s.y - 22 * u), "WASD move   ·   MOUSE aim   ·   CLICK fire   ·   R reload   ·   SPACE dash   ·   G / RMB grenade   ·   ESC pause", 14 * u, Color(K.INK, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "mid")
-		_draw_pause_btn(u)
-	if intro_t > 0.0:
-		_draw_intro(u, s)
+		_draw_square_btn("pause", "ic_pause")
+		_draw_square_btn("settings", "cog")
 	if Game.show_fps:
 		K.text(ci, Vector2(24 * u, s.y * 0.5), "%d FPS" % _fps, 14 * u, K.GREEN if _fps >= 50 else (K.AMBER if _fps >= 30 else K.RED), HORIZONTAL_ALIGNMENT_LEFT, "mid")
 
@@ -408,21 +411,16 @@ func _draw_objective(u: float, s: Vector2) -> void:
 		return
 	var ci := overlay
 	var txt := mission.objective_text()
-	var sub := ""
-	var sub_col := K.DIM
-	var tl := mission.time_left()
-	if tl >= 0.0 and mission.stage == 0:
-		sub = "DETONATION IN  %d:%02d" % [int(tl) / 60, int(tl) % 60]
-		sub_col = K.RED if tl < 20.0 else K.AMBER
-	elif mission.type == "rescue" and mission.stage == 1:
-		sub = "KEEP THE HOSTAGE CLOSE"
-	elif mission.type == "eliminate" and mission.stage == 0:
-		sub = "HIGH VALUE TARGET"
+	var sa := mission.objective_sub()
+	var sub: String = sa[0]
+	var sub_col: Color = sa[1]
 	var fs := 19 * u
 	var tw := maxf(K.text_width(txt, fs), K.text_width(sub, 13 * u, "mid"))
 	var w := tw + 84 * u
 	var h := 50 * u
-	var r := Rect2(Vector2(s.x * 0.5 - w * 0.5, 16 * u), Vector2(w, h))
+	# centred, but never under the health card or the minimap
+	var x0 := clampf(s.x * 0.5 - w * 0.5, 22 * u + 300 * u, map_c.x - map_r - 16 * u - w)
+	var r := Rect2(Vector2(x0, 16 * u), Vector2(w, h))
 	var flash := obj_flash
 	K.para(ci, r, -0.2, Color(0.03, 0.035, 0.035, 0.74).lerp(Color(K.AMBER, 0.6), flash * 0.5))
 	K.para(ci, Rect2(r.position + Vector2(0, h - 3 * u), Vector2(w, 3 * u)), 0.0, Color(K.AMBER, 0.7 + flash * 0.3))
@@ -435,56 +433,175 @@ func _draw_objective(u: float, s: Vector2) -> void:
 		K.text(ci, r.position + Vector2(58 * u, 42 * u), sub, 13 * u, sub_col, HORIZONTAL_ALIGNMENT_LEFT, "mid")
 
 
+# ------------------------------------------------------------------ minimap
+
+## Path from the operator to the current goal, refreshed a few times a second.
+func _update_route(rd: float) -> void:
+	_route_t -= rd
+	if _route_t > 0.0 or mission == null or player == null or mission.level == null:
+		return
+	_route_t = 0.3
+	_route_goal = mission.route_goal()
+	if _route_goal == Vector3.INF or not player.alive:
+		route = PackedVector3Array()
+		return
+	route = mission.level.find_path(player.global_position, _route_goal)
+	route.insert(0, player.global_position)
+
+
+const MAP_SPAN := 12.0   ## metres from the centre to the edge of the minimap
+
+
+func _mm(p: Vector3) -> Vector2:
+	var o := player.global_position
+	return map_c + Vector2(p.x - o.x, p.z - o.z) * (map_r / MAP_SPAN)
+
+
+func _clip_seg(a: Vector2, b: Vector2, r: float) -> Array:
+	var ia := a.distance_to(map_c) <= r
+	var ib := b.distance_to(map_c) <= r
+	if ia and ib:
+		return [a, b]
+	var d := b - a
+	var f := a - map_c
+	var A := d.dot(d)
+	if A < 0.0001:
+		return []
+	var B := 2.0 * f.dot(d)
+	var C := f.dot(f) - r * r
+	var disc := B * B - 4.0 * A * C
+	if disc <= 0.0:
+		return []
+	var sq := sqrt(disc)
+	var t0 := clampf((-B - sq) / (2.0 * A), 0.0, 1.0)
+	var t1 := clampf((-B + sq) / (2.0 * A), 0.0, 1.0)
+	if t1 - t0 < 0.001:
+		return []
+	return [a + d * t0, a + d * t1]
+
+
+func _along(pts: PackedVector2Array, cum: PackedFloat32Array, d: float) -> Vector2:
+	for i in range(1, pts.size()):
+		if cum[i] >= d:
+			var seg := cum[i] - cum[i - 1]
+			return pts[i - 1].lerp(pts[i], (d - cum[i - 1]) / seg if seg > 0.0001 else 0.0)
+	return pts[pts.size() - 1]
+
+
 func _draw_radar(u: float, s: Vector2) -> void:
 	if mission == null:
 		return
 	var ci := overlay
-	var size := radar_w()
-	var r := Rect2(Vector2(s.x - 22 * u - size, 16 * u), Vector2(size, size * 0.72))
-	ci.draw_rect(r, Color(0.02, 0.03, 0.03, 0.72))
-	ci.draw_rect(r, Color(K.AMBER, 0.35), false, 1.5)
-	var b := mission.map.bounds.grow(1.0)
-	var sc := minf((r.size.x - 12 * u) / b.size.x, (r.size.y - 12 * u) / b.size.y)
-	var off := r.get_center() - b.get_center() * sc
+	var c := map_c
+	var r := map_r
+	var sc := r / MAP_SPAN
+	# glass body
+	ci.draw_circle(c + Vector2(0, 3 * u), r + 6 * u, Color(0, 0, 0, 0.35))
+	ci.draw_circle(c, r + 2 * u, Color(0.13, 0.12, 0.08, 0.78))
+	# rooms (clipped to the disc)
+	var disc := PackedVector2Array()
+	for i in 40:
+		disc.append(c + Vector2.from_angle(i * TAU / 40.0) * r)
 	for room in mission.map.rooms:
 		var rr: Rect2 = room["rect"]
-		ci.draw_rect(Rect2(rr.position * sc + off, rr.size * sc), Color(0.2, 0.24, 0.22, 0.55))
+		var p0 := _mm(Vector3(rr.position.x, 0, rr.position.y))
+		var rect := Rect2(p0, rr.size * sc)
+		if not rect.grow(2).intersects(Rect2(c - Vector2(r, r), Vector2(r, r) * 2.0)):
+			continue
+		var poly := PackedVector2Array([rect.position, Vector2(rect.end.x, rect.position.y), rect.end, Vector2(rect.position.x, rect.end.y)])
+		for part in Geometry2D.intersect_polygons(poly, disc):
+			ci.draw_colored_polygon(part, Color(0.42, 0.4, 0.3, 0.42))
 	for w in mission.map.walls:
 		if w["y0"] > 0.1:
 			continue
-		ci.draw_line(w["a"] * sc + off, w["b"] * sc + off, Color(0.75, 0.8, 0.75, 0.85), maxf(1.5, 2.0 * u))
-	var c := r.get_center()
-	var ang := fmod(_t * 1.6, TAU)
-	ci.draw_line(c, c + Vector2(cos(ang), sin(ang)) * size * 0.6, Color(K.GREEN, 0.12), 2.0)
-	for mk in mission.markers():
-		var mp := _radar_pt(mk["pos"], sc, off)
-		if fmod(_t, 0.8) < 0.55:
-			ci.draw_circle(mp, 5 * u, mk["col"])
+		var wa: Vector2 = w["a"]
+		var wb: Vector2 = w["b"]
+		var seg := _clip_seg(_mm(Vector3(wa.x, 0, wa.y)), _mm(Vector3(wb.x, 0, wb.y)), r - 1.0)
+		if seg.size() == 2:
+			ci.draw_line(seg[0], seg[1], Color(0.92, 0.9, 0.82, 0.85), maxf(1.5, 2.2 * u))
+	# route: marching dashes from the operator to the goal
+	if route.size() >= 2:
+		var dash := 7.0 * u
+		var gap := 6.0 * u
+		var phase := fmod(_t * 26.0 * u, dash + gap)
+		var rc := Color(1.0, 0.82, 0.28, 0.95)
+		var pts := PackedVector2Array()
+		var cum := PackedFloat32Array()
+		var total := 0.0
+		for i in route.size():
+			var q := _mm(route[i])
+			if i > 0:
+				total += q.distance_to(pts[i - 1])
+			pts.append(q)
+			cum.append(total)
+		var period := dash + gap
+		var start := phase - period
+		var guard := 0
+		while start < total and guard < 400:
+			guard += 1
+			var s0 := maxf(start, 0.0)
+			var s1 := minf(start + dash, total)
+			if s1 > s0:
+				var seg := _clip_seg(_along(pts, cum, s0), _along(pts, cum, s1), r - 4 * u)
+				if seg.size() == 2:
+					ci.draw_line(seg[0], seg[1], rc, 3.2 * u, true)
+			start += period
+	# hostiles you know about, hostage
 	for e in mission.enemies:
 		if e.alive and (e.sees_player() or alerts.has(e) or player.locked == e):
-			ci.draw_circle(_radar_pt(e.global_position, sc, off), 3.5 * u, K.RED)
-	if mission.hostage and mission.hostage.alive:
-		ci.draw_circle(_radar_pt(mission.hostage.global_position, sc, off), 3.5 * u, K.CYAN)
-	var pp := _radar_pt(player.global_position, sc, off)
+			var ep := _mm(e.global_position)
+			if ep.distance_to(c) < r - 4 * u:
+				ci.draw_circle(ep, 4.0 * u, K.RED)
+				ci.draw_arc(ep, 4.0 * u, 0, TAU, 12, Color(0, 0, 0, 0.6), 1.0, true)
+	for h in mission.hostages():
+		if h.alive:
+			var hp := _mm(h.global_position)
+			if hp.distance_to(c) < r - 4 * u:
+				ci.draw_circle(hp, 4.0 * u, K.CYAN)
+	# goal: on the map, or pinned to the rim pointing the way
+	for mk in mission.markers():
+		var mp := _mm(mk["pos"])
+		var col: Color = mk["col"]
+		var off := mp - c
+		var pulse := 1.0 + 0.15 * sin(_t * 6.0)
+		if off.length() > r - 9 * u:
+			mp = c + off.normalized() * (r - 2 * u)
+			ci.draw_circle(mp, 10 * u, Color(0.05, 0.05, 0.04, 0.95))
+			ci.draw_arc(mp, 10 * u, 0, TAU, 20, col, 2.0 * u, true)
+			K.draw_icon(ci, mk["icon"], mp, 13 * u, col, 0.0, false)
+		else:
+			ci.draw_circle(mp, 8 * u * pulse, Color(col, 0.25))
+			ci.draw_circle(mp, 4.5 * u, col)
+	# operator: view wedge + arrow in the centre
 	var fwd := Vector2(-sin(player.aim_yaw), -cos(player.aim_yaw))
+	var ang := fwd.angle()
+	var wedge := PackedVector2Array([c])
+	for i in 9:
+		wedge.append(c + Vector2.from_angle(ang - 0.5 + i * 0.125) * r * 0.55)
+	ci.draw_colored_polygon(wedge, Color(1, 1, 1, 0.08))
 	var side := Vector2(-fwd.y, fwd.x)
-	ci.draw_colored_polygon(PackedVector2Array([pp + fwd * 7 * u, pp - fwd * 4 * u + side * 4.5 * u, pp - fwd * 4 * u - side * 4.5 * u]), K.CYAN)
-	var y := r.end.y + 26 * u
+	ci.draw_colored_polygon(PackedVector2Array([c + fwd * 9 * u, c - fwd * 5 * u + side * 6 * u, c - fwd * 2 * u, c - fwd * 5 * u - side * 6 * u]), Color.WHITE)
+	# silver rim + north tick
+	ci.draw_arc(c, r + 1 * u, 0, TAU, 64, Color(0, 0, 0, 0.6), 4.0 * u, true)
+	ci.draw_arc(c, r + 3 * u, PI, TAU, 48, Color(0.95, 0.95, 0.9, 0.95), 3.0 * u, true)
+	ci.draw_arc(c, r + 3 * u, 0, PI, 48, Color(0.55, 0.55, 0.52, 0.95), 3.0 * u, true)
+	ci.draw_arc(c, r - 2 * u, PI * 1.15, PI * 1.85, 24, Color(1, 1, 1, 0.18), 3.0 * u, true)
+	var n := c + Vector2(0, -r - 3 * u)
+	ci.draw_circle(n, 8 * u, Color(0.13, 0.12, 0.08, 0.95))
+	ci.draw_arc(n, 8 * u, 0, TAU, 16, Color(0.9, 0.9, 0.85), 1.5 * u, true)
+	K.text(ci, n + Vector2(0, 4.5 * u), "N", 12 * u, K.INK, HORIZONTAL_ALIGNMENT_CENTER)
+	# score + kills under the map
+	var y := c.y + r + 30 * u
 	var sc_txt := _fmt(int(round(score_shown)))
-	K.text(ci, Vector2(r.end.x, y), sc_txt, 26 * u, K.INK, HORIZONTAL_ALIGNMENT_RIGHT)
-	K.text(ci, Vector2(r.end.x - K.text_width(sc_txt, 26 * u) - 8 * u, y - 2 * u), "SCORE", 12 * u, K.DIM, HORIZONTAL_ALIGNMENT_RIGHT, "mid")
-	K.draw_icon(ci, "death-skull", Vector2(r.position.x + 12 * u, y - 8 * u), 18 * u, K.INK)
-	K.text(ci, Vector2(r.position.x + 26 * u, y), "%d" % mission.kills, 20 * u, K.INK)
-
-
-func _radar_pt(p: Vector3, sc: float, off: Vector2) -> Vector2:
-	return Vector2(p.x, p.z) * sc + off
+	K.text(ci, Vector2(c.x + r, y), sc_txt, 22 * u, K.INK, HORIZONTAL_ALIGNMENT_RIGHT)
+	K.draw_icon(ci, "death-skull", Vector2(c.x - r + 9 * u, y - 7 * u), 16 * u, K.INK)
+	K.text(ci, Vector2(c.x - r + 21 * u, y), "%d" % mission.kills, 18 * u, K.INK)
 
 
 func _draw_feed(u: float, s: Vector2) -> void:
 	var ci := overlay
-	var x := s.x - 22 * u
-	var y := 16 * u + radar_w() * 0.72 + 50 * u
+	var x := map_c.x + map_r
+	var y := map_c.y + map_r + 46 * u
 	for i in feed.size():
 		var f: Array = feed[i]
 		var a := clampf(f[2], 0.0, 1.0)
@@ -615,97 +732,84 @@ func _draw_weapon_card(u: float, br: Vector2) -> void:
 		K.text(ci, Vector2(r.end.x - 12 * u, r.position.y + 14 * u), "RELOAD" if player.ammo == 0 else "LOW AMMO", 11 * u, Color(ammo_col, 0.6 + 0.4 * sin(_t * 9.0)), HORIZONTAL_ALIGNMENT_RIGHT, "mid")
 
 
+func _tex(name: String, c: Vector2, size: float, col := Color.WHITE) -> void:
+	overlay.draw_texture_rect(K.icon(name), Rect2(c - Vector2.ONE * size * 0.5, Vector2.ONE * size), false, col)
+
+
 func _draw_sticks(u: float) -> void:
 	var ci := overlay
+	# movement: thin white ring with arrow ticks + glass knob
 	var act := move_id >= 0
-	ci.draw_circle(move_base, stick_r, Color(0.02, 0.03, 0.03, 0.32 if act else 0.2))
-	ci.draw_arc(move_base, stick_r, 0, TAU, 72, Color(1, 1, 1, 0.35 if act else 0.22), 2.0 * u, true)
-	for i in 24:
-		var a := i * TAU / 24.0
-		var r0 := stick_r - (8.0 if i % 6 == 0 else 4.0) * u
-		ci.draw_line(move_base + Vector2(cos(a), sin(a)) * r0, move_base + Vector2(cos(a), sin(a)) * (stick_r - 1), Color(1, 1, 1, 0.25), 1.5)
+	_tex("stick_ring", move_base, stick_r * 2.0, Color(1, 1, 1, 0.9 if act else 0.55))
 	if act:
 		var d := move_knob - move_base
 		if d.length() > 4:
 			var a := d.angle()
-			ci.draw_arc(move_base, stick_r + 6 * u, a - 0.5, a + 0.5, 20, Color(K.CYAN, 0.8), 4 * u, true)
-	var kr := stick_r * 0.38
-	ci.draw_circle(move_knob + Vector2(0, 3), kr, Color(0, 0, 0, 0.35))
-	ci.draw_circle(move_knob, kr, Color(0.85, 0.9, 0.88, 0.75 if act else 0.45))
-	ci.draw_circle(move_knob, kr * 0.62, Color(1, 1, 1, 0.25))
-	ci.draw_arc(move_knob, kr, 0, TAU, 40, Color(1, 1, 1, 0.9), 1.5, true)
-	if not act:
-		K.text(ci, move_base + Vector2(0, stick_r + 26 * u), "MOVE", 12 * u, Color(K.INK, 0.45), HORIZONTAL_ALIGNMENT_CENTER, "mid")
+			ci.draw_arc(move_base, stick_r * 0.98, a - 0.45, a + 0.45, 20, Color(1, 1, 1, 0.75), 4 * u, true)
+	_tex("stick_knob", move_knob, stick_r * 0.86, Color(1, 1, 1, 1.0 if act else 0.8))
+	if not act and _t < 10.0 and Game.current <= 1:
+		K.text(ci, move_base + Vector2(0, -stick_r - 14 * u), "DRAG TO MOVE", 13 * u, Color(K.INK, 0.7), HORIZONTAL_ALIGNMENT_CENTER, "mid")
+	# fire: big glass button with a cartridge; becomes an aim stick while held
 	var aact := aim_id >= 0
 	var firing := player.aim_trigger
-	ci.draw_circle(aim_base, stick_r, Color(0.55, 0.08, 0.05, 0.3) if firing else Color(0.02, 0.03, 0.03, 0.28 if aact else 0.2))
-	ci.draw_arc(aim_base, stick_r, 0, TAU, 72, Color(1, 0.4, 0.32, 0.9 if aact else 0.5), 2.5 * u, true)
-	for i in 36:
-		if i % 2 == 0:
-			var a0 := i * TAU / 36.0
-			ci.draw_arc(aim_base, stick_r * 0.45, a0, a0 + TAU / 36.0, 4, Color(1, 0.5, 0.4, 0.4), 1.5, true)
+	var fr := stick_r * 0.78
+	if aact:
+		_tex("stick_ring", aim_base, stick_r * 2.0, Color(1, 0.55, 0.45, 0.95) if firing else Color(1, 1, 1, 0.8))
+		var d := aim_knob - aim_base
+		if d.length() > 4:
+			ci.draw_arc(aim_base, stick_r * 0.98, d.angle() - 0.45, d.angle() + 0.45, 20, Color(1, 0.4, 0.3, 0.85) if firing else Color(1, 1, 1, 0.6), 4 * u, true)
+		_tex("btn_round", aim_knob, stick_r * 0.95, Color(1, 0.8, 0.75) if firing else Color.WHITE)
+		_tex("ic_bullet", aim_knob, stick_r * 0.55, Color.WHITE)
+	else:
+		_tex("btn_round", aim_home, fr * 2.0)
+		_tex("ic_bullet", aim_home, fr * 1.15, Color(1, 1, 1, 0.95))
+		if _t < 10.0 and Game.current <= 1:
+			K.text(ci, aim_home + Vector2(0, -fr - 14 * u), "HOLD & DRAG TO AIM + FIRE", 13 * u, Color(K.INK, 0.7), HORIZONTAL_ALIGNMENT_CENTER, "mid")
+	# ammo arc around the fire button
 	var ak := float(player.ammo) / player.mag_size
-	ci.draw_arc(aim_base, stick_r + 9 * u, -PI * 0.75, PI * 0.25, 48, Color(1, 1, 1, 0.12), 4 * u, true)
+	var ac := aim_base if aact else aim_home
+	var arr := (stick_r if aact else fr) + 7 * u
+	ci.draw_arc(ac, arr, -PI * 0.75, PI * 0.25, 48, Color(0, 0, 0, 0.35), 5 * u, true)
 	if ak > 0:
-		ci.draw_arc(aim_base, stick_r + 9 * u, -PI * 0.75, -PI * 0.75 + PI * ak, 48, K.AMBER if ak <= 0.25 else Color(1, 0.95, 0.8, 0.85), 4 * u, true)
-	var akr := stick_r * 0.4
-	ci.draw_circle(aim_knob + Vector2(0, 3), akr, Color(0, 0, 0, 0.35))
-	ci.draw_circle(aim_knob, akr, Color(0.95, 0.3, 0.22, 0.85) if firing else Color(0.25, 0.08, 0.06, 0.75))
-	K.draw_icon(ci, "reticule", aim_knob, akr * 1.5, Color.WHITE, 0.0, false)
-	if not aact:
-		K.text(ci, aim_base + Vector2(0, stick_r + 26 * u), "AIM  &  FIRE", 12 * u, Color(K.INK, 0.45), HORIZONTAL_ALIGNMENT_CENTER, "mid")
+		ci.draw_arc(ac, arr, -PI * 0.75, -PI * 0.75 + PI * ak, 48, K.RED if ak <= 0.25 else Color(0.96, 0.95, 0.9, 0.9), 3.5 * u, true)
 	var ammo_col := K.RED if player.ammo == 0 else (K.AMBER if ak <= 0.25 else K.INK)
-	var ap := aim_home + Vector2(cos(deg_to_rad(302.0)), sin(deg_to_rad(302.0))) * (stick_r + 46.0 * u)
-	K.draw_icon(ci, Weapons.get_def(player.weapon_id)["icon"], ap + Vector2(-6 * u, -16 * u), 54 * u, Color(K.INK, 0.8))
-	K.text(ci, ap + Vector2(0, 22 * u), str(player.ammo), 26 * u, ammo_col, HORIZONTAL_ALIGNMENT_CENTER)
-	_action("reload", "reload-gun-barrel", player.reload_progress() if player.is_reloading() else -1.0, player.ammo == 0, "")
+	var ap := aim_home + Vector2(cos(deg_to_rad(300.0)), sin(deg_to_rad(300.0))) * (stick_r + 34.0 * u)
+	K.draw_icon(ci, Weapons.get_def(player.weapon_id)["icon"], ap + Vector2(-4 * u, -14 * u), 50 * u, Color(K.INK, 0.85))
+	K.text(ci, ap + Vector2(0, 20 * u), "%d" % player.ammo, 24 * u, ammo_col, HORIZONTAL_ALIGNMENT_CENTER)
+	_action("reload", "ic_reload", player.reload_progress() if player.is_reloading() else -1.0, player.ammo <= player.mag_size * 0.25, "")
 	_action("grenade", "grenade", -1.0, false, str(player.grenades), player.grenades <= 0)
-	_action("dash", "sprint", player.dash_ready() if player.dash_ready() < 1.0 else -1.0, false, "")
+	_action("dash", "run", player.dash_ready() if player.dash_ready() < 1.0 else -1.0, false, "")
 
 
 func _action(k: String, icon: String, progress: float, alarm: bool, badge: String, disabled := false) -> void:
 	var ci := overlay
 	var c: Vector2 = btn[k][0]
 	var r: float = btn[k][1]
-	ci.draw_circle(c + Vector2(0, 3), r, Color(0, 0, 0, 0.35))
-	ci.draw_circle(c, r, Color(0.03, 0.04, 0.04, 0.72))
-	var ring := K.RED if alarm else Color(K.AMBER, 0.75)
-	if disabled:
-		ring = Color(1, 1, 1, 0.15)
-	ci.draw_arc(c, r, 0, TAU, 40, ring, 2.0 * _u, true)
+	var tint := Color(1, 1, 1, 0.5) if disabled else Color.WHITE
+	_tex("btn_round", c, r * 2.0, tint)
+	if alarm and not disabled:
+		ci.draw_arc(c, r * 0.9, 0, TAU, 40, Color(K.RED, 0.55 + 0.45 * sin(_t * 8.0)), 3.0 * _u, true)
 	if progress >= 0.0:
-		ci.draw_arc(c, r - 3 * _u, -PI / 2, -PI / 2 + TAU * progress, 40, K.AMBER, 4.0 * _u, true)
-	K.draw_icon(ci, icon, c, r * 1.15, Color(1, 1, 1, 0.3 if disabled else 0.95))
+		ci.draw_arc(c, r * 0.8, 0, TAU, 40, Color(0, 0, 0, 0.45), 4.0 * _u, true)
+		ci.draw_arc(c, r * 0.8, -PI / 2, -PI / 2 + TAU * progress, 40, Color(0.96, 0.95, 0.9), 4.0 * _u, true)
+	var isz := r * (1.0 if icon == "ic_reload" else 1.12)
+	_tex(icon, c + Vector2(1, 2), isz, Color(0, 0, 0, 0.45 * tint.a))
+	_tex(icon, c, isz, Color(1, 1, 1, 0.3 if disabled else 0.97))
 	if badge != "":
 		var bc := c + Vector2(r * 0.72, -r * 0.72)
-		ci.draw_circle(bc, 10 * _u, K.AMBER if not disabled else Color(0.3, 0.3, 0.3))
-		K.text(ci, bc + Vector2(0, 5 * _u), badge, 14 * _u, Color(0.07, 0.06, 0.03), HORIZONTAL_ALIGNMENT_CENTER)
+		ci.draw_circle(bc, 10.5 * _u, Color(0.1, 0.09, 0.06, 0.95))
+		ci.draw_arc(bc, 10.5 * _u, 0, TAU, 20, Color(0.9, 0.9, 0.85), 1.5 * _u, true)
+		K.text(ci, bc + Vector2(0, 5 * _u), badge, 14 * _u, K.INK, HORIZONTAL_ALIGNMENT_CENTER)
 
 
-func _draw_pause_btn(u: float) -> void:
-	var c: Vector2 = btn["pause"][0]
-	var r: float = btn["pause"][1]
-	overlay.draw_circle(c, r, Color(0.03, 0.04, 0.04, 0.7))
-	overlay.draw_arc(c, r, 0, TAU, 32, Color(K.AMBER, 0.5), 1.5 * u, true)
-	K.draw_icon(overlay, "pause-button", c, r * 1.2, K.INK, 0.0, false)
-
-
-func _draw_intro(u: float, s: Vector2) -> void:
-	var ci := overlay
-	var k := clampf(minf((3.4 - intro_t) / 0.35, intro_t / 0.5), 0.0, 1.0)
-	var e := 1.0 - pow(1.0 - k, 3.0)
-	var w := 560 * u
-	var h := 108 * u
-	var r := Rect2(Vector2(s.x * 0.5 - w * 0.5 + (1.0 - e) * 80 * u, s.y * 0.3 - h * 0.5), Vector2(w, h))
-	K.para(ci, r, -0.15, Color(0.03, 0.035, 0.035, 0.85 * e))
-	K.para(ci, Rect2(r.position, Vector2(w * e, 4 * u)), -0.15, Color(K.AMBER, e))
-	K.para(ci, Rect2(r.position + Vector2(0, h - 4 * u), Vector2(w * e, 4 * u)), 0.0, Color(K.AMBER, e))
-	var c := r.position + Vector2(60 * u, h * 0.5)
-	var d := 36 * u
-	ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -d), c + Vector2(d, 0), c + Vector2(0, d), c + Vector2(-d, 0)]), Color(K.AMBER, e))
-	K.draw_icon(ci, intro.get("icon", "targeted"), c, 42 * u, Color(0.08, 0.06, 0.02, e), 0.0, false)
-	K.text(ci, r.position + Vector2(114 * u, 40 * u), "OPERATION  " + str(intro.get("title", "")), 18 * u, Color(K.AMBER, e), HORIZONTAL_ALIGNMENT_LEFT, "wide")
-	K.text(ci, r.position + Vector2(112 * u, 80 * u), intro.get("obj", ""), 36 * u, Color(K.INK, e))
+func _draw_square_btn(k: String, icon: String) -> void:
+	if not btn.has(k):
+		return
+	var c: Vector2 = btn[k][0]
+	var r: float = btn[k][1]
+	_tex("btn_square", c, r * 2.3)
+	_tex(icon, c + Vector2(1, 2), r * 1.05, Color(0, 0, 0, 0.45))
+	_tex(icon, c, r * 1.05, Color(1, 1, 1, 0.96))
 
 
 func _fmt(n: int) -> String:
@@ -760,6 +864,13 @@ func show_pause(on: bool) -> void:
 		Game.save()
 		show_pause(true))
 	box.add_child(aa)
+	var snd := K.menu_button("SOUND: " + ("ON" if Game.volume > 0.01 else "OFF"), "tap to toggle", "speaker")
+	snd.pressed.connect(func() -> void:
+		Game.volume = 0.0 if Game.volume > 0.01 else 0.8
+		Game.apply_settings()
+		Game.save()
+		show_pause(true))
+	box.add_child(snd)
 	var q := K.menu_button("QUIT TO MENU", "", "exit-door")
 	q.pressed.connect(func() -> void: Game.to_menu())
 	box.add_child(q)

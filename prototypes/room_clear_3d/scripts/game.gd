@@ -4,28 +4,34 @@ extends Node
 
 const SAVE_PATH := "user://roomclear.cfg"
 
-## type: eliminate | clear | intel | rescue | defuse
+## Every mission plays differently:
+## eliminate | intel | docs | clear | rescue | defuse | sabotage | stealth | runner | defend
 const MISSIONS := [
-	{"name": "FIRST CONTACT", "type": "eliminate", "seed": 1101, "rooms": 4, "enemies": 2, "brief": "A smuggler is hiding in a small safehouse. Take him down."},
-	{"name": "DEAD DROP", "type": "intel", "seed": 2207, "rooms": 5, "enemies": 3, "brief": "Grab the laptop with the courier routes and get out."},
-	{"name": "CLEAN SWEEP", "type": "clear", "seed": 3313, "rooms": 6, "enemies": 4, "brief": "Hostile cell inside. Clear every room."},
-	{"name": "SILENT NIGHT", "type": "eliminate", "seed": 4421, "rooms": 6, "enemies": 4, "brief": "The cell leader sleeps on site. He does not wake up."},
-	{"name": "LAST WITNESS", "type": "rescue", "seed": 5531, "rooms": 7, "enemies": 5, "brief": "A journalist is held captive. Free her and lead her out alive."},
-	{"name": "TICKING", "type": "defuse", "seed": 6619, "rooms": 7, "enemies": 5, "time": 140, "brief": "A device is armed in the building. Defuse it before it blows."},
-	{"name": "HEAVY METAL", "type": "clear", "seed": 7727, "rooms": 8, "enemies": 6, "heavy": 1, "brief": "Armoured gunmen guard the depot. Leave no one standing."},
-	{"name": "BROKEN ARROW", "type": "intel", "seed": 8837, "rooms": 8, "enemies": 6, "heavy": 1, "brief": "Recover the stolen launch codes from their command room."},
-	{"name": "THE GENERAL", "type": "eliminate", "seed": 9941, "rooms": 9, "enemies": 7, "heavy": 2, "brief": "The warlord himself. Heavy escort. End it."},
-	{"name": "NO ONE LEFT BEHIND", "type": "rescue", "seed": 10357, "rooms": 9, "enemies": 7, "heavy": 1, "brief": "One of ours is held deep inside. Bring him home."},
-	{"name": "COUNTDOWN", "type": "defuse", "seed": 11471, "rooms": 10, "enemies": 8, "heavy": 2, "time": 170, "brief": "Second device, bigger building, less time."},
-	{"name": "ROOM CLEAR", "type": "clear", "seed": 12583, "rooms": 11, "enemies": 10, "heavy": 2, "brief": "The final stronghold. Every room. Every hostile."},
+	{"name": "FIRST CONTACT", "type": "eliminate", "seed": 1101, "rooms": 4, "enemies": 1, "brief": "A smuggler is hiding in a small safehouse with one bodyguard. Take him down."},
+	{"name": "DEAD DROP", "type": "intel", "seed": 2207, "rooms": 5, "enemies": 2, "brief": "Grab the laptop with the courier routes and walk out the front door."},
+	{"name": "PAPER TRAIL", "type": "docs", "seed": 3313, "rooms": 6, "enemies": 3, "docs": 3, "brief": "Three ledgers are hidden in different rooms. Collect all of them, then extract."},
+	{"name": "CLEAN SWEEP", "type": "clear", "seed": 4421, "rooms": 6, "enemies": 4, "brief": "A hostile cell holds the building. Clear every room."},
+	{"name": "LAST WITNESS", "type": "rescue", "seed": 5531, "rooms": 7, "enemies": 4, "hostages": 1, "brief": "A journalist is held captive. Free her and lead her out alive."},
+	{"name": "TICKING", "type": "defuse", "seed": 6619, "rooms": 7, "enemies": 5, "time": 150, "brief": "A device is armed somewhere inside. Find it and defuse it before it blows."},
+	{"name": "SCORCHED EARTH", "type": "sabotage", "seed": 7727, "rooms": 8, "enemies": 5, "heavy": 1, "caches": 3, "fuse": 45, "brief": "Plant charges on three weapon caches, then get clear before they go off."},
+	{"name": "GHOST", "type": "stealth", "seed": 8837, "rooms": 8, "enemies": 5, "brief": "Steal the codes without being seen. If they spot you, the alarm brings a response team."},
+	{"name": "RUNNER", "type": "runner", "seed": 9941, "rooms": 9, "enemies": 5, "heavy": 1, "brief": "The arms dealer bolts for his escape car the moment he hears you. Don't let him reach it."},
+	{"name": "NO ONE LEFT BEHIND", "type": "rescue", "seed": 10357, "rooms": 9, "enemies": 6, "heavy": 1, "hostages": 2, "brief": "Two of ours are held in separate rooms. Bring both of them home."},
+	{"name": "HOLD THE LINE", "type": "defend", "seed": 11471, "rooms": 9, "enemies": 4, "heavy": 1, "hold": 60, "brief": "Reach the radio room, call the chopper and hold out until it arrives."},
+	{"name": "ROOM CLEAR", "type": "clear", "seed": 12583, "rooms": 11, "enemies": 9, "heavy": 2, "brief": "The final stronghold. Every room. Every hostile."},
 ]
 
 const TYPE_INFO := {
 	"eliminate": {"title": "ELIMINATE THE TARGET", "icon": "targeted"},
 	"clear": {"title": "CLEAR ALL HOSTILES", "icon": "multiple-targets"},
 	"intel": {"title": "RECOVER THE INTEL", "icon": "laptop"},
-	"rescue": {"title": "RESCUE THE HOSTAGE", "icon": "handcuffed"},
+	"docs": {"title": "COLLECT THE DOCUMENTS", "icon": "files"},
+	"rescue": {"title": "RESCUE THE HOSTAGES", "icon": "handcuffed"},
 	"defuse": {"title": "DEFUSE THE BOMB", "icon": "time-bomb"},
+	"sabotage": {"title": "DESTROY THE CACHES", "icon": "dynamite"},
+	"stealth": {"title": "STEAL THE CODES UNSEEN", "icon": "spy"},
+	"runner": {"title": "STOP THE RUNNER", "icon": "run"},
+	"defend": {"title": "HOLD THE RADIO ROOM", "icon": "radio-tower"},
 }
 
 const RANKS := ["RECRUIT", "PRIVATE", "CORPORAL", "SERGEANT", "LIEUTENANT", "CAPTAIN", "MAJOR", "COLONEL", "GENERAL"]
@@ -50,9 +56,9 @@ func _ready() -> void:
 
 
 func _detect_quality() -> int:
-	if OS.has_feature("web_android") or OS.has_feature("web_ios"):
+	if is_phone():
 		return 0
-	if OS.has_feature("web") or OS.has_feature("mobile"):
+	if OS.has_feature("web"):
 		return 1
 	return 2
 
@@ -110,11 +116,11 @@ func mission_def() -> Dictionary:
 		return MISSIONS[current]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = quick_seed
-	var types := ["eliminate", "clear", "intel", "rescue", "defuse"]
+	var types := TYPE_INFO.keys()
 	var rooms := rng.randi_range(5, 10)
 	return {"name": "QUICK OP #%d" % (quick_seed % 10000), "type": types[rng.randi() % types.size()], "seed": quick_seed,
 		"rooms": rooms, "enemies": rooms - rng.randi_range(0, 2), "heavy": rng.randi_range(0, 2),
-		"time": 150 + rooms * 5, "brief": "Randomly generated operation. Adapt and overcome."}
+		"time": 150 + rooms * 5, "docs": 3, "caches": 3, "fuse": 45, "hold": 60, "hostages": rng.randi_range(1, 2), "brief": "Randomly generated operation. Adapt and overcome."}
 
 
 ## Records a finished mission; returns {"xp": gained, "unlocks": [weapon ids], "new_rank": bool}
@@ -140,6 +146,7 @@ func save() -> void:
 	c.set_value("p", "xp", xp)
 	c.set_value("p", "weapon", weapon)
 	c.set_value("s", "quality", quality)
+	c.set_value("s", "ver", 3)
 	c.set_value("s", "aim_assist", aim_assist)
 	c.set_value("s", "show_fps", show_fps)
 	c.set_value("s", "volume", volume)
@@ -153,7 +160,9 @@ func _load() -> void:
 	stars = c.get_value("p", "stars", {})
 	xp = c.get_value("p", "xp", 0)
 	weapon = c.get_value("p", "weapon", "rifle")
-	quality = c.get_value("s", "quality", quality)
+	# settings saved before v3 picked too high a default on phones
+	if int(c.get_value("s", "ver", 0)) >= 3:
+		quality = c.get_value("s", "quality", quality)
 	aim_assist = c.get_value("s", "aim_assist", true)
 	show_fps = c.get_value("s", "show_fps", false)
 	volume = c.get_value("s", "volume", 0.8)

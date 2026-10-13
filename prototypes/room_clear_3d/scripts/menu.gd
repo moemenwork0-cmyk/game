@@ -375,7 +375,7 @@ func _main_screen() -> Control:
 	vb.add_child(_rank_bar)
 	_stars_lbl = K.label("", 16, K.DIM, "mid")
 	vb.add_child(_stars_lbl)
-	var ver := K.label("v2.0  ·  procedural ops", 13, Color(K.DIM, 0.5), "mid")
+	var ver := K.label("v3.0  ·  procedural ops", 13, Color(K.DIM, 0.5), "mid")
 	ver.anchor_left = 1.0
 	ver.anchor_right = 1.0
 	ver.anchor_top = 1.0
@@ -488,7 +488,7 @@ func _mission_card(i: int) -> Control:
 	tl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tr.add_child(tl)
 	vb.add_child(tr)
-	var info := K.label("%d ROOMS   ·   %d HOSTILES" % [m["rooms"], m["enemies"] + (1 if m["type"] == "eliminate" else 0)], 14, Color(K.DIM, 0.8), "mid")
+	var info := K.label("%d ROOMS   ·   %d HOSTILES" % [m["rooms"], m["enemies"] + (1 if m["type"] in ["eliminate", "runner"] else 0)], 14, Color(K.DIM, 0.8), "mid")
 	info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vb.add_child(info)
 	var stars := Control.new()
@@ -555,12 +555,23 @@ func _open_brief(i: int) -> void:
 	brief.autowrap_mode = TextServer.AUTOWRAP_WORD
 	brief.custom_minimum_size = Vector2(420, 0)
 	vb.add_child(brief)
-	var facts := "HOSTILES  %d" % (m["enemies"] + (1 if m["type"] == "eliminate" else 0))
+	var facts := "HOSTILES  %d" % (m["enemies"] + (1 if m["type"] in ["eliminate", "runner"] else 0))
 	if m.get("heavy", 0) > 0:
 		facts += "   (incl. %d ARMOURED)" % m["heavy"]
 	facts += "\nBUILDING  %d ROOMS" % m["rooms"]
-	if m.has("time"):
+	if m["type"] == "defuse" and m.has("time"):
 		facts += "\nTIME LIMIT  %d:%02d" % [int(m["time"]) / 60, int(m["time"]) % 60]
+	match m["type"]:
+		"sabotage":
+			facts += "\nCHARGE FUSE  %d s" % int(m.get("fuse", 45))
+		"defend":
+			facts += "\nHOLD FOR  %d s" % int(m.get("hold", 60))
+		"stealth":
+			facts += "\nALARM BRINGS  3 REINFORCEMENTS"
+		"rescue":
+			facts += "\nHOSTAGES  %d" % int(m.get("hostages", 1))
+		"docs":
+			facts += "\nDOCUMENTS  %d" % int(m.get("docs", 3))
 	vb.add_child(K.label(facts, 17, K.INK, "mid"))
 	var wp := HBoxContainer.new()
 	wp.add_theme_constant_override("separation", 12)

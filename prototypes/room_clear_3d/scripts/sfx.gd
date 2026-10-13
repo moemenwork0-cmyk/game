@@ -17,6 +17,7 @@ var _music_id := ""
 func _ready() -> void:
 	_setup_buses()
 	_build_all()
+	_extras()
 	for i in 24:
 		var p := AudioStreamPlayer3D.new()
 		p.bus = "SFX"
@@ -131,6 +132,22 @@ func _build_all() -> void:
 	if streams.has("shot"):
 		return
 	_synth_all()
+
+
+## Mission sounds added after the bake: alarm siren, planting a charge, radio call.
+func _extras() -> void:
+	if not streams.has("siren"):
+		streams["siren"] = _make(1.3, func(t: float, n: float) -> float:
+			var f := 620.0 + 380.0 * sin(TAU * 0.77 * t - PI / 2) * 0.5 + 190.0
+			return (sin(TAU * f * t) * 0.5 + sin(TAU * f * 2.0 * t) * 0.15) * minf(t * 20.0, 1.0), 0.0)
+	if not streams.has("plant"):
+		streams["plant"] = _make(0.6, func(t: float, n: float) -> float:
+			return _click(t, 0.0, 1400.0) + _click(t, 0.12, 2100.0) + sin(TAU * 1975.0 * t) * 0.35 * (1.0 if t > 0.3 and t < 0.38 else 0.0) + sin(TAU * 1975.0 * t) * 0.35 * (1.0 if t > 0.46 and t < 0.54 else 0.0), 0.5)
+	if not streams.has("radio"):
+		streams["radio"] = _make(1.1, func(t: float, n: float) -> float:
+			var chirp := sin(TAU * 1200.0 * t) * 0.3 * (1.0 if t < 0.08 else 0.0)
+			var talk := n * 0.35 * (0.5 + 0.5 * sin(TAU * 7.0 * t)) * (1.0 if t > 0.15 and t < 0.95 else 0.0)
+			return chirp + talk + sin(TAU * 1200.0 * t) * 0.3 * (1.0 if t > 1.0 else 0.0), 0.3)
 
 
 func synth_everything() -> Dictionary:
