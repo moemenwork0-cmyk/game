@@ -1,51 +1,41 @@
 class_name Level
 extends Node3D
-## The safehouse: two rooms split by a partition with a hinged physical door, scanned
-## PBR furniture (Poly Haven, CC0), a window with moonlight falling through the blinds,
-## hanging lamps, physics clutter, and the data the AI needs (nav grid, cover, patrol).
+## Builds a playable 3D building from a MapGen layout: floors, walls (merged into a few meshes
+## per material to keep draw calls low), hinged physical doors, windows with blinds, scanned PBR
+## furniture (Poly Haven, CC0), physics clutter, per-room lamps, and the AI data (A* grid,
+## cover points, room spots).
 
-const X0 := -9.0
-const X1 := 9.0
-const Z0 := -5.5
-const Z1 := 5.5
-const WALL_T := 0.3
-const WALL_H := 2.7
-const PART_X := 2.9          # partition wall x (west face)
-const DOOR_Z0 := -0.78
-const DOOR_Z1 := 0.78
 const CELL := 0.25
+const WALL_T := 0.3
 
+var map: MapGen
 var nav := AStarGrid2D.new()
-var footprints: Array[Rect2] = []     # static cover/obstacles (xz), for nav + cover search
+var footprints: Array[Rect2] = []
 var cover_sources: Array[Rect2] = []
-var patrol: Array[Vector3] = [
-	Vector3(7.6, 0, -3.6), Vector3(7.9, 0, 3.4), Vector3(4.3, 0, 3.6), Vector3(4.2, 0, -3.2),
-	Vector3(3.6, 0, 0.0), Vector3(1.0, 0, -1.8), Vector3(-0.8, 0, 1.6), Vector3(1.6, 0, 2.4), Vector3(3.6, 0, 0.0),
-]
-var player_spawn := Vector3(-7.7, 0, 3.7)
-var enemy_spawn := Vector3(7.4, 0, -1.6)
-var lamps: Array[SpotLight3D] = []
-var beacon: OmniLight3D
-var door: RigidBody3D
-
+var player_spawn := Vector3.ZERO
+var lamps: Array[OmniLight3D] = []
+var intel_props: Array[Node3D] = []
+var _flicker: Array = []
 var _mats := {}
-var _mobile := false
+var _origin := Vector2.ZERO
+var _cover_cache: Array[Vector3] = []
 
 
-func build() -> void:
-	_mobile = OS.has_feature("mobile") or OS.has_feature("web")
+func build(m: MapGen) -> void:
+	map = m
+	player_spawn = m.player_spawn
 	_floor()
 	_walls()
-	_window()
-	_furniture()
-	_door()
+	_windows()
+	_doors()
+	_props()
 	_lights()
 	_build_nav()
 
 
 # ------------------------------------------------------------------ materials
 
-func _pbr(key: String, dir: String, scale: float, tint := Color.WHITE, rough_mul := 1.0) -> StandardMaterial3D:
+func _pbr(key: String, dir: String, scale: float, tint := Color.WHITE) -> StandardMaterial3D:
 	if _mats.has(key):
 		return _mats[key]
 	var m := StandardMaterial3D.new()
@@ -57,10 +47,10 @@ func _pbr(key: String, dir: String, scale: float, tint := Color.WHITE, rough_mul
 	var arm: Texture2D = load(base + "arm.jpg")
 	m.roughness_texture = arm
 	m.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_GREEN
-	m.roughness = rough_mul
-	m.ao_enabled = true
-	m.ao_texture = arm
-	m.ao_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+	if Game.quality > 0:
+		m.ao_enabled = true
+		m.ao_texture = arm
+		m.ao_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
 	m.uv1_triplanar = true
 	m.uv1_world_triplanar = true
 	m.uv1_scale = Vector3.ONE * scale
@@ -80,6 +70,70 @@ func _flat(key: String, c: Color, rough := 0.8, metal := 0.0) -> StandardMateria
 	return m
 
 
+# ------------------------------------------------------------------ merged box geometry
+
+var _batches := {}   # material key -> SurfaceTool
+
+
+func _batch(key: String) -> SurfaceTool:
+	if not _batches.has(key):
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		_batches[key] = st
+	return _batches[key]
+
+
+func _add_box(key: String, center: Vector3, size: Vector3) -> void:
+	var st := _batch(key)
+	var h := size * 0.5
+	var faces := [
+		[Vector3.UP, Vector3(-h.x, h.y, -h.z), Vector3(h.x, h.y, -h.z), Vector3(h.x, h.y, h.z), Vector3(-h.x, h.y, h.z)],
+		[Vector3.DOWN, Vector3(-h.x, -h.y, h.z), Vector3(h.x, -h.y, h.z), Vector3(h.x, -h.y, -h.z), Vector3(-h.x, -h.y, -h.z)],
+		[Vector3.FORWARD, Vector3(h.x, -h.y, -h.z), Vector3(-h.x, -h.y, -h.z), Vector3(-h.x, h.y, -h.z), Vector3(h.x, h.y, -h.z)],
+		[Vector3.BACK, Vector3(-h.x, -h.y, h.z), Vector3(h.x, -h.y, h.z), Vector3(h.x, h.y, h.z), Vector3(-h.x, h.y, h.z)],
+		[Vector3.LEFT, Vector3(-h.x, -h.y, -h.z), Vector3(-h.x, -h.y, h.z), Vector3(-h.x, h.y, h.z), Vector3(-h.x, h.y, -h.z)],
+		[Vector3.RIGHT, Vector3(h.x, -h.y, h.z), Vector3(h.x, -h.y, -h.z), Vector3(h.x, h.y, -h.z), Vector3(h.x, h.y, h.z)],
+	]
+	var uvs := [Vector2.ZERO, Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)]
+	for f in faces:
+		var n: Vector3 = f[0]
+		for idx in [1, 3, 2, 1, 4, 3]:
+			var v: Vector3 = center + f[idx]
+			st.set_normal(n)
+			# world-space planar UVs so normal maps get proper tangents
+			var uv := Vector2(v.x, v.z) if absf(n.y) > 0.5 else (Vector2(v.z, -v.y) if absf(n.x) > 0.5 else Vector2(v.x, -v.y))
+			st.set_uv(uv * 0.5)
+			st.add_vertex(v)
+
+
+func _flush_batches() -> void:
+	var mats := {
+		"plaster": _pbr("wall", "painted_plaster_wall", 0.45, Color(0.6, 0.64, 0.58)),
+		"band": _pbr("band", "concrete_wall_008", 0.5, Color(0.27, 0.32, 0.29)),
+		"trim": _flat("trim", Color(0.12, 0.1, 0.08), 0.6),
+		"cap": _flat("cap", Color(0.03, 0.032, 0.035), 0.9),
+		"frame": _flat("wframe", Color(0.1, 0.1, 0.1), 0.5, 0.4),
+		"slat": _flat("slat", Color(0.7, 0.7, 0.66), 0.6),
+		"floor_c": _pbr("floor", "concrete_floor_worn_001", 0.38, Color(0.78, 0.78, 0.76)),
+		"floor_w": _pbr("floorw", "wood_floor_worn", 0.5, Color(0.7, 0.62, 0.55)),
+		"rug": _pbr("rug", "dirty_carpet", 0.6, Color(0.55, 0.6, 0.5)),
+		"rug2": _pbr("rug2", "dirty_carpet", 0.8, Color(0.62, 0.4, 0.33)),
+	}
+	for key in _batches:
+		var st: SurfaceTool = _batches[key]
+		st.generate_tangents()
+		st.index()
+		var mi := MeshInstance3D.new()
+		mi.mesh = st.commit()
+		mi.material_override = mats.get(key, _flat("x", Color.MAGENTA))
+		if key == "cap":
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if key.begins_with("floor") or key.begins_with("rug"):
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+	_batches.clear()
+
+
 # ------------------------------------------------------------------ shell
 
 func _floor() -> void:
@@ -88,183 +142,195 @@ func _floor() -> void:
 	add_child(body)
 	var cs := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
-	bs.size = Vector3(60, 1, 60)
+	bs.size = Vector3(120, 1, 120)
 	cs.shape = bs
 	cs.position.y = -0.5
 	body.add_child(cs)
-	# interior floor
-	var mi := MeshInstance3D.new()
-	var pm := PlaneMesh.new()
-	pm.size = Vector2(X1 - X0, Z1 - Z0)
-	mi.mesh = pm
-	mi.position = Vector3((X0 + X1) * 0.5, 0, (Z0 + Z1) * 0.5)
-	mi.material_override = _pbr("floor", "concrete_floor_worn_001", 0.38, Color(0.78, 0.78, 0.76))
-	body.add_child(mi)
-	# outside: dark ground
+	for r in map.rooms:
+		var rr: Rect2 = r["rect"]
+		var key := "floor_w" if r["type"] in ["lounge", "command", "barracks"] else "floor_c"
+		_add_box(key, Vector3(rr.get_center().x, -0.05, rr.get_center().y), Vector3(rr.size.x, 0.1, rr.size.y))
+		if r["type"] in ["office", "command", "lounge"] and rr.size.x > 3.5 and rr.size.y > 3.5:
+			var rs := Vector2(minf(rr.size.x - 1.6, 4.0), minf(rr.size.y - 1.6, 3.0))
+			_add_box("rug2" if r["type"] == "lounge" else "rug", Vector3(rr.get_center().x, 0.006, rr.get_center().y), Vector3(rs.x, 0.012, rs.y))
+	# entrance step
+	var e: Vector2 = map.doors[0]["pos"]
+	_add_box("floor_c", Vector3(e.x, -0.05, e.y + 0.9), Vector3(2.4, 0.1, 1.8))
 	var out := MeshInstance3D.new()
 	var om := PlaneMesh.new()
-	om.size = Vector2(60, 60)
+	om.size = Vector2(120, 120)
 	out.mesh = om
-	out.position.y = -0.02
-	out.material_override = _pbr("ground", "concrete_wall_008", 0.25, Color(0.16, 0.17, 0.18))
+	out.position.y = -0.03
+	out.material_override = _pbr("ground", "concrete_wall_008", 0.25, Color(0.15, 0.16, 0.17))
+	out.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(out)
-	# rugs
-	_slab(Vector3(-3.6, 0.006, -0.55), Vector3(3.8, 0.012, 2.9), _pbr("rug", "dirty_carpet", 0.6, Color(0.55, 0.6, 0.5)), false)
-	_slab(Vector3(-6.6, 0.006, -4.0), Vector3(2.6, 0.012, 2.0), _pbr("rug2", "dirty_carpet", 0.8, Color(0.6, 0.38, 0.32)), false)
-	# particles bounce on the floor
 	var pc := GPUParticlesCollisionBox3D.new()
-	pc.size = Vector3(40, 1, 40)
+	pc.size = Vector3(80, 1, 80)
 	pc.position.y = -0.5
 	add_child(pc)
 
 
 func _walls() -> void:
-	var t := WALL_T
-	# north wall has a window gap (built in _window); west wall has the entry gap
-	_wall(Rect2(X0 - t, Z0 - t, -2.45 - (X0 - t), t), WALL_H)
-	_wall(Rect2(-0.75, Z0 - t, X1 + t - -0.75, t), WALL_H)
-	_wall(Rect2(X0 - t, Z0, t, 2.4 - Z0), WALL_H)                 # west, north of the entry
-	_wall(Rect2(X0 - t, 3.75, t, Z1 + t - 3.75), WALL_H)          # west, south of the entry
-	_wall(Rect2(X0 - t, 2.4, t, 1.35), WALL_H - 2.15, 2.15)       # lintel over the entry
-	_wall(Rect2(X1, Z0, t, Z1 - Z0), WALL_H)
-	_wall(Rect2(X0 - t, Z1, X1 - X0 + 2 * t, t), 0.55)            # south wall cut away for the camera
-	# partition with doorway
-	_wall(Rect2(PART_X, Z0, t, DOOR_Z0 - Z0), WALL_H, 0.0, true)
-	_wall(Rect2(PART_X, DOOR_Z1, t, Z1 - DOOR_Z1), WALL_H, 0.0, true)
-	_wall(Rect2(PART_X, DOOR_Z0, t, DOOR_Z1 - DOOR_Z0), WALL_H - 2.2, 2.2)
-	# door frame trims
-	var trim := _flat("trim", Color(0.12, 0.1, 0.08), 0.6)
-	for z in [DOOR_Z0, DOOR_Z1]:
-		_slab(Vector3(PART_X + t * 0.5, 1.1, z), Vector3(t + 0.06, 2.2, 0.08), trim, false)
-	for z in [2.4, 3.75]:
-		_slab(Vector3(X0 - t * 0.5, 1.1, z), Vector3(t + 0.06, 2.2, 0.08), trim, false)
-	# the open entry door leaf (player came in this way)
-	var leaf := _slab(Vector3(X0 + 0.65, 1.05, 2.42), Vector3(1.25, 2.1, 0.05), _pbr("doorwood", "wood_floor_worn", 1.2, Color(0.55, 0.42, 0.3)), true)
-	leaf.rotation.y = 0.12
-	leaf.set_meta("surface", "wood")
-	# entry corridor beyond the door: a dark slab with a faint light
-	var cl := OmniLight3D.new()
-	cl.position = Vector3(X0 - 1.6, 1.8, 3.1)
-	cl.light_color = Color(0.9, 0.8, 0.62)
-	cl.light_energy = 0.8
-	cl.omni_range = 3.5
-	add_child(cl)
-
-
-func _wall(r: Rect2, h: float, y0 := 0.0, cover := false) -> void:
 	var body := StaticBody3D.new()
 	body.set_meta("surface", "plaster")
 	add_child(body)
-	var size := Vector3(r.size.x, h, r.size.y)
-	var center := Vector3(r.position.x + r.size.x * 0.5, y0 + h * 0.5, r.position.y + r.size.y * 0.5)
-	body.position = center
-	var cs := CollisionShape3D.new()
-	var bs := BoxShape3D.new()
-	bs.size = size
-	cs.shape = bs
-	body.add_child(cs)
-	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = size
-	mi.mesh = bm
-	mi.material_override = _pbr("wall", "painted_plaster_wall", 0.45, Color(0.62, 0.66, 0.6))
-	body.add_child(mi)
-	# dark painted lower band + trim line, and a dark cap that reads as a cut section from above
-	if y0 < 0.01 and h > 1.0:
-		var band := MeshInstance3D.new()
-		var bb := BoxMesh.new()
-		bb.size = Vector3(size.x + 0.02, 1.05, size.z + 0.02)
-		band.mesh = bb
-		band.position.y = -h * 0.5 + 0.525
-		band.material_override = _pbr("band", "concrete_wall_008", 0.5, Color(0.28, 0.33, 0.3))
-		body.add_child(band)
-		var line := MeshInstance3D.new()
-		var lb := BoxMesh.new()
-		lb.size = Vector3(size.x + 0.04, 0.05, size.z + 0.04)
-		line.mesh = lb
-		line.position.y = -h * 0.5 + 1.07
-		line.material_override = _flat("line", Color(0.16, 0.14, 0.11), 0.5)
-		body.add_child(line)
-	var cap := MeshInstance3D.new()
-	var cb := BoxMesh.new()
-	cb.size = Vector3(size.x + 0.002, 0.01, size.z + 0.002)
-	cap.mesh = cb
-	cap.position.y = h * 0.5
-	cap.material_override = _flat("cap", Color(0.035, 0.037, 0.04), 0.9)
-	cap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	body.add_child(cap)
-	if y0 < 0.01:
-		footprints.append(r)
-		if cover:
-			cover_sources.append(r)
+	for w in map.walls:
+		var a: Vector2 = w["a"]
+		var b: Vector2 = w["b"]
+		var h: float = w["h"]
+		var y0: float = w["y0"]
+		var horiz := absf(a.y - b.y) < 0.01
+		var len := a.distance_to(b)
+		var center := Vector3((a.x + b.x) * 0.5, y0 + h * 0.5, (a.y + b.y) * 0.5)
+		var size := Vector3(len + WALL_T, h, WALL_T) if horiz else Vector3(WALL_T, h, len + WALL_T)
+		var cs := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = size
+		cs.shape = bs
+		cs.position = center
+		body.add_child(cs)
+		if y0 < 0.01 and h > 1.0:
+			var band_h := 1.05
+			_add_box("band", Vector3(center.x, band_h * 0.5, center.z), Vector3(size.x + 0.02, band_h, size.z + 0.02))
+			_add_box("trim", Vector3(center.x, band_h + 0.02, center.z), Vector3(size.x + 0.04, 0.05, size.z + 0.04))
+			_add_box("plaster", Vector3(center.x, band_h + (h - band_h) * 0.5, center.z), Vector3(size.x, h - band_h, size.z))
+		else:
+			_add_box("band" if y0 < 0.01 else "plaster", center, size)
+		_add_box("cap", Vector3(center.x, y0 + h + 0.004, center.z), Vector3(size.x + 0.002, 0.008, size.z + 0.002))
+		var r := Rect2(Vector2(center.x - size.x * 0.5, center.z - size.z * 0.5), Vector2(size.x, size.z))
+		if y0 < 0.01:
+			footprints.append(r)
+			if not w["outer"]:
+				cover_sources.append(r)
+	# door frames
+	for d in map.doors:
+		var p: Vector2 = d["pos"]
+		var half: float = d["w"] * 0.5
+		for s in [-1.0, 1.0]:
+			if d["axis"] == "x":
+				_add_box("trim", Vector3(p.x, 1.1, p.y + s * half), Vector3(WALL_T + 0.06, 2.2, 0.08))
+			else:
+				_add_box("trim", Vector3(p.x + s * half, 1.1, p.y), Vector3(0.08, 2.2, WALL_T + 0.06))
+		if not d["entrance"]:
+			var lintel := Vector3(WALL_T, 0.4, d["w"]) if d["axis"] == "x" else Vector3(d["w"], 0.4, WALL_T)
+			_add_box("plaster", Vector3(p.x, 2.4, p.y), lintel)
+			_add_box("cap", Vector3(p.x, 2.604, p.y), lintel + Vector3(0.002, -0.39, 0.002))
+			var lc := CollisionShape3D.new()
+			var lb := BoxShape3D.new()
+			lb.size = lintel
+			lc.shape = lb
+			lc.position = Vector3(p.x, 2.4, p.y)
+			body.add_child(lc)
 
 
-func _slab(pos: Vector3, size: Vector3, mat: Material, collide: bool) -> Node3D:
-	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = size
-	mi.mesh = bm
-	mi.material_override = mat
-	if not collide:
-		mi.position = pos
-		add_child(mi)
-		return mi
-	var body := StaticBody3D.new()
-	body.position = pos
-	add_child(body)
-	body.add_child(mi)
-	var cs := CollisionShape3D.new()
-	var bs := BoxShape3D.new()
-	bs.size = size
-	cs.shape = bs
-	body.add_child(cs)
-	return body
+func _windows() -> void:
+	for w in map.windows:
+		var cx: float = (w["x0"] + w["x1"]) * 0.5
+		var z: float = w["z"]
+		var wl: float = w["x1"] - w["x0"]
+		_add_box("frame", Vector3(cx, 0.92, z), Vector3(wl, 0.05, WALL_T + 0.06))
+		_add_box("frame", Vector3(cx, 2.18, z), Vector3(wl, 0.05, WALL_T + 0.06))
+		_add_box("frame", Vector3(cx, 1.55, z), Vector3(0.04, 1.26, WALL_T))
+		for i in 13:
+			_add_box("slat", Vector3(cx, 1.0 + i * 0.09, z + 0.05), Vector3(wl - 0.06, 0.014, 0.06))
+		var sky := MeshInstance3D.new()
+		var qm := QuadMesh.new()
+		qm.size = Vector2(wl, 1.3)
+		sky.mesh = qm
+		sky.material_override = _sky_mat()
+		sky.position = Vector3(cx, 1.55, z - 0.4)
+		add_child(sky)
+		if Game.quality >= 1:
+			var moon := SpotLight3D.new()
+			add_child(moon)
+			moon.position = Vector3(cx + 0.5, 3.8, z - 2.8)
+			moon.look_at(Vector3(cx - 0.3, 0.0, z + 2.6), Vector3.UP)
+			moon.light_color = Color(0.62, 0.74, 1.0)
+			moon.light_energy = 6.0
+			moon.spot_range = 9.0
+			moon.spot_angle = 20.0
+			moon.light_volumetric_fog_energy = 2.5
+			moon.shadow_enabled = Game.quality >= 2
 
 
-func _window() -> void:
-	# opening in the north wall between x = -2.45 and -0.75, sill at 0.9, head at 2.2
-	var x0 := -2.45
-	var x1 := -0.75
-	var t := WALL_T
-	_wall(Rect2(x0, Z0 - t, x1 - x0, t), 0.9)
-	_wall(Rect2(x0, Z0 - t, x1 - x0, t), WALL_H - 2.2, 2.2)
-	var frame := _flat("wframe", Color(0.1, 0.1, 0.1), 0.5, 0.4)
-	var cx := (x0 + x1) * 0.5
-	var z := Z0 - t * 0.5
-	_slab(Vector3(cx, 0.92, z), Vector3(x1 - x0, 0.05, t + 0.06), frame, false)
-	_slab(Vector3(cx, 2.18, z), Vector3(x1 - x0, 0.05, t + 0.06), frame, false)
-	_slab(Vector3(cx, 1.55, z), Vector3(0.04, 1.26, t), frame, false)
-	# blinds: slats that throw moonlight stripes across the floor
-	var slat := _flat("slat", Color(0.7, 0.7, 0.66), 0.6)
-	for i in 14:
-		var s := _slab(Vector3(cx, 1.0 + i * 0.085, z + 0.05), Vector3(x1 - x0 - 0.06, 0.012, 0.07), slat, false)
-		s.rotation.x = 0.55
-	# night outside
-	var sky := MeshInstance3D.new()
-	var qm := QuadMesh.new()
-	qm.size = Vector2(4, 3)
-	sky.mesh = qm
-	var sm := StandardMaterial3D.new()
-	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	sm.albedo_color = Color(0.1, 0.16, 0.3)
-	sky.material_override = sm
-	sky.position = Vector3(cx, 1.5, Z0 - 1.6)
-	add_child(sky)
-	var moon := SpotLight3D.new()
-	add_child(moon)
-	moon.position = Vector3(cx + 0.6, 4.0, Z0 - 3.2)
-	moon.look_at(Vector3(cx - 0.4, 0.0, Z0 + 2.4), Vector3.UP)
-	moon.light_color = Color(0.62, 0.74, 1.0)
-	moon.light_energy = 9.0
-	moon.spot_range = 12.0
-	moon.spot_angle = 22.0
-	moon.spot_attenuation = 0.5
-	moon.light_volumetric_fog_energy = 3.0
-	moon.shadow_enabled = true
-	moon.shadow_blur = 0.6
+func _sky_mat() -> StandardMaterial3D:
+	if not _mats.has("sky"):
+		var sm := StandardMaterial3D.new()
+		sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		sm.albedo_color = Color(0.12, 0.18, 0.32)
+		_mats["sky"] = sm
+	return _mats["sky"]
+
+
+func _doors() -> void:
+	for d in map.doors:
+		if not d["leaf"]:
+			continue
+		var p: Vector2 = d["pos"]
+		var w: float = d["w"] - 0.06
+		var door := RigidBody3D.new()
+		door.mass = 16.0
+		door.collision_layer = 16
+		door.collision_mask = 2 | 4 | 8
+		door.angular_damp = 3.0
+		door.can_sleep = true
+		door.set_meta("surface", "wood")
+		door.add_to_group("physics_props")
+		var hinge: Vector3
+		var yaw: float
+		if d["axis"] == "x":
+			hinge = Vector3(p.x, 0, p.y - d["w"] * 0.5 + 0.03)
+			yaw = 0.0
+		else:
+			hinge = Vector3(p.x - d["w"] * 0.5 + 0.03, 0, p.y)
+			yaw = -PI / 2
+		var cs := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = Vector3(0.05, 2.1, w)
+		cs.shape = bs
+		cs.position = Vector3(0, 1.06, w * 0.5)
+		door.add_child(cs)
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = bs.size
+		mi.mesh = bm
+		mi.position = cs.position
+		mi.material_override = _pbr("doorwood", "wood_floor_worn", 1.2, Color(0.55, 0.42, 0.3))
+		door.add_child(mi)
+		var knob := MeshInstance3D.new()
+		var km := BoxMesh.new()
+		km.size = Vector3(0.12, 0.03, 0.03)
+		knob.mesh = km
+		knob.position = Vector3(0, 1.0, w - 0.1)
+		knob.material_override = _flat("brass", Color(0.7, 0.55, 0.3), 0.3, 1.0)
+		door.add_child(knob)
+		door.position = hinge
+		door.rotation.y = yaw + deg_to_rad(randf_range(-40, 40))
+		add_child(door)
+		var anchor := StaticBody3D.new()
+		anchor.collision_layer = 0
+		anchor.position = hinge
+		add_child(anchor)
+		var j := HingeJoint3D.new()
+		j.position = hinge
+		j.rotation.x = -PI / 2
+		add_child(j)
+		j.node_a = j.get_path_to(anchor)
+		j.node_b = j.get_path_to(door)
+		j.set_flag(HingeJoint3D.FLAG_USE_LIMIT, true)
+		j.set_param(HingeJoint3D.PARAM_LIMIT_UPPER, deg_to_rad(100))
+		j.set_param(HingeJoint3D.PARAM_LIMIT_LOWER, deg_to_rad(-100))
 
 
 # ------------------------------------------------------------------ props
+
+func _props() -> void:
+	for e in map.props:
+		var n := prop(e["id"], e["pos"], e["yaw"], e["opts"])
+		if e["opts"].get("intel", false):
+			intel_props.append(n)
+	_flush_batches()
+
 
 ## Loads a Poly Haven glTF prop and wraps it in a static or rigid body with a fitted box.
 func prop(id: String, pos: Vector3, yaw_deg: float, opts := {}) -> Node3D:
@@ -278,10 +344,10 @@ func prop(id: String, pos: Vector3, yaw_deg: float, opts := {}) -> Node3D:
 		var rb := RigidBody3D.new()
 		rb.mass = opts.get("mass", 5.0)
 		rb.collision_layer = 4
-		rb.collision_mask = 1 | 2 | 4 | 8
+		rb.collision_mask = 1 | 2 | 4 | 8 | 16
 		rb.linear_damp = 0.3
 		rb.angular_damp = 0.8
-		rb.can_sleep = true
+		rb.add_to_group("physics_props")
 		body = rb
 	else:
 		body = StaticBody3D.new()
@@ -298,11 +364,13 @@ func prop(id: String, pos: Vector3, yaw_deg: float, opts := {}) -> Node3D:
 	body.rotation.y = deg_to_rad(yaw_deg)
 	add_child(body)
 	for m in inst.find_children("*", "MeshInstance3D", true, false):
-		(m as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	if not dyn and opts.get("block", true):
+		var mi := m as MeshInstance3D
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if (not dyn or ab.size.y > 0.4) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.visibility_range_end = 0.0
+	if not dyn and pos.y < 0.05:
 		var r := _xz_rect(body.transform, ab)
 		footprints.append(r)
-		if opts.get("cover", true):
+		if ab.size.y > 0.4:
 			cover_sources.append(r)
 	return body
 
@@ -335,177 +403,95 @@ func _xz_rect(xf: Transform3D, ab: AABB) -> Rect2:
 	return Rect2(mn, mx - mn)
 
 
-func _furniture() -> void:
-	# --- west room: briefing desk, lounge, supply crates
-	var desk := prop("metal_office_desk", Vector3(-3.6, 0, -0.55), 0, {"surface": "metal"})
-	prop("classic_laptop", Vector3(-3.95, 0.79, -0.6), 15, {"dynamic": true, "mass": 2.5, "surface": "metal", "scale": 0.75})
-	prop("binder_notebook", Vector3(-3.0, 0.79, -0.45), -30, {"dynamic": true, "mass": 0.6})
-	prop("ammo_box", Vector3(-2.85, 0.79, -0.85), 80, {"dynamic": true, "mass": 2.0, "surface": "metal", "scale": 1.6})
-	prop("medical_box", Vector3(-4.3, 0.79, -0.35), 10, {"dynamic": true, "mass": 1.0, "surface": "metal"})
-	prop("plastic_monobloc_chair_01", Vector3(-3.3, 0, 0.45), 165, {"dynamic": true, "mass": 4.0, "surface": "fabric"})
-	prop("plastic_monobloc_chair_01", Vector3(-4.3, 0, -1.55), 15, {"dynamic": true, "mass": 4.0, "surface": "fabric"})
-	desk.set_meta("label", "table")
-	prop("Sofa_01", Vector3(-6.6, 0, -5.08), 0, {"surface": "fabric"})
-	prop("WoodenTable_01", Vector3(-6.6, 0, -3.75), 0, {"surface": "wood"})
-	prop("Television_01", Vector3(-6.45, 0.55, -3.8), 180, {"dynamic": true, "mass": 8.0, "surface": "metal", "scale": 0.9})
-	prop("potted_plant_04", Vector3(-8.5, 0, -5.0), 0, {"scale": 3.2, "block": false, "surface": "fabric"})
-	prop("wooden_military_crate", Vector3(-0.6, 0, 3.95), 90, {"surface": "wood"})
-	prop("wooden_military_crate", Vector3(-0.6, 0.465, 3.95), 92, {"surface": "wood", "block": false})
-	prop("wooden_crate_01", Vector3(0.75, 0, 4.25), 10, {"surface": "wood"})
-	prop("metal_jerrycan_green", Vector3(0.65, 0.35, 4.3), 70, {"dynamic": true, "mass": 6.0, "surface": "metal"})
-	prop("metal_jerrycan_green", Vector3(-1.35, 0, 4.7), -20, {"dynamic": true, "mass": 6.0, "surface": "metal"})
-	prop("Barrel_01", Vector3(2.15, 0, -4.75), 0, {"surface": "metal"})
-	prop("Barrel_01", Vector3(1.45, 0, -4.95), 40, {"surface": "metal"})
-	# --- east room: storage and the target's post
-	prop("steel_frame_shelves_01", Vector3(4.6, 0, -5.18), 0, {"scale": 0.1, "surface": "metal"})
-	prop("steel_frame_shelves_01", Vector3(5.75, 0, -5.18), 0, {"scale": 0.1, "surface": "metal"})
-	prop("ammo_box", Vector3(4.5, 0.96, -5.2), 90, {"dynamic": true, "mass": 2.0, "surface": "metal", "scale": 1.6})
-	prop("ammo_box", Vector3(5.8, 0.96, -5.15), 95, {"dynamic": true, "mass": 2.0, "surface": "metal", "scale": 1.6})
-	prop("metal_jerrycan_green", Vector3(4.6, 0.02, -5.15), 0, {"dynamic": true, "mass": 6.0, "surface": "metal"})
-	var cab := prop("modern_wooden_cabinet", Vector3(6.3, 0, 1.15), 90, {"surface": "wood"})
-	cab.set_meta("label", "cabinet")
-	prop("binder_notebook", Vector3(6.25, 0.68, 0.4), 60, {"dynamic": true, "mass": 0.6})
-	prop("old_military_crate", Vector3(8.15, 0, -2.4), 90, {"surface": "wood"})
-	prop("wooden_military_crate", Vector3(8.2, 0, 1.1), 90, {"surface": "wood"})
-	prop("Barrel_01", Vector3(8.3, 0, 4.65), 0, {"surface": "metal"})
-	prop("Barrel_01", Vector3(7.55, 0, 4.95), 60, {"surface": "metal"})
-	prop("wooden_crate_01", Vector3(4.2, 0, 4.85), 0, {"surface": "wood"})
-	prop("security_camera_01", Vector3(8.7, 2.45, -5.25), -135, {"block": false, "surface": "metal"})
-
-
-func _door() -> void:
-	# a real hinged door: bodies push it, bullets knock it
-	door = RigidBody3D.new()
-	door.mass = 18.0
-	door.collision_layer = 16      # pushed by bodies; sight and bullets go through (thin wood)
-	door.collision_mask = 2 | 4 | 8
-	door.angular_damp = 3.0
-	door.can_sleep = false
-	door.set_meta("surface", "wood")
-	var w := DOOR_Z1 - DOOR_Z0 - 0.06
-	var hinge := Vector3(PART_X + WALL_T * 0.5, 0, DOOR_Z0 + 0.03)
-	var cs := CollisionShape3D.new()
-	var bs := BoxShape3D.new()
-	bs.size = Vector3(0.05, 2.1, w)
-	cs.shape = bs
-	cs.position = Vector3(0, 1.06, w * 0.5)
-	door.add_child(cs)
-	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = bs.size
-	mi.mesh = bm
-	mi.position = cs.position
-	mi.material_override = _pbr("doorwood", "wood_floor_worn", 1.2, Color(0.55, 0.42, 0.3))
-	door.add_child(mi)
-	var knob := MeshInstance3D.new()
-	var km := SphereMesh.new()
-	km.radius = 0.035
-	km.height = 0.07
-	knob.mesh = km
-	knob.position = Vector3(0, 1.0, w - 0.1)
-	knob.scale = Vector3(4.0, 1, 1)
-	knob.material_override = _flat("brass", Color(0.7, 0.55, 0.3), 0.3, 1.0)
-	door.add_child(knob)
-	door.position = hinge
-	door.rotation.y = deg_to_rad(-35.0)
-	add_child(door)
-	var anchor := StaticBody3D.new()
-	anchor.collision_layer = 0
-	anchor.position = hinge
-	add_child(anchor)
-	var j := HingeJoint3D.new()
-	j.position = hinge
-	j.rotation.x = -PI / 2
-	add_child(j)
-	j.node_a = j.get_path_to(anchor)
-	j.node_b = j.get_path_to(door)
-	j.set_flag(HingeJoint3D.FLAG_USE_LIMIT, true)
-	j.set_param(HingeJoint3D.PARAM_LIMIT_UPPER, deg_to_rad(100))
-	j.set_param(HingeJoint3D.PARAM_LIMIT_LOWER, deg_to_rad(-100))
-
+# ------------------------------------------------------------------ lights
 
 func _lights() -> void:
-	_lamp(Vector3(-3.6, 0, -0.55), 7.5, true)
-	_lamp(Vector3(6.2, 0, 1.0), 6.5, true)
-	_lamp(Vector3(-6.6, 0, -3.9), 4.0, not _mobile)
-	_lamp(Vector3(5.2, 0, -3.8), 3.0, false)
-	# red beacon in the east room
-	beacon = OmniLight3D.new()
-	beacon.position = Vector3(8.75, 2.2, 4.4)
-	beacon.light_color = Color(1.0, 0.12, 0.06)
-	beacon.light_energy = 2.0
-	beacon.omni_range = 6.0
-	beacon.light_volumetric_fog_energy = 1.5
-	add_child(beacon)
-	var bm := MeshInstance3D.new()
-	var sm := SphereMesh.new()
-	sm.radius = 0.07
-	sm.height = 0.1
-	bm.mesh = sm
-	var em := StandardMaterial3D.new()
-	em.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	em.albedo_color = Color(4.0, 0.3, 0.2)
-	bm.material_override = em
-	bm.position = Vector3(8.95, 2.2, 4.4)
-	add_child(bm)
-
-
-func _lamp(at: Vector3, energy: float, shadow: bool) -> void:
-	var l := prop("hanging_industrial_lamp", Vector3(at.x, 3.45, at.z), 0, {"block": false, "surface": "metal"})
-	l.collision_layer = 0
-	for m in l.find_children("*", "MeshInstance3D", true, false):
-		(m as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var s := SpotLight3D.new()
-	s.position = Vector3(at.x, 2.08, at.z)
-	s.rotation.x = -PI / 2
-	s.spot_angle = 62.0
-	s.spot_angle_attenuation = 1.3
-	s.spot_range = 6.5
-	s.light_energy = energy
-	s.light_color = Color(1.0, 0.8, 0.56)
-	s.light_volumetric_fog_energy = 0.6
-	s.shadow_enabled = shadow
-	s.shadow_blur = 1.5
-	add_child(s)
-	lamps.append(s)
-	var bulb := OmniLight3D.new()
-	bulb.position = s.position + Vector3(0, 0.12, 0)
-	bulb.light_color = s.light_color
-	bulb.light_energy = 0.5
-	bulb.omni_range = 1.4
-	add_child(bulb)
+	var shade_mat := _flat("lampshade", Color(0.42, 0.46, 0.42), 0.4, 0.7)
+	var bulb_mat := StandardMaterial3D.new()
+	bulb_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	bulb_mat.albedo_color = Color(4.0, 3.4, 2.4)
+	for L in map.lights:
+		var p: Vector3 = L["pos"]
+		var o := OmniLight3D.new()
+		o.position = p
+		o.light_color = L["color"]
+		o.light_energy = L["energy"]
+		o.omni_range = L["range"]
+		o.omni_attenuation = 1.2
+		o.light_volumetric_fog_energy = 0.4
+		o.shadow_enabled = false
+		add_child(o)
+		lamps.append(o)
+		if L["flicker"]:
+			_flicker.append([o, L["energy"], randf() * 10.0])
+		# simple pendant lamp: cord + shade + glowing bulb
+		var shade := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.06
+		cm.bottom_radius = 0.2
+		cm.height = 0.16
+		cm.radial_segments = 14
+		cm.rings = 1
+		shade.mesh = cm
+		shade.material_override = shade_mat
+		shade.position = p + Vector3(0, 0.12, 0)
+		shade.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(shade)
+		var bulb := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.07
+		sm.height = 0.12
+		sm.radial_segments = 8
+		sm.rings = 4
+		bulb.mesh = sm
+		bulb.material_override = bulb_mat
+		bulb.position = p + Vector3(0, 0.02, 0)
+		bulb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(bulb)
+	# light spilling in from the street at the entrance
+	var e: Vector2 = map.doors[0]["pos"]
+	var street := OmniLight3D.new()
+	street.position = Vector3(e.x, 2.0, e.y + 3.0)
+	street.light_color = Color(1.0, 0.75, 0.45)
+	street.light_energy = 1.6
+	street.omni_range = 6.0
+	add_child(street)
 
 
 func _process(_delta: float) -> void:
-	if beacon:
-		var t := Time.get_ticks_msec() * 0.001
-		beacon.light_energy = 0.4 + 2.2 * pow(maxf(sin(t * 4.0), 0.0), 3.0)
+	var t := Time.get_ticks_msec() * 0.001
+	for f in _flicker:
+		var o: OmniLight3D = f[0]
+		var k := sin(t * 13.0 + f[2]) * sin(t * 7.3 + f[2] * 2.0)
+		o.light_energy = f[1] * (0.25 if k > 0.75 else 1.0)
 
 
 # ------------------------------------------------------------------ navigation & cover
 
 func _build_nav() -> void:
-	nav.region = Rect2i(0, 0, int((X1 - X0) / CELL), int((Z1 - Z0) / CELL))
+	var b := map.bounds.grow(2.5)
+	_origin = b.position
+	nav.region = Rect2i(0, 0, int(b.size.x / CELL), int(b.size.y / CELL))
 	nav.cell_size = Vector2(CELL, CELL)
-	nav.offset = Vector2(X0 + CELL * 0.5, Z0 + CELL * 0.5)
+	nav.offset = b.position + Vector2(CELL * 0.5, CELL * 0.5)
 	nav.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
 	nav.default_compute_heuristic = AStarGrid2D.HEURISTIC_OCTILE
 	nav.update()
 	var inflate := 0.36
+	var grown: Array[Rect2] = []
+	for r in footprints:
+		grown.append(r.grow(inflate))
 	for x in nav.region.size.x:
 		for y in nav.region.size.y:
 			var p := nav.get_point_position(Vector2i(x, y))
-			var solid := p.x < X0 + inflate or p.x > X1 - inflate or p.y < Z0 + inflate or p.y > Z1 - inflate
-			if not solid:
-				for r in footprints:
-					if r.grow(inflate).has_point(p):
-						solid = true
-						break
-			nav.set_point_solid(Vector2i(x, y), solid)
+			for r in grown:
+				if r.has_point(p):
+					nav.set_point_solid(Vector2i(x, y), true)
+					break
 
 
 func to_cell(p: Vector3) -> Vector2i:
-	return Vector2i(clampi(int((p.x - X0) / CELL), 0, nav.region.size.x - 1), clampi(int((p.z - Z0) / CELL), 0, nav.region.size.y - 1))
+	return Vector2i(clampi(int((p.x - _origin.x) / CELL), 0, nav.region.size.x - 1), clampi(int((p.z - _origin.y) / CELL), 0, nav.region.size.y - 1))
 
 
 func free_cell(c: Vector2i) -> Vector2i:
@@ -530,7 +516,6 @@ func find_path(from: Vector3, to: Vector3) -> PackedVector3Array:
 		pts.append(Vector3(p.x, 0, p.y))
 	if not nav.is_point_solid(to_cell(to)):
 		pts.append(Vector3(to.x, 0, to.z))
-	# string pulling over the grid
 	var out := PackedVector3Array()
 	var i := 0
 	while i < pts.size() - 1:
@@ -545,18 +530,18 @@ func find_path(from: Vector3, to: Vector3) -> PackedVector3Array:
 func walkable(a: Vector3, b: Vector3) -> bool:
 	var n := int(ceil(a.distance_to(b) / (CELL * 0.5)))
 	for k in range(1, n + 1):
-		var p := a.lerp(b, float(k) / n)
-		if nav.is_point_solid(to_cell(p)):
+		if nav.is_point_solid(to_cell(a.lerp(b, float(k) / n))):
 			return false
 	return true
 
 
-## Candidate cover spots around furniture and the partition, as points on the floor.
 func cover_points() -> Array[Vector3]:
+	if not _cover_cache.is_empty():
+		return _cover_cache
 	var out: Array[Vector3] = []
 	for r in cover_sources:
 		var g := r.grow(0.5)
-		var step := 0.4
+		var step := 0.5
 		var x := g.position.x
 		while x <= g.end.x + 0.01:
 			out.append(Vector3(x, 0, g.position.y))
@@ -567,8 +552,15 @@ func cover_points() -> Array[Vector3]:
 			out.append(Vector3(g.position.x, 0, z))
 			out.append(Vector3(g.end.x, 0, z))
 			z += step
-	var ok: Array[Vector3] = []
+	var bb := map.bounds.grow(-0.4)
 	for p in out:
-		if p.x > X0 + 0.4 and p.x < X1 - 0.4 and p.z > Z0 + 0.4 and p.z < Z1 - 0.4 and not nav.is_point_solid(to_cell(p)):
-			ok.append(p)
-	return ok
+		if bb.has_point(Vector2(p.x, p.z)) and not nav.is_point_solid(to_cell(p)):
+			_cover_cache.append(p)
+	return _cover_cache
+
+
+func room_at(p: Vector3) -> int:
+	for i in map.rooms.size():
+		if (map.rooms[i]["rect"] as Rect2).has_point(Vector2(p.x, p.z)):
+			return i
+	return -1

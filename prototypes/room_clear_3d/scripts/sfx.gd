@@ -10,6 +10,8 @@ var _pool2d: Array[AudioStreamPlayer] = []
 var _next := 0
 var _next2d := 0
 var ambience: AudioStreamPlayer
+var music_player: AudioStreamPlayer
+var _music_id := ""
 
 
 func _ready() -> void:
@@ -29,6 +31,9 @@ func _ready() -> void:
 		p.bus = "UI"
 		add_child(p)
 		_pool2d.append(p)
+	music_player = AudioStreamPlayer.new()
+	music_player.bus = "UI"
+	add_child(music_player)
 	ambience = AudioStreamPlayer.new()
 	ambience.stream = streams["ambience"]
 	ambience.volume_db = -18.0
@@ -48,6 +53,24 @@ func play_at(id: String, pos: Vector3, vol_db := 0.0, pitch := 1.0) -> void:
 	p.volume_db = vol_db
 	p.pitch_scale = pitch
 	p.play()
+
+
+## Starts a looping music bed ("" stops it). Built lazily the first time it is needed.
+func music(id: String, vol_db := -10.0) -> void:
+	if id == _music_id:
+		return
+	_music_id = id
+	if id == "":
+		var t := create_tween()
+		t.tween_property(music_player, "volume_db", -60.0, 1.0)
+		t.tween_callback(music_player.stop)
+		return
+	if not streams.has(id):
+		streams[id] = _menu_music() if id == "menu_music" else _combat_bed()
+	music_player.stream = streams[id]
+	music_player.volume_db = -40.0
+	music_player.play()
+	create_tween().tween_property(music_player, "volume_db", vol_db, 1.5)
 
 
 func play(id: String, vol_db := 0.0, pitch := 1.0) -> void:
@@ -86,7 +109,38 @@ func _setup_buses() -> void:
 
 # ------------------------------------------------------------------ synthesis
 
+const LOOPS := ["ambience", "menu_music", "combat_bed"]
+
+
+## Pre-rendered sounds (assets/sfx/*.wav, made by tools/bake_sfx.gd) load instantly;
+## anything missing is synthesised on the spot.
 func _build_all() -> void:
+	var dir := "res://assets/sfx/"
+	if DirAccess.dir_exists_absolute(dir):
+		for f in DirAccess.get_files_at(dir):
+			# exported builds only list the .import remaps
+			var name: String = f.trim_suffix(".import")
+			if name.ends_with(".wav") and not streams.has(name.get_basename()):
+				var id := name.get_basename()
+				var w := load(dir + name) as AudioStreamWAV
+				if w:
+					if id in LOOPS:
+						w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+						w.loop_end = int(w.get_length() * w.mix_rate)
+					streams[id] = w
+	if streams.has("shot"):
+		return
+	_synth_all()
+
+
+func synth_everything() -> Dictionary:
+	_synth_all()
+	streams["menu_music"] = _menu_music()
+	streams["combat_bed"] = _combat_bed()
+	return streams
+
+
+func _synth_all() -> void:
 	streams["shot"] = _gunshot(1.0, 1.0)
 	streams["eshot"] = _gunshot(0.85, 0.9)
 	streams["step"] = _make(0.11, func(t: float, n: float) -> float:
@@ -127,6 +181,28 @@ func _build_all() -> void:
 	streams["win"] = _chord([110.0, 138.6, 164.8, 220.0, 277.2], 3.2, 1.6)
 	streams["lose"] = _chord([55.0, 65.4, 82.4, 98.0], 3.2, 0.4)
 	streams["ambience"] = _ambience()
+	streams["smg"] = _gunshot(1.25, 0.8)
+	streams["shot_heavy"] = _gunshot(0.8, 1.15)
+	streams["shotgun"] = _boom(0.75, 1.25, 1.1)
+	streams["explosion"] = _boom(2.0, 0.55, 1.6)
+	streams["dash"] = _make(0.3, func(t: float, n: float) -> float:
+		return n * sin(PI * t / 0.3) * 0.5 + _click(t, 0.25, 900.0) * 0.4, 0.75)
+	streams["throw"] = _make(0.25, func(t: float, n: float) -> float:
+		return n * sin(PI * t / 0.25) * 0.4, 0.6)
+	streams["grenade_bounce"] = _make(0.2, func(t: float, n: float) -> float:
+		return (sin(TAU * 700.0 * t) * 0.5 + sin(TAU * 1240.0 * t) * 0.3) * exp(-t * 26.0), 0.0)
+	streams["pickup"] = _make(0.35, func(t: float, n: float) -> float:
+		var f := 660.0 if t < 0.1 else (880.0 if t < 0.2 else 1320.0)
+		return sin(TAU * f * t) * 0.35 * exp(-fmod(t, 0.1) * 12.0), 0.0)
+	streams["objective"] = _chord([220.0, 277.2, 329.6, 440.0], 1.4, 1.2)
+	streams["star"] = _make(0.45, func(t: float, n: float) -> float:
+		return (sin(TAU * 1046.5 * t) + sin(TAU * 1568.0 * t) * 0.5) * 0.35 * exp(-t * 6.0), 0.0)
+	streams["beep"] = _make(0.12, func(t: float, n: float) -> float:
+		return sin(TAU * 1760.0 * t) * 0.4 * (1.0 if t < 0.09 else 0.0), 0.0)
+	streams["ui_click"] = _make(0.08, func(t: float, n: float) -> float:
+		return _click(t, 0.0, 1600.0) * 0.8 + n * exp(-t * 200.0) * 0.2, 0.4)
+	streams["ui_hover"] = _make(0.05, func(t: float, n: float) -> float:
+		return sin(TAU * 2400.0 * t) * exp(-t * 90.0) * 0.25, 0.0)
 
 
 func _click(t: float, at: float, f: float) -> float:
@@ -174,6 +250,72 @@ func _gunshot(pitch: float, gain: float) -> AudioStreamWAV:
 		s = tanh(s * 1.6) * 0.95
 		data.encode_s16(i * 2, int(s * 32000.0))
 	return _wav(data)
+
+
+## Shotgun blasts and explosions: long low boom with a noisy crack and a rumbling tail.
+func _boom(dur: float, pitch: float, gain: float) -> AudioStreamWAV:
+	var n := int(dur * RATE)
+	var data := PackedByteArray()
+	data.resize(n * 2)
+	var lp1 := 0.0
+	var lp2 := 0.0
+	var ph := 0.0
+	for i in n:
+		var t := float(i) / RATE
+		var w := randf() * 2.0 - 1.0
+		lp1 += (w - lp1) * 0.35
+		lp2 += (w - lp2) * 0.03
+		ph += TAU * (70.0 - t * 40.0) * pitch / RATE
+		var s := w * exp(-t * 300.0) * 1.0 + lp1 * exp(-t * 14.0) * 1.1 + sin(ph) * exp(-t * 7.0) * 1.3 + lp2 * exp(-t * 2.2) * 2.2
+		data.encode_s16(i * 2, int(tanh(s * gain * 1.4) * 0.95 * 32000.0))
+	return _wav(data)
+
+
+## Menu theme: slow minor pads over a soft pulse, 16 s loop.
+func _menu_music() -> AudioStreamWAV:
+	var dur := 16.0
+	var n := int(dur * RATE)
+	var data := PackedByteArray()
+	data.resize(n * 2)
+	var chords := [[110.0, 130.8, 164.8], [87.3, 110.0, 130.8], [98.0, 123.5, 146.8], [82.4, 103.8, 123.5]]
+	var lp := 0.0
+	for i in n:
+		var t := float(i) / RATE
+		var ci := int(t / 4.0) % 4
+		var lt := fmod(t, 4.0)
+		var env := smoothstep(0.0, 1.2, lt) * (1.0 - smoothstep(3.2, 4.0, lt)) * 0.85 + 0.15
+		var s := 0.0
+		for f in chords[ci]:
+			s += sin(TAU * f * t) * 0.18 + sin(TAU * f * 2.0 * t + sin(t * 0.7)) * 0.06
+		s *= env
+		var beat := fmod(t, 0.5)
+		s += sin(TAU * 55.0 * t) * exp(-beat * 9.0) * 0.35
+		lp += ((randf() * 2.0 - 1.0) - lp) * 0.02
+		s += lp * exp(-fmod(t + 0.25, 0.5) * 30.0) * 0.4
+		data.encode_s16(i * 2, int(clampf(s * 0.7, -1.0, 1.0) * 32000.0))
+	var w := _wav(data)
+	w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	w.loop_end = n
+	return w
+
+
+## Mission bed: low tension drone with a heartbeat-like pulse, 8 s loop.
+func _combat_bed() -> AudioStreamWAV:
+	var dur := 8.0
+	var n := int(dur * RATE)
+	var data := PackedByteArray()
+	data.resize(n * 2)
+	for i in n:
+		var t := float(i) / RATE
+		var s := sin(TAU * 41.2 * t) * 0.25 + sin(TAU * 61.7 * t + sin(TAU * 0.25 * t) * 2.0) * 0.12
+		s += sin(TAU * 82.4 * t) * 0.05 * (0.5 + 0.5 * sin(TAU * 0.125 * t))
+		var beat := fmod(t, 1.0)
+		s += sin(TAU * 48.0 * t) * (exp(-beat * 14.0) + exp(-maxf(beat - 0.22, 0.0) * 18.0) * (1.0 if beat > 0.22 else 0.0) * 0.6) * 0.45
+		data.encode_s16(i * 2, int(clampf(s * 0.8, -1.0, 1.0) * 32000.0))
+	var w := _wav(data)
+	w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	w.loop_end = n
+	return w
 
 
 func _chord(freqs: Array, dur: float, bright: float) -> AudioStreamWAV:

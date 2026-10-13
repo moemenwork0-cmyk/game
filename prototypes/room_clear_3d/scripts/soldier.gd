@@ -30,6 +30,16 @@ var fire_interval := 0.105
 var damage := RIFLE_DMG
 var spread := 0.02
 var accel := 14.0
+var weapon_id := "rifle"
+var pellets := 1
+var kick := 1.0
+var shot_sound := "shot"
+var move_mul := 1.0
+var armed := true
+var armor := 0.0                    ## fraction of damage absorbed (heavies)
+var grenades := 0
+var xray := false                   ## silhouette through walls (player)
+var stagger := Vector3.ZERO
 
 var body_yaw := 0.0
 var crouch_k := 0.0
@@ -60,9 +70,15 @@ var _step_dist := 0.0
 var _step_side := false
 var _backwards := false
 var _ragdoll: PhysicalBoneSimulator3D
+var _dash_t := 0.0
+var _dash_cd := 0.0
+var _dash_dir := Vector3.ZERO
+var _throw_t := -1.0
+var _throw_at := Vector3.ZERO
 
 
 func _ready() -> void:
+	add_to_group("soldiers")
 	collision_layer = 2
 	collision_mask = 1 | 2 | 4 | 16
 	capsule.radius = 0.3
@@ -80,16 +96,53 @@ func _ready() -> void:
 		_setup_materials(m)
 	_load_animations()
 	_build_tree()
-	rifle = Rifle.new()
-	add_child(rifle)
-	rifle.top_level = true
+	set_weapon(weapon_id)
 	rig = AimRig.new()
 	rig.rifle = rifle
 	skel.add_child(rig)
 	rig.setup(skel)
+	if not armed:
+		rifle.visible = false
+		rig.weight = 0.0
+		rig.active = false
 	body_yaw = aim_yaw
 	process_priority = -5
 	hp = max_hp
+
+
+## Applies a weapon from the Weapons table and (re)builds its model.
+func set_weapon(id: String) -> void:
+	var d := Weapons.get_def(id)
+	weapon_id = id
+	damage = d["dmg"]
+	fire_interval = d["rate"]
+	mag_size = d["mag"]
+	ammo = mag_size
+	spread = d["spread"]
+	pellets = d["pellets"]
+	reload_time = d["reload"]
+	kick = d["kick"]
+	shot_sound = d["sound"]
+	move_mul = d["move"]
+	if rifle:
+		rifle.queue_free()
+	rifle = Rifle.new()
+	rifle.kind = id
+	add_child(rifle)
+	rifle.top_level = true
+	if rig:
+		rig.rifle = rifle
+
+
+static var _xray_mat: ShaderMaterial
+
+
+static func xray_material() -> ShaderMaterial:
+	if _xray_mat == null:
+		_xray_mat = ShaderMaterial.new()
+		_xray_mat.shader = load("res://scripts/xray.gdshader")
+		_xray_mat.render_priority = 10
+	return _xray_mat
 
 
 func _setup_materials(mi: MeshInstance3D) -> void:
@@ -101,6 +154,13 @@ func _setup_materials(mi: MeshInstance3D) -> void:
 			if p in nm:
 				part = p
 		var m := StandardMaterial3D.new()
+		if "opacity" in nm:
+			m.albedo_texture = load(avatar_dir + "opacity.png")
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+			m.alpha_scissor_threshold = 0.45
+			m.cull_mode = BaseMaterial3D.CULL_DISABLED
+			mi.set_surface_override_material(i, m)
+			continue
 		m.albedo_texture = load(avatar_dir + part + "_color.jpg")
 		m.normal_enabled = true
 		m.normal_texture = load(avatar_dir + part + "_normal.png")
@@ -117,6 +177,8 @@ func _setup_materials(mi: MeshInstance3D) -> void:
 		m.rim_enabled = true
 		m.rim = 0.25
 		m.rim_tint = 0.6
+		if xray:
+			m.next_pass = xray_material()
 		mi.set_surface_override_material(i, m)
 
 
@@ -175,11 +237,17 @@ func _physics_process(delta: float) -> void:
 	if not alive:
 		return
 	think(delta)
-	var tgt := move_target
+	var tgt := move_target * move_mul
 	if crouching:
 		tgt *= 0.0
 	var hv := Vector3(velocity.x, 0, velocity.z)
 	hv = hv.lerp(tgt, 1.0 - exp(-accel * delta))
+	_dash_cd -= delta
+	if _dash_t > 0.0:
+		_dash_t -= delta
+		hv = _dash_dir * lerpf(5.0, 11.0, clampf(_dash_t / 0.3, 0.0, 1.0))
+	hv += stagger
+	stagger = stagger.lerp(Vector3.ZERO, 1.0 - exp(-10.0 * delta))
 	velocity = Vector3(hv.x, -1.0, hv.z)
 	move_and_slide()
 	global_position.y = 0.0
@@ -228,7 +296,8 @@ func _process(delta: float) -> void:
 		target_body = aim_yaw
 	body_yaw = lerp_angle(body_yaw, target_body, 1.0 - exp(-(9.0 if spd > 0.35 else 6.0) * delta))
 	pivot.rotation.y = body_yaw
-	crouch_k = move_toward(crouch_k, 1.0 if crouching else 0.0, delta * 4.0)
+	var want_crouch := 1.0 if crouching else (0.55 if _dash_t > 0.0 else 0.0)
+	crouch_k = move_toward(crouch_k, want_crouch, delta * (9.0 if _dash_t > 0.0 else 4.0))
 	aim_k = move_toward(aim_k, aim_up, delta * 5.0)
 	capsule.height = lerpf(1.8, 1.25, crouch_k)
 	shape.position.y = capsule.height * 0.5
@@ -240,7 +309,7 @@ func _process(delta: float) -> void:
 	tree.set("parameters/speed/scale", -ts if _backwards else ts)
 	tree.set("parameters/crouchmix/blend_amount", crouch_k)
 	# springs
-	recoil = move_toward(recoil, 0.0, delta * 9.0)
+	recoil = move_toward(recoil, 0.0, delta * (4.5 if pellets > 1 else 9.0))
 	var dt := minf(delta, 0.05)
 	var n := int(ceil(dt / 0.008))
 	for i in n:
@@ -250,7 +319,9 @@ func _process(delta: float) -> void:
 		_lean = Vector3.ZERO
 		_lean_v = Vector3.ZERO
 	_update_reload(delta)
-	_place_rifle(spd)
+	_update_throw(delta)
+	if armed:
+		_place_rifle(spd)
 
 
 func _place_rifle(spd: float) -> void:
@@ -263,8 +334,9 @@ func _place_rifle(spd: float) -> void:
 	var low_b := yb * Basis(Vector3.UP, 0.55) * Basis(Vector3.RIGHT, -0.62)
 	var low := Transform3D(low_b, global_position + yb * Vector3(0.09, h - 0.2 + bob, -0.26))
 	var t := low.interpolate_with(aimed, aim_k)
-	t.origin += t.basis.z * recoil * 0.07 + t.basis.y * recoil * 0.015
-	t.basis = t.basis * Basis(Vector3.RIGHT, recoil * 0.12)
+	var rk0 := recoil * clampf(kick, 0.5, 2.5)
+	t.origin += t.basis.z * rk0 * 0.06 + t.basis.y * rk0 * 0.012
+	t.basis = t.basis * Basis(Vector3.RIGHT, rk0 * 0.1)
 	var rk := _reload_tilt()
 	if rk > 0.0:
 		t.basis = t.basis * Basis(Vector3.FORWARD, -0.7 * rk) * Basis(Vector3.RIGHT, -0.35 * rk)
@@ -272,7 +344,12 @@ func _place_rifle(spd: float) -> void:
 	rifle.global_transform = t
 	rig.twist = angle_difference(body_yaw, aim_yaw)
 	rig.twist = clampf(rig.twist, -1.9, 1.9)
-	rig.lean = _lean
+	var sprint := Vector3(velocity.x, 0, velocity.z)
+	var lean_fwd := Vector3.ZERO
+	if sprint.length() > 0.5:
+		lean_fwd = Vector3.UP.cross(sprint.normalized()) * clampf(sprint.length() / 5.0, 0.0, 1.0) * 0.14
+	rig.lean = _lean + lean_fwd
+	rig.kick = recoil * 0.07 * kick
 	rig.aim_dir = yb * Vector3.FORWARD
 	rig.pole_r = global_position + yb * Vector3(0.55, h - 0.45, 0.15)
 	rig.pole_l = global_position + yb * Vector3(-0.5, h - 0.55, -0.15)
@@ -295,42 +372,51 @@ func fire(at: Vector3, extra_spread := 0.0) -> bool:
 	rifle.flash()
 	var muzzle := rifle.muzzle.global_position
 	var chest := global_position + Vector3(0, lerpf(1.3, 0.85, crouch_k), 0)
-	var dir := (at - muzzle).normalized()
-	var s := spread + extra_spread
-	dir = (dir + Vector3(randf_range(-s, s), randf_range(-s, s) * 0.5, randf_range(-s, s))).normalized()
+	var base_dir := (at - muzzle).normalized()
 	var space := get_world_3d().direct_space_state
 	var ex := [get_rid()]
 	# make sure the barrel is not poking through a wall
 	var q0 := PhysicsRayQueryParameters3D.create(chest, muzzle, 1 | 4, ex)
-	var h0 := space.intersect_ray(q0)
 	var from := muzzle
-	if not h0.is_empty():
+	if not space.intersect_ray(q0).is_empty():
 		from = chest
-	var q := PhysicsRayQueryParameters3D.create(from, from + dir * 60.0, 1 | 2 | 4 | 8, ex)
-	q.collide_with_areas = false
-	var hit := space.intersect_ray(q)
-	var end := from + dir * 60.0
-	if not hit.is_empty():
-		end = hit.position
-		var col: Object = hit.collider
-		if col is Soldier:
-			var sd := col as Soldier
-			var head: bool = hit.position.y > sd.global_position.y + lerpf(1.57, 1.0, sd.crouch_k)
-			var dmg := damage * (2.2 if head else 1.0)
-			hits += 1
-			if head:
-				headshots += 1
-			sd.take_hit(dmg, dir, hit.position, self, head)
-		else:
-			Fx.impact(hit.position, hit.normal, dir, _surface_of(col))
-			if col is RigidBody3D:
-				var rb := col as RigidBody3D
-				rb.apply_impulse(dir * 4.0 * clampf(rb.mass, 0.2, 3.0), hit.position - rb.global_position)
-			elif col is PhysicalBone3D:
-				(col as PhysicalBone3D).apply_impulse(dir * 6.0, hit.position - (col as PhysicalBone3D).global_position)
-	Fx.tracer(muzzle, end, team)
-	Fx.casing(rifle.global_transform, velocity)
-	Sfx.play_at("shot" if team == 0 else "eshot", muzzle, 2.0, randf_range(0.94, 1.06))
+	var s := spread + extra_spread
+	var ends: Array[Vector3] = []
+	var hit_any := false
+	for p in pellets:
+		var dir := (base_dir + Vector3(randf_range(-s, s), randf_range(-s, s) * 0.5, randf_range(-s, s))).normalized()
+		var q := PhysicsRayQueryParameters3D.create(from, from + dir * 60.0, 1 | 2 | 4 | 8, ex)
+		var hit := space.intersect_ray(q)
+		var end := from + dir * 60.0
+		if not hit.is_empty():
+			end = hit.position
+			var col: Object = hit.collider
+			if col is Soldier:
+				var sd := col as Soldier
+				var head: bool = hit.position.y > sd.global_position.y + lerpf(1.57, 1.0, sd.crouch_k)
+				var dmg := damage * (2.2 if head else 1.0)
+				if pellets > 1:
+					dmg *= clampf(1.25 - from.distance_to(end) / 11.0, 0.3, 1.0)
+				if not hit_any:
+					hits += 1
+					if head:
+						headshots += 1
+				hit_any = true
+				sd.take_hit(dmg, dir, hit.position, self, head, 0.6 * kick if pellets > 1 else 0.0)
+			else:
+				if p < 4:
+					Fx.impact(hit.position, hit.normal, dir, _surface_of(col))
+				if col is RigidBody3D:
+					var rb := col as RigidBody3D
+					rb.apply_impulse(dir * 4.0 * kick / sqrt(pellets) * clampf(rb.mass, 0.2, 3.0), hit.position - rb.global_position)
+				elif col is PhysicalBone3D:
+					(col as PhysicalBone3D).apply_impulse(dir * 6.0 * kick / sqrt(pellets), hit.position - (col as PhysicalBone3D).global_position)
+		if p < 3:
+			ends.append(end)
+	for e in ends:
+		Fx.tracer(muzzle, e, team)
+	Fx.casing(rifle.global_transform, velocity, weapon_id == "shotgun")
+	Sfx.play_at(shot_sound if team == 0 else "eshot", muzzle, 2.0 if team == 0 else 0.0, randf_range(0.94, 1.06))
 	fired.emit()
 	return true
 
@@ -341,13 +427,15 @@ func _surface_of(col: Object) -> String:
 	return "concrete"
 
 
-func take_hit(dmg: float, dir: Vector3, point: Vector3, attacker: Soldier, head := false) -> void:
+func take_hit(dmg: float, dir: Vector3, point: Vector3, attacker: Soldier, head := false, knock := 0.0) -> void:
 	if not alive:
 		if _ragdoll:
-			_push_ragdoll(point, dir * 5.0)
+			_push_ragdoll(point, dir * (5.0 + knock * 4.0))
 		Fx.blood(point, dir, 0.6)
 		return
-	hp -= dmg
+	hp -= dmg * (1.0 - (armor if not head else armor * 0.3))
+	if knock > 0.0:
+		stagger += Vector3(dir.x, 0, dir.z).normalized() * knock
 	last_attacker = attacker
 	var flat := Vector3(dir.x, 0, dir.z).normalized()
 	_lean_v += Vector3.UP.cross(flat) * (5.0 if head else 3.2)
@@ -357,7 +445,7 @@ func take_hit(dmg: float, dir: Vector3, point: Vector3, attacker: Soldier, head 
 	hurt.emit(dmg, attacker.global_position if attacker else point - dir)
 	if hp <= 0.0:
 		hp = 0.0
-		die(attacker, head, point, dir)
+		die(attacker, head, point, dir * (1.0 + knock * 0.5))
 
 
 func start_reload() -> void:
@@ -417,6 +505,8 @@ func _update_reload(delta: float) -> void:
 
 
 func _drop_mag() -> void:
+	if weapon_id == "shotgun":
+		return
 	rifle.mag.visible = false
 	Fx.drop_mag(rifle.mag.global_transform, velocity)
 
@@ -432,7 +522,8 @@ func die(killer: Soldier, head: bool, point: Vector3, dir: Vector3) -> void:
 	rig.weight = 0.0
 	rig.active = false
 	rifle.light.visible = false
-	Fx.drop_weapon(rifle, dir)
+	if armed:
+		Fx.drop_weapon(rifle, dir)
 	_start_ragdoll(point, dir * (9.0 if head else 7.0))
 	Fx.blood_pool(global_position + Vector3(dir.x, 0, dir.z) * 0.6)
 	died.emit(killer, head)
@@ -493,6 +584,7 @@ func _start_ragdoll(point: Vector3, impulse: Vector3) -> void:
 		pb.angular_damp = 3.0
 		pb.collision_layer = 8
 		pb.collision_mask = 1 | 4 | 8
+		pb.add_to_group("ragdoll_bones")
 		var cs := CollisionShape3D.new()
 		var cap := CapsuleShape3D.new()
 		cap.radius = e[2]
@@ -530,3 +622,64 @@ func chest_pos() -> Vector3:
 
 func head_pos() -> Vector3:
 	return global_position + Vector3(0, lerpf(1.65, 1.08, crouch_k), 0)
+
+
+# ---------------------------------------------------------------- dash / grenade
+
+func can_dash() -> bool:
+	return alive and _dash_cd <= 0.0 and _dash_t <= 0.0
+
+
+func dash(dir: Vector3) -> bool:
+	if not can_dash():
+		return false
+	var d := Vector3(dir.x, 0, dir.z)
+	if d.length() < 0.1:
+		d = Basis(Vector3.UP, body_yaw) * Vector3.FORWARD
+	_dash_dir = d.normalized()
+	_dash_t = 0.3
+	_dash_cd = 1.1
+	Sfx.play_at("dash", global_position + Vector3.UP, -4.0, randf_range(0.95, 1.1))
+	Fx.dust_puff(global_position, _dash_dir)
+	return true
+
+
+func dash_ready() -> float:
+	return clampf(1.0 - _dash_cd / 1.1, 0.0, 1.0)
+
+
+func is_throwing() -> bool:
+	return _throw_t >= 0.0
+
+
+func throw_grenade(at: Vector3) -> bool:
+	if not alive or grenades <= 0 or _throw_t >= 0.0 or is_reloading():
+		return false
+	grenades -= 1
+	_throw_t = 0.0
+	_throw_at = at
+	return true
+
+
+func _update_throw(delta: float) -> void:
+	if _throw_t < 0.0:
+		return
+	var prev := _throw_t
+	_throw_t += delta
+	var yb := Basis(Vector3.UP, aim_yaw)
+	var back := global_position + yb * Vector3(-0.2, 1.75, 0.3)
+	var front := global_position + yb * Vector3(-0.15, 1.5, -0.55)
+	rig.left_override = true
+	if _throw_t < 0.25:
+		rig.left_target = rifle.grip_l.global_position.lerp(back, smoothstep(0.0, 0.25, _throw_t))
+	elif _throw_t < 0.4:
+		rig.left_target = back.lerp(front, smoothstep(0.25, 0.4, _throw_t))
+	elif _throw_t < 0.6:
+		rig.left_target = front.lerp(rifle.grip_l.global_position, smoothstep(0.4, 0.6, _throw_t))
+	if prev < 0.33 and _throw_t >= 0.33:
+		var from := global_position + yb * Vector3(-0.15, 1.6, -0.45)
+		Grenade.spawn(self, from, _throw_at)
+		Sfx.play_at("throw", from, -4.0)
+	if _throw_t >= 0.6:
+		_throw_t = -1.0
+		rig.left_override = false

@@ -1,69 +1,60 @@
 class_name Hud
 extends CanvasLayer
-## HUD, touch controls and the start / end screens. Dynamic parts (bars, markers, stick,
-## buttons) are drawn by one overlay Control; screens are regular Controls with tweens.
+## In-mission HUD: operator health card, objective tracker, live radar, score + kill feed,
+## world markers, floating score popups, twin-stick touch controls with reload / grenade /
+## dash buttons, pause menu and the end-of-mission debrief (stars, score tally, XP, unlocks).
 
-signal play_pressed
-signal restart_pressed
+const K = preload("res://scripts/ui_kit.gd")
 
-const AMBER := Color(0.85, 0.65, 0.18)
-const RED := Color(0.88, 0.28, 0.23)
-const GREEN := Color(0.62, 0.83, 0.42)
-const INK := Color(0.91, 0.93, 0.87)
-const PANEL := Color(0.05, 0.06, 0.05, 0.72)
-
+var mission: Mission
 var player: Player
-var enemy: Enemy
 var cam: Camera3D
-var playing := false
+var playing := true
 
-var font: Font
-var font_mid: Font
-var icons := {}
 var overlay: Control
 var vignette: ColorRect
-var start_screen: Control
-var end_screen: Control
 var fade: ColorRect
+var pause_layer: Control
+var end_layer: Control
+var root: Control
 
 # touch state
-var stick_id := -1
-var stick_base := Vector2.ZERO
-var stick_knob := Vector2.ZERO
-var stick_home := Vector2.ZERO
+var move_id := -1
+var move_base := Vector2.ZERO
+var move_knob := Vector2.ZERO
+var move_home := Vector2.ZERO
+var aim_id := -1
+var aim_base := Vector2.ZERO
+var aim_knob := Vector2.ZERO
+var aim_home := Vector2.ZERO
 var stick_r := 70.0
-var fire_ids := {}
-var fire_c := Vector2.ZERO
-var fire_r := 60.0
-var reload_c := Vector2.ZERO
-var reload_r := 36.0
+var btn := {}                 # name -> [center, radius]
 var mouse_fire := false
 var touch_seen := false
 
 # feedback
-var banner_t := 0.0
-var hit_t := 0.0
-var hit_head := false
-var dmg_marks: Array = []        # [angle, t]
-var alert_txt := ""
-var alert_t := 0.0
+var intro_t := 0.0
+var intro := {}
 var hurt_k := 0.0
+var dmg_marks: Array = []      # [angle, t]
+var hit_marks: Array = []      # [enemy, t, head]
+var alerts := {}               # enemy -> [kind, t]
+var popups: Array = []         # [world pos, text, col, t, size]
+var feed: Array = []           # [text, col, t]
+var obj_flash := 0.0
+var score_shown := 0.0
+var trail_hp := 100.0
 var _t := 0.0
 var _u := 1.0
+var _fps_t := 0.0
+var _fps := 0
 
 
 func _ready() -> void:
 	layer = 10
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	font = load("res://assets/fonts/Rajdhani-Bold.ttf")
-	font_mid = load("res://assets/fonts/Rajdhani-SemiBold.ttf")
-	for k in ["heart", "bullet", "target", "crosshair", "reload", "chevron", "arrow", "shield_ok", "shield_fail", "skull", "play", "rotate"]:
-		icons[k] = load("res://assets/ui/%s.svg" % k)
-	var th := Theme.new()
-	th.default_font = font
-	th.default_font_size = 22
-	var root := Control.new()
-	root.theme = th
+	root = Control.new()
+	root.theme = K.theme()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
@@ -79,70 +70,122 @@ func _ready() -> void:
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.draw.connect(_draw_overlay)
 	root.add_child(overlay)
-	_build_start(root)
-	_build_end(root)
+	pause_layer = Control.new()
+	pause_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_layer.visible = false
+	root.add_child(pause_layer)
+	end_layer = Control.new()
+	end_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	end_layer.visible = false
+	root.add_child(end_layer)
 	fade = ColorRect.new()
 	fade.color = Color(0, 0, 0, 1)
 	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(fade)
-	create_tween().tween_property(fade, "color:a", 0.0, 0.9)
+	create_tween().tween_property(fade, "color:a", 0.0, 0.8)
+	Fx.popup.connect(_on_popup)
+	if mission:
+		mission.objective_changed.connect(func() -> void: obj_flash = 1.0)
+
+
+func _exit_tree() -> void:
+	if Fx.popup.is_connected(_on_popup):
+		Fx.popup.disconnect(_on_popup)
+
+
+func _on_popup(pos: Vector3, txt: String, col: Color, size: float) -> void:
+	popups.append([pos, txt, col, 1.3, size])
+
+
+func uses_touch() -> bool:
+	return touch_seen or Game.is_phone()
 
 
 func _layout() -> void:
 	var s := overlay.size
-	var base := clampf(s.y / 720.0, 0.85, 1.5)
-	var touch := uses_touch()
-	_u = base * (1.2 if touch else 1.0)       # phones: HUD text a bit larger
-	var cu := base * 1.45                      # thumb-sized controls
-	var m := 22.0 * _u
-	stick_r = 66.0 * cu
-	stick_home = Vector2(m + stick_r + 30.0 * cu, s.y - m - stick_r - 12.0 * cu)
-	fire_r = 54.0 * cu
-	fire_c = Vector2(s.x - m - fire_r - 30.0 * cu, s.y - m - fire_r - 16.0 * cu)
-	reload_r = 27.0 * cu
-	reload_c = fire_c + Vector2(-fire_r - reload_r - 22.0 * cu, fire_r * 0.3)
-	if stick_id < 0:
-		stick_base = stick_home
-		stick_knob = stick_home
+	var base := clampf(s.y / 720.0, 0.85, 1.6)
+	_u = base * (1.45 if uses_touch() else 1.0)
+	var m := 24.0 * base
+	stick_r = 70.0 * base * 1.3
+	move_home = Vector2(m + stick_r + 30.0 * base, s.y - m - stick_r - 10.0 * base)
+	aim_home = Vector2(s.x - m - stick_r - 34.0 * base, s.y - m - stick_r - 10.0 * base)
+	var br := 31.0 * base * 1.25
+	var ring := stick_r + br + 24.0 * base
+	# action buttons on an arc around the fire stick, clear of each other and of the ring
+	for e in [["reload", 182.0], ["grenade", 222.0], ["dash", 262.0]]:
+		var a := deg_to_rad(e[1])
+		btn[e[0]] = [aim_home + Vector2(cos(a), sin(a)) * ring, br]
+	btn["pause"] = [Vector2(s.x - m - radar_w() - 30.0 * _u, m + 20.0 * _u), 20.0 * _u]
+	if move_id < 0:
+		move_base = move_home
+		move_knob = move_home
+	if aim_id < 0:
+		aim_base = aim_home
+		aim_knob = aim_home
 
 
-## Touch controls are only drawn on touch devices (or once a touch has been seen).
-func uses_touch() -> bool:
-	return touch_seen or OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios")
+func radar_w() -> float:
+	return (150.0 if uses_touch() else 200.0) * _u
 
 
 func _process(delta: float) -> void:
-	_t += delta
 	var rd := delta / maxf(Engine.time_scale, 0.05)
-	banner_t = maxf(banner_t - rd, 0.0)
-	hit_t = maxf(hit_t - rd, 0.0)
-	alert_t = maxf(alert_t - rd, 0.0)
+	if get_tree().paused:
+		rd = delta
+	_t += rd
+	intro_t = maxf(intro_t - rd, 0.0)
 	hurt_k = maxf(hurt_k - rd * 1.4, 0.0)
-	for m in dmg_marks:
-		m[1] -= rd
-	dmg_marks = dmg_marks.filter(func(m: Array) -> bool: return m[1] > 0.0)
+	obj_flash = maxf(obj_flash - rd * 1.5, 0.0)
+	for e in dmg_marks:
+		e[1] -= rd
+	for e in hit_marks:
+		e[1] -= rd
+	for e in popups:
+		e[3] -= rd
+	for e in feed:
+		e[2] -= rd
+	dmg_marks = dmg_marks.filter(func(e: Array) -> bool: return e[1] > 0.0)
+	hit_marks = hit_marks.filter(func(e: Array) -> bool: return e[1] > 0.0)
+	popups = popups.filter(func(e: Array) -> bool: return e[3] > 0.0)
+	feed = feed.filter(func(e: Array) -> bool: return e[2] > 0.0)
+	for k in alerts.keys():
+		alerts[k][1] -= rd
+		if alerts[k][1] <= 0.0:
+			alerts.erase(k)
+	_fps_t += delta
+	if _fps_t > 0.5:
+		_fps = int(Engine.get_frames_per_second())
+		_fps_t = 0.0
 	_layout()
-	var portrait := overlay.size.y > overlay.size.x and uses_touch()
-	if get_tree().paused != (portrait and playing):
-		get_tree().paused = portrait and playing
+	if mission:
+		score_shown = lerpf(score_shown, mission.score, 1.0 - exp(-8.0 * rd))
 	if player:
+		trail_hp = move_toward(trail_hp, player.hp, rd * 30.0) if trail_hp > player.hp else player.hp
 		var low := clampf((40.0 - player.hp) / 40.0, 0.0, 1.0) if player.alive else 0.0
 		(vignette.material as ShaderMaterial).set_shader_parameter("hurt", hurt_k)
 		(vignette.material as ShaderMaterial).set_shader_parameter("low", low)
-		if playing:
-			var mv := Vector2.ZERO
-			if stick_id >= 0:
-				var d := stick_knob - stick_base
-				mv = d / stick_r
-				if mv.length() < 0.12:
-					mv = Vector2.ZERO
-			player.input_move = mv
-			player.fire_held = fire_ids.size() > 0 or mouse_fire or Input.is_key_pressed(KEY_SPACE)
+		if playing and not get_tree().paused:
+			player.input_move = (move_knob - move_base) / stick_r if move_id >= 0 else Vector2.ZERO
+			if player.input_move.length() < 0.1:
+				player.input_move = Vector2.ZERO
+			if aim_id >= 0:
+				player.input_aim = (aim_knob - aim_base) / stick_r
+				player.aim_trigger = player.input_aim.length() > 0.45
+			else:
+				player.input_aim = Vector2.ZERO
+				player.aim_trigger = false
+			player.fire_held = mouse_fire
 		else:
 			player.input_move = Vector2.ZERO
+			player.input_aim = Vector2.ZERO
+			player.aim_trigger = false
 			player.fire_held = false
 	overlay.queue_redraw()
+	if end_layer.visible:
+		for c in end_layer.get_children():
+			if c is Control and c.has_meta("debrief"):
+				(c as Control).queue_redraw()
 
 
 # ------------------------------------------------------------------ input
@@ -152,480 +195,667 @@ func _input(event: InputEvent) -> void:
 		touch_seen = true
 		var e := event as InputEventScreenTouch
 		if e.pressed:
-			if not playing:
+			if not playing or get_tree().paused:
 				return
-			if e.position.distance_to(reload_c) < reload_r * 1.35:
-				if player:
-					player.start_reload()
-				Sfx.play("click", -6.0)
-				return
-			if e.position.x > overlay.size.x * 0.48:
-				fire_ids[e.index] = true
-				return
-			if stick_id < 0:
-				stick_id = e.index
-				stick_base = Vector2(clampf(e.position.x, stick_r + 16, overlay.size.x * 0.45 - stick_r), clampf(e.position.y, stick_r + 120 * _u, overlay.size.y - stick_r - 10))
-				_drag(e.position)
+			for k in btn:
+				var b: Array = btn[k]
+				if k != "pause" and not uses_touch():
+					continue
+				if e.position.distance_to(b[0]) < b[1] * 1.3:
+					_press(k)
+					return
+			if e.position.x < overlay.size.x * 0.45:
+				if move_id < 0:
+					move_id = e.index
+					move_base = _clamp_base(e.position, true)
+					_drag_stick(e.position, true)
+			elif aim_id < 0 and e.position.y > overlay.size.y * 0.22:
+				aim_id = e.index
+				aim_base = _clamp_base(e.position, false)
+				_drag_stick(e.position, false)
 		else:
-			fire_ids.erase(e.index)
-			if e.index == stick_id:
-				stick_id = -1
-				stick_base = stick_home
-				stick_knob = stick_home
+			if e.index == move_id:
+				move_id = -1
+			if e.index == aim_id:
+				aim_id = -1
 	elif event is InputEventScreenDrag:
 		var e := event as InputEventScreenDrag
-		if e.index == stick_id:
-			_drag(e.position)
+		if e.index == move_id:
+			_drag_stick(e.position, true)
+		elif e.index == aim_id:
+			_drag_stick(e.position, false)
 	elif event is InputEventMouseButton and event.device != InputEvent.DEVICE_ID_EMULATION:
 		var e := event as InputEventMouseButton
-		if e.button_index == MOUSE_BUTTON_LEFT and playing:
-			mouse_fire = e.pressed and not _over_screen_button(e.position)
+		if not playing or get_tree().paused:
+			return
+		if e.pressed and btn.has("pause") and e.position.distance_to(btn["pause"][0]) < btn["pause"][1] * 1.3:
+			_press("pause")
+			return
+		if e.button_index == MOUSE_BUTTON_LEFT:
+			mouse_fire = e.pressed
 			if player:
 				player.mouse_aim = true
+		elif e.button_index == MOUSE_BUTTON_RIGHT and e.pressed:
+			_press("grenade")
 	elif event is InputEventMouseMotion and event.device != InputEvent.DEVICE_ID_EMULATION and not touch_seen:
 		if player and playing:
 			player.mouse_aim = true
-			_update_mouse_point((event as InputEventMouseMotion).position)
 	elif event is InputEventKey and event.pressed and not event.echo:
-		var k := (event as InputEventKey).keycode
-		if k == KEY_R and player and playing:
+		match (event as InputEventKey).keycode:
+			KEY_R: _press("reload")
+			KEY_G, KEY_Q: _press("grenade")
+			KEY_SPACE, KEY_SHIFT: _press("dash")
+			KEY_ESCAPE, KEY_P:
+				if get_tree().paused:
+					show_pause(false)
+				else:
+					_press("pause")
+
+
+func _clamp_base(p: Vector2, left: bool) -> Vector2:
+	var s := overlay.size
+	var x := clampf(p.x, stick_r + 10, s.x * 0.45 - stick_r) if left else clampf(p.x, s.x * 0.55 + stick_r, s.x - stick_r - 10)
+	return Vector2(x, clampf(p.y, stick_r + 90 * _u, s.y - stick_r - 10))
+
+
+func _drag_stick(p: Vector2, left: bool) -> void:
+	var base := move_base if left else aim_base
+	var d := p - base
+	if d.length() > stick_r:
+		base += d.normalized() * (d.length() - stick_r)
+		d = p - base
+	if left:
+		move_base = base
+		move_knob = base + d
+	else:
+		aim_base = base
+		aim_knob = base + d
+
+
+func _press(k: String) -> void:
+	if player == null or not playing:
+		return
+	match k:
+		"reload":
 			player.start_reload()
-		if k in [KEY_W, KEY_A, KEY_S, KEY_D] and player:
-			pass
-
-
-func _over_screen_button(_p: Vector2) -> bool:
-	return false
-
-
-func _update_mouse_point(p: Vector2) -> void:
-	if cam == null:
-		return
-	var o := cam.project_ray_origin(p)
-	var d := cam.project_ray_normal(p)
-	if absf(d.y) < 0.001:
-		return
-	var t := (1.2 - o.y) / d.y
-	player.mouse_point = o + d * t
+		"grenade":
+			if player.throw_ahead():
+				Sfx.play("ui_click", -8.0)
+		"dash":
+			var d := Vector3(player.input_move.x, 0, player.input_move.y)
+			if d.length() < 0.2:
+				d = Vector3(player.velocity.x, 0, player.velocity.z)
+			player.dash(d)
+		"pause":
+			show_pause(true)
 
 
 func _physics_process(_d: float) -> void:
-	if player and player.mouse_aim and playing and not touch_seen:
-		_update_mouse_point(overlay.get_local_mouse_position())
-
-
-func _drag(p: Vector2) -> void:
-	var d := p - stick_base
-	if d.length() > stick_r:
-		stick_base += d.normalized() * (d.length() - stick_r)
-		d = p - stick_base
-	stick_knob = stick_base + d
+	if player and player.mouse_aim and playing and not touch_seen and cam:
+		var p := overlay.get_local_mouse_position()
+		var o := cam.project_ray_origin(p)
+		var dir := cam.project_ray_normal(p)
+		if absf(dir.y) > 0.001:
+			player.mouse_point = o + dir * ((1.2 - o.y) / dir.y)
 
 
 func release_all() -> void:
-	fire_ids.clear()
-	stick_id = -1
-	stick_base = stick_home
-	stick_knob = stick_home
+	move_id = -1
+	aim_id = -1
 	mouse_fire = false
 
 
-# ------------------------------------------------------------------ events from the game
+# ------------------------------------------------------------------ events
 
-func show_banner() -> void:
-	banner_t = 2.8
-
-
-func on_hit_enemy(head: bool) -> void:
-	hit_t = 0.22
-	hit_head = head
+func show_intro(title: String, obj: String, icon: String) -> void:
+	intro = {"title": title, "obj": obj, "icon": icon}
+	intro_t = 3.4
 
 
 func on_player_hurt(from: Vector3) -> void:
-	hurt_k = minf(hurt_k + 0.55, 1.0)
+	hurt_k = minf(hurt_k + 0.5, 1.0)
 	if player and cam:
 		var a := cam.unproject_position(player.global_position + Vector3(0, 1.2, 0))
 		var b := cam.unproject_position(from + Vector3(0, 1.2, 0))
 		dmg_marks.append([(b - a).angle(), 1.2])
 
 
-func on_alert(kind: String) -> void:
-	alert_txt = kind
-	alert_t = 2.2
+func on_alert(e: Enemy, kind: String) -> void:
+	alerts[e] = [kind, 2.2]
+
+
+func on_kill(e: Enemy, head: bool) -> void:
+	hit_marks.append([e, 0.6, head])
+
+
+func on_score(pts: int, tag: String, col: Color, at: Vector3) -> void:
+	popups.append([at, "+%d" % pts, col, 1.3, 1.0])
+	feed.push_front([tag + "   +%d" % pts, col, 3.0])
+	if feed.size() > 4:
+		feed.pop_back()
 
 
 # ------------------------------------------------------------------ drawing
 
-func _txt(p: Vector2, s: String, size: float, col: Color, align := HORIZONTAL_ALIGNMENT_LEFT, f: Font = null) -> void:
-	var fo := f if f else font
-	var pos := p
-	var w := -1.0
-	if align != HORIZONTAL_ALIGNMENT_LEFT:
-		w = 900.0
-		pos.x -= w * (0.5 if align == HORIZONTAL_ALIGNMENT_CENTER else 1.0)
-	overlay.draw_string(fo, pos + Vector2(0, 1.5), s, align, w, int(size), Color(0, 0, 0, col.a * 0.55))
-	overlay.draw_string(fo, pos, s, align, w, int(size), col)
-
-
-func _icon(k: String, c: Vector2, size: float, mod := Color.WHITE, rot := 0.0) -> void:
-	var tex: Texture2D = icons[k]
-	overlay.draw_set_transform(c, rot, Vector2.ONE)
-	overlay.draw_texture_rect(tex, Rect2(-Vector2.ONE * size * 0.5, Vector2.ONE * size), false, mod)
-	overlay.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-
-
-func _bar(r: Rect2, k: float, col: Color) -> void:
-	var rad := r.size.y * 0.5
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(1, 1, 1, 0.13)
-	bg.set_corner_radius_all(int(rad))
-	overlay.draw_style_box(bg, r)
-	if k > 0.001:
-		var fg := StyleBoxFlat.new()
-		fg.bg_color = col
-		fg.set_corner_radius_all(int(rad))
-		overlay.draw_style_box(fg, Rect2(r.position, Vector2(maxf(r.size.x * clampf(k, 0.0, 1.0), r.size.y), r.size.y)))
-
-
-func _pill(r: Rect2, a := 0.42) -> void:
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.02, 0.025, 0.02, a)
-	sb.set_corner_radius_all(int(r.size.y * 0.5))
-	overlay.draw_style_box(sb, r)
-
-
 func _draw_overlay() -> void:
 	if player == null:
 		return
+	if btn.is_empty():
+		_layout()
 	var u := _u
 	var s := overlay.size
+	var ci := overlay
 	if s.y > s.x and uses_touch():
-		overlay.draw_rect(Rect2(Vector2.ZERO, s), Color(0.02, 0.025, 0.02, 0.96))
-		_icon("rotate", s * 0.5 - Vector2(0, 40 * u), 110 * u, Color.WHITE, -0.5 + sin(_t * 2.0) * 0.5)
-		_txt(Vector2(s.x * 0.5, s.y * 0.5 + 60 * u), "ROTATE YOUR PHONE", 26 * u, INK, HORIZONTAL_ALIGNMENT_CENTER)
+		ci.draw_rect(Rect2(Vector2.ZERO, s), Color(0.02, 0.025, 0.02, 0.97))
+		K.draw_icon(ci, "rotate", s * 0.5 - Vector2(0, 40 * u), 110 * u, Color.WHITE, -0.5 + sin(_t * 2.0) * 0.5)
+		K.text(ci, Vector2(s.x * 0.5, s.y * 0.5 + 60 * u), "ROTATE YOUR PHONE", 26 * u, K.INK, HORIZONTAL_ALIGNMENT_CENTER)
 		return
-	if not playing and start_screen.visible:
+	_draw_world_marks(u, s)
+	if end_layer.visible:
 		return
-	var m := 22.0 * u
-	# damage direction
-	if player.alive and cam:
+	_draw_health(u)
+	_draw_objective(u, s)
+	_draw_radar(u, s)
+	_draw_feed(u, s)
+	if mission:
+		_draw_zone_progress(u)
+	if playing:
+		if uses_touch():
+			_draw_sticks(u)
+		else:
+			_draw_weapon_card(u, Vector2(s.x - 24 * u, s.y - 24 * u))
+			if _t < 12.0:
+				K.text(ci, Vector2(s.x * 0.5, s.y - 22 * u), "WASD move   ·   MOUSE aim   ·   CLICK fire   ·   R reload   ·   SPACE dash   ·   G / RMB grenade   ·   ESC pause", 14 * u, Color(K.INK, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "mid")
+		_draw_pause_btn(u)
+	if intro_t > 0.0:
+		_draw_intro(u, s)
+	if Game.show_fps:
+		K.text(ci, Vector2(24 * u, s.y * 0.5), "%d FPS" % _fps, 14 * u, K.GREEN if _fps >= 50 else (K.AMBER if _fps >= 30 else K.RED), HORIZONTAL_ALIGNMENT_LEFT, "mid")
+
+
+func _draw_health(u: float) -> void:
+	var ci := overlay
+	var p := Vector2(22 * u, 18 * u)
+	var w := 290 * u
+	var h := 54 * u
+	K.para(ci, Rect2(p, Vector2(w, h)), -0.25, Color(0.03, 0.035, 0.035, 0.72))
+	K.para(ci, Rect2(p, Vector2(5 * u, h)), -0.25, K.AMBER)
+	var hp_k := clampf(player.hp / player.max_hp, 0.0, 1.0)
+	var col := K.GREEN if hp_k > 0.5 else (K.AMBER if hp_k > 0.25 else K.RED)
+	var beat := 1.0 + (0.18 * maxf(sin(_t * 9.0), 0.0) if player.hp < 35 and player.alive else 0.0)
+	K.draw_icon(ci, "heart-beats", p + Vector2(34 * u, h * 0.5), 34 * u * beat, col)
+	var segs := 12
+	var bx := p.x + 62 * u
+	var bw := 150 * u
+	var sw := bw / segs
+	for i in segs:
+		var k0 := float(i) / segs
+		var r := Rect2(Vector2(bx + i * sw, p.y + 21 * u), Vector2(sw - 3 * u, 20 * u))
+		var c := Color(1, 1, 1, 0.08)
+		if k0 < hp_k:
+			c = col
+		elif k0 < trail_hp / player.max_hp:
+			c = Color(1, 1, 1, 0.7)
+		K.para(ci, r, -0.3, c)
+	K.text(ci, Vector2(p.x + w - 16 * u, p.y + 40 * u), str(int(ceil(player.hp))), 30 * u, K.INK, HORIZONTAL_ALIGNMENT_RIGHT)
+	K.text(ci, Vector2(p.x + 64 * u, p.y + 15 * u), "OPERATOR  ·  " + Game.rank_name(), 11 * u, Color(K.DIM, 0.9), HORIZONTAL_ALIGNMENT_LEFT, "mid")
+	for i in player.grenades:
+		K.draw_icon(ci, "grenade", Vector2(p.x + 22 * u + i * 22 * u, p.y + h + 16 * u), 20 * u, K.INK)
+
+
+func _draw_objective(u: float, s: Vector2) -> void:
+	if mission == null:
+		return
+	var ci := overlay
+	var txt := mission.objective_text()
+	var sub := ""
+	var sub_col := K.DIM
+	var tl := mission.time_left()
+	if tl >= 0.0 and mission.stage == 0:
+		sub = "DETONATION IN  %d:%02d" % [int(tl) / 60, int(tl) % 60]
+		sub_col = K.RED if tl < 20.0 else K.AMBER
+	elif mission.type == "rescue" and mission.stage == 1:
+		sub = "KEEP THE HOSTAGE CLOSE"
+	elif mission.type == "eliminate" and mission.stage == 0:
+		sub = "HIGH VALUE TARGET"
+	var fs := 19 * u
+	var tw := maxf(K.text_width(txt, fs), K.text_width(sub, 13 * u, "mid"))
+	var w := tw + 84 * u
+	var h := 50 * u
+	var r := Rect2(Vector2(s.x * 0.5 - w * 0.5, 16 * u), Vector2(w, h))
+	var flash := obj_flash
+	K.para(ci, r, -0.2, Color(0.03, 0.035, 0.035, 0.74).lerp(Color(K.AMBER, 0.6), flash * 0.5))
+	K.para(ci, Rect2(r.position + Vector2(0, h - 3 * u), Vector2(w, 3 * u)), 0.0, Color(K.AMBER, 0.7 + flash * 0.3))
+	var c := r.position + Vector2(30 * u, h * 0.5)
+	var d := 17 * u
+	ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -d), c + Vector2(d, 0), c + Vector2(0, d), c + Vector2(-d, 0)]), K.AMBER)
+	K.draw_icon(ci, mission.objective_icon(), c, 20 * u, Color(0.08, 0.06, 0.02), 0.0, false)
+	K.text(ci, r.position + Vector2(58 * u, (24 if sub != "" else 32) * u), txt, fs, K.INK)
+	if sub != "":
+		K.text(ci, r.position + Vector2(58 * u, 42 * u), sub, 13 * u, sub_col, HORIZONTAL_ALIGNMENT_LEFT, "mid")
+
+
+func _draw_radar(u: float, s: Vector2) -> void:
+	if mission == null:
+		return
+	var ci := overlay
+	var size := radar_w()
+	var r := Rect2(Vector2(s.x - 22 * u - size, 16 * u), Vector2(size, size * 0.72))
+	ci.draw_rect(r, Color(0.02, 0.03, 0.03, 0.72))
+	ci.draw_rect(r, Color(K.AMBER, 0.35), false, 1.5)
+	var b := mission.map.bounds.grow(1.0)
+	var sc := minf((r.size.x - 12 * u) / b.size.x, (r.size.y - 12 * u) / b.size.y)
+	var off := r.get_center() - b.get_center() * sc
+	for room in mission.map.rooms:
+		var rr: Rect2 = room["rect"]
+		ci.draw_rect(Rect2(rr.position * sc + off, rr.size * sc), Color(0.2, 0.24, 0.22, 0.55))
+	for w in mission.map.walls:
+		if w["y0"] > 0.1:
+			continue
+		ci.draw_line(w["a"] * sc + off, w["b"] * sc + off, Color(0.75, 0.8, 0.75, 0.85), maxf(1.5, 2.0 * u))
+	var c := r.get_center()
+	var ang := fmod(_t * 1.6, TAU)
+	ci.draw_line(c, c + Vector2(cos(ang), sin(ang)) * size * 0.6, Color(K.GREEN, 0.12), 2.0)
+	for mk in mission.markers():
+		var mp := _radar_pt(mk["pos"], sc, off)
+		if fmod(_t, 0.8) < 0.55:
+			ci.draw_circle(mp, 5 * u, mk["col"])
+	for e in mission.enemies:
+		if e.alive and (e.sees_player() or alerts.has(e) or player.locked == e):
+			ci.draw_circle(_radar_pt(e.global_position, sc, off), 3.5 * u, K.RED)
+	if mission.hostage and mission.hostage.alive:
+		ci.draw_circle(_radar_pt(mission.hostage.global_position, sc, off), 3.5 * u, K.CYAN)
+	var pp := _radar_pt(player.global_position, sc, off)
+	var fwd := Vector2(-sin(player.aim_yaw), -cos(player.aim_yaw))
+	var side := Vector2(-fwd.y, fwd.x)
+	ci.draw_colored_polygon(PackedVector2Array([pp + fwd * 7 * u, pp - fwd * 4 * u + side * 4.5 * u, pp - fwd * 4 * u - side * 4.5 * u]), K.CYAN)
+	var y := r.end.y + 26 * u
+	var sc_txt := _fmt(int(round(score_shown)))
+	K.text(ci, Vector2(r.end.x, y), sc_txt, 26 * u, K.INK, HORIZONTAL_ALIGNMENT_RIGHT)
+	K.text(ci, Vector2(r.end.x - K.text_width(sc_txt, 26 * u) - 8 * u, y - 2 * u), "SCORE", 12 * u, K.DIM, HORIZONTAL_ALIGNMENT_RIGHT, "mid")
+	K.draw_icon(ci, "death-skull", Vector2(r.position.x + 12 * u, y - 8 * u), 18 * u, K.INK)
+	K.text(ci, Vector2(r.position.x + 26 * u, y), "%d" % mission.kills, 20 * u, K.INK)
+
+
+func _radar_pt(p: Vector3, sc: float, off: Vector2) -> Vector2:
+	return Vector2(p.x, p.z) * sc + off
+
+
+func _draw_feed(u: float, s: Vector2) -> void:
+	var ci := overlay
+	var x := s.x - 22 * u
+	var y := 16 * u + radar_w() * 0.72 + 50 * u
+	for i in feed.size():
+		var f: Array = feed[i]
+		var a := clampf(f[2], 0.0, 1.0)
+		var t: String = f[0]
+		var w := K.text_width(t, 15 * u) + 24 * u
+		K.para(ci, Rect2(Vector2(x - w, y + i * 28 * u), Vector2(w, 24 * u)), -0.2, Color(0, 0, 0, 0.45 * a))
+		K.text(ci, Vector2(x - 10 * u, y + i * 28 * u + 18 * u), t, 15 * u, Color(f[1], a), HORIZONTAL_ALIGNMENT_RIGHT)
+
+
+func _draw_world_marks(u: float, s: Vector2) -> void:
+	if cam == null or mission == null:
+		return
+	var ci := overlay
+	if player.alive:
 		var pc := cam.unproject_position(player.global_position + Vector3(0, 1.2, 0))
 		for d in dmg_marks:
 			var k: float = clampf(d[1] / 1.2, 0.0, 1.0)
-			overlay.draw_arc(pc, 92.0 * u, d[0] - 0.4, d[0] + 0.4, 20, Color(1, 0.2, 0.15, k * 0.9), 5.0 * u, true)
-	_draw_target(u, s)
-	if not playing and not end_screen.visible:
-		return
-	# --- status (top-left): compact, no box
-	var x := m
-	var y := m
-	var hp_k := clampf(player.hp / player.max_hp, 0.0, 1.0)
-	var col := GREEN if hp_k > 0.5 else (AMBER if hp_k > 0.25 else RED)
-	var beat := 1.0 + (0.15 * maxf(sin(_t * 9.0), 0.0) if player.hp < 35 and player.alive else 0.0)
-	_icon("heart", Vector2(x + 10 * u, y + 10 * u), 19 * u * beat)
-	_bar(Rect2(x + 26 * u, y + 7 * u, 118 * u, 6 * u), hp_k, col)
-	_txt(Vector2(x + 152 * u, y + 16 * u), str(int(ceil(player.hp))), 18 * u, INK)
-	var ay := y + 36 * u
-	_icon("bullet", Vector2(x + 10 * u, ay), 18 * u)
-	if player.is_reloading():
-		_bar(Rect2(x + 26 * u, ay - 3 * u, 118 * u, 6 * u), player.reload_progress(), AMBER)
-		_txt(Vector2(x + 152 * u, ay + 5 * u), "RELOADING", 13 * u, AMBER, HORIZONTAL_ALIGNMENT_LEFT, font_mid)
-	else:
-		var ac := RED if player.ammo == 0 else (AMBER if player.ammo <= 8 else Color(0.95, 0.9, 0.75))
-		_bar(Rect2(x + 26 * u, ay - 3 * u, 118 * u, 6 * u), float(player.ammo) / player.mag_size, ac)
-		_txt(Vector2(x + 152 * u, ay + 6 * u), str(player.ammo), 18 * u, ac)
-		_txt(Vector2(x + 152 * u + font.get_string_size(str(player.ammo), HORIZONTAL_ALIGNMENT_LEFT, -1, int(18 * u)).x + 3 * u, ay + 6 * u), "/ %d" % player.mag_size, 13 * u, Color(INK, 0.55), HORIZONTAL_ALIGNMENT_LEFT, font_mid)
-	# --- objective (top-centre): slim pill
-	var done := enemy != null and not enemy.alive
-	var label := "TARGET ELIMINATED" if done else "ELIMINATE THE TARGET"
-	var fs := 15 * u
-	var tw := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
-	var pw := tw + 46 * u
-	var pr := Rect2(s.x * 0.5 - pw * 0.5, m - 4 * u, pw, 28 * u)
-	_pill(pr)
-	_icon("target", pr.position + Vector2(16 * u, 14 * u), 16 * u, GREEN if done else Color.WHITE)
-	_txt(pr.position + Vector2(30 * u, 19.5 * u), label, fs, GREEN if done else INK)
-	# --- hints
-	if player.alive and not player.is_reloading():
-		if player.ammo == 0:
-			_txt(Vector2(s.x * 0.5, s.y - m - 6 * u), "NO AMMO — RELOAD", 16 * u, Color(RED, 0.6 + 0.4 * sin(_t * 9.0)), HORIZONTAL_ALIGNMENT_CENTER)
-		elif player.ammo <= 6:
-			_txt(Vector2(s.x * 0.5, s.y - m - 6 * u), "LOW AMMO", 14 * u, Color(AMBER, 0.8), HORIZONTAL_ALIGNMENT_CENTER)
-	if playing:
-		if uses_touch():
-			_draw_controls(u)
-		elif _t < 14.0:
-			_txt(Vector2(s.x * 0.5, s.y - m - 6 * u), "WASD  move    ·    MOUSE  aim    ·    CLICK  fire    ·    R  reload", 14 * u, Color(INK, 0.55), HORIZONTAL_ALIGNMENT_CENTER, font_mid)
-	if banner_t > 0.0:
-		_draw_banner(u, s)
-
-
-func _draw_target(u: float, s: Vector2) -> void:
-	if enemy == null or cam == null or not enemy.alive:
-		return
-	var wp := enemy.head_pos() + Vector3(0, 0.45, 0)
-	var behind := cam.is_position_behind(wp)
-	var sp := cam.unproject_position(wp)
-	var m := 40.0 * u
-	var on := not behind and sp.x > m and sp.x < s.x - m and sp.y > 70 * u and sp.y < s.y - m
-	if on:
+			ci.draw_arc(pc, 105.0 * u, d[0] - 0.42, d[0] + 0.42, 24, Color(1, 0.15, 0.1, k * 0.9), 7.0 * u, true)
+	var m := 46.0 * u
+	for mk in mission.markers():
+		var wp: Vector3 = mk["pos"]
+		var behind := cam.is_position_behind(wp)
+		var sp := cam.unproject_position(wp)
+		var on := not behind and sp.x > m and sp.x < s.x - m and sp.y > 120 * u and sp.y < s.y - m
+		var col: Color = mk["col"]
 		var bob := sin(_t * 4.0) * 3.0 * u
-		_icon("chevron", sp + Vector2(0, bob), 18 * u)
-		var bw := 34 * u
-		var by := sp.y - 17 * u + bob
-		_bar(Rect2(sp.x - bw * 0.5, by, bw, 4 * u), enemy.hp / enemy.max_hp, RED)
-		if alert_t > 0.0:
-			var big := 1.0 + maxf(0.0, alert_t - 1.9) * 2.0
-			_txt(Vector2(sp.x + 22 * u, by + 12 * u), alert_txt, 24 * u * big, Color(RED if alert_txt == "!" else AMBER, clampf(alert_t, 0.0, 1.0)))
-		if hit_t > 0.0:
-			var c := cam.unproject_position(enemy.chest_pos())
-			var hc := Color(1, 0.3, 0.25) if hit_head else Color(1, 1, 1)
-			hc.a = hit_t / 0.22
-			for d in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
-				overlay.draw_line(c + d * 6 * u, c + d * 13 * u, hc, 2.0 * u, true)
-			if hit_head:
-				_txt(c + Vector2(0, -26 * u), "HEADSHOT", 14 * u, hc, HORIZONTAL_ALIGNMENT_CENTER)
-	else:
-		var center := s * 0.5
-		var dir := sp - center
-		if behind:
-			dir = -dir
-		var ang := dir.angle()
-		var e := Vector2(clampf(center.x + cos(ang) * s.x, m, s.x - m), clampf(center.y + sin(ang) * s.y, 70 * u, s.y - m))
-		overlay.draw_circle(e, 15 * u, Color(0.02, 0.025, 0.02, 0.55))
-		overlay.draw_arc(e, 15 * u, 0, TAU, 32, Color(1, 0.35, 0.28, 0.8), 1.5 * u, true)
-		_icon("target", e, 16 * u, Color(1, 0.6, 0.55))
-		_icon("arrow", e + Vector2(cos(ang), sin(ang)) * 24 * u, 14 * u, Color.WHITE, ang)
-		_txt(e + Vector2(0, 30 * u), "%dm" % int(enemy.global_position.distance_to(player.global_position)), 12 * u, Color(1, 0.85, 0.8), HORIZONTAL_ALIGNMENT_CENTER)
+		if on:
+			_badge(sp + Vector2(0, bob), 17 * u, mk["icon"], col)
+			var who = mk["who"]
+			if who and who is Soldier:
+				var sd := who as Soldier
+				var bw := 44 * u
+				var by := sp.y + bob - 30 * u
+				ci.draw_rect(Rect2(sp.x - bw * 0.5 - 1, by - 1, bw + 2, 5 * u + 2), Color(0, 0, 0, 0.6))
+				ci.draw_rect(Rect2(sp.x - bw * 0.5, by, bw * sd.hp / sd.max_hp, 5 * u), K.RED)
+		else:
+			var center := s * 0.5
+			var dir := sp - center
+			if behind:
+				dir = -dir
+			var ang := dir.angle()
+			var e := Vector2(clampf(center.x + cos(ang) * s.x, m, s.x - m), clampf(center.y + sin(ang) * s.y, 120 * u, s.y - m))
+			_badge(e, 15 * u, mk["icon"], col)
+			K.draw_icon(ci, "arrow", e + Vector2(cos(ang), sin(ang)) * 28 * u, 16 * u, col, ang, false)
+			K.text(ci, e + Vector2(0, 34 * u), "%dm" % int(Vector3(wp.x, 0, wp.z).distance_to(player.global_position)), 13 * u, col, HORIZONTAL_ALIGNMENT_CENTER, "mid")
+	for e in mission.enemies:
+		if not e.alive:
+			continue
+		var wp := e.head_pos() + Vector3(0, 0.45, 0)
+		if cam.is_position_behind(wp):
+			continue
+		var sp := cam.unproject_position(wp)
+		if alerts.has(e):
+			var a: Array = alerts[e]
+			var k: float = clampf(a[1], 0.0, 1.0)
+			var big := 1.0 + maxf(0.0, a[1] - 1.9) * 2.5
+			var col := K.RED if a[0] == "!" else K.AMBER
+			ci.draw_circle(sp, 13 * u * big, Color(0, 0, 0, 0.55 * k))
+			ci.draw_arc(sp, 13 * u * big, 0, TAU, 24, Color(col, k), 2.0 * u, true)
+			K.text(ci, sp + Vector2(0, 8 * u * big), a[0], 22 * u * big, Color(col, k), HORIZONTAL_ALIGNMENT_CENTER)
+		elif e.hp < e.max_hp and e != mission.target:
+			var bw := 34 * u
+			ci.draw_rect(Rect2(sp.x - bw * 0.5 - 1, sp.y - 1, bw + 2, 4 * u + 2), Color(0, 0, 0, 0.55))
+			ci.draw_rect(Rect2(sp.x - bw * 0.5, sp.y, bw * e.hp / e.max_hp, 4 * u), K.RED)
+		if e.kind == "heavy":
+			K.draw_icon(ci, "kevlar", sp + Vector2(-26 * u, 0), 16 * u, Color(K.INK, 0.8))
+	for hm in hit_marks:
+		var e: Enemy = hm[0]
+		if not is_instance_valid(e):
+			continue
+		var sp := cam.unproject_position(e.chest_pos())
+		var k: float = hm[1] / 0.6
+		var sz := lerpf(46.0, 30.0, k) * u
+		K.draw_icon(ci, "helmet-head-shot" if hm[2] else "death-skull", sp + Vector2(0, -20 * u * (1.0 - k)), sz, Color(K.RED if hm[2] else Color.WHITE, k))
+	if player.locked and player.alive:
+		var c := cam.unproject_position(player.locked.chest_pos())
+		var g := 16 * u + sin(_t * 10.0) * 2.0 * u
+		var l := 7 * u
+		for dd in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
+			var corner: Vector2 = c + dd * g
+			ci.draw_line(corner, corner - Vector2(dd.x * l, 0), Color(K.RED, 0.9), 2.0 * u)
+			ci.draw_line(corner, corner - Vector2(0, dd.y * l), Color(K.RED, 0.9), 2.0 * u)
+	for pp in popups:
+		var wp: Vector3 = pp[0]
+		if cam.is_position_behind(wp):
+			continue
+		var k: float = pp[3] / 1.3
+		var sp := cam.unproject_position(wp) + Vector2(0, -(1.0 - k) * 50 * u)
+		var sz: float = (22.0 + (1.0 - k) * 4.0) * u * float(pp[4])
+		K.text(ci, sp, pp[1], sz, Color(pp[2], clampf(k * 1.5, 0.0, 1.0)), HORIZONTAL_ALIGNMENT_CENTER)
 
 
-func _draw_controls(_hu: float) -> void:
-	var u := fire_r / 54.0
-	# movement stick: thin ring + soft knob
-	var act := stick_id >= 0
-	overlay.draw_circle(stick_base, stick_r, Color(0, 0, 0, 0.22 if act else 0.14))
-	overlay.draw_arc(stick_base, stick_r, 0, TAU, 64, Color(1, 1, 1, 0.38 if act else 0.22), 2.0 * u, true)
-	for i in 4:
-		var a := i * PI / 2
-		_icon("arrow", stick_base + Vector2(cos(a), sin(a)) * (stick_r - 11 * u), 10 * u, Color(1, 1, 1, 0.3), a)
-	var kr := 25.0 * u
-	overlay.draw_circle(stick_knob, kr, Color(1, 1, 1, 0.5 if act else 0.32))
-	overlay.draw_arc(stick_knob, kr, 0, TAU, 40, Color(1, 1, 1, 0.75), 1.5 * u, true)
-	# fire: dark glass disc, red ring, ammo arc around it
-	var held := fire_ids.size() > 0 or mouse_fire
-	var fr := fire_r * (0.94 if held else 1.0)
-	overlay.draw_circle(fire_c, fr, Color(0.75, 0.12, 0.08, 0.42) if held else Color(0, 0, 0, 0.3))
-	overlay.draw_arc(fire_c, fr, 0, TAU, 64, Color(1, 0.38, 0.3, 0.9), 2.5 * u, true)
-	var ak := float(player.ammo) / player.mag_size
-	overlay.draw_arc(fire_c, fr + 7 * u, -PI / 2, -PI / 2 + TAU, 64, Color(1, 1, 1, 0.12), 3.0 * u, true)
-	if ak > 0.0:
-		overlay.draw_arc(fire_c, fr + 7 * u, -PI / 2, -PI / 2 + TAU * ak, 64, Color(1, 0.92, 0.75, 0.7) if ak > 0.27 else Color(AMBER, 0.9), 3.0 * u, true)
-	_icon("crosshair", fire_c, fr * 0.95, Color(1, 1, 1, 0.95))
-	# reload: small glass disc with progress ring
-	overlay.draw_circle(reload_c, reload_r, Color(0, 0, 0, 0.3))
-	var rc := Color(RED, 0.95) if player.ammo == 0 else Color(1, 1, 1, 0.4)
-	overlay.draw_arc(reload_c, reload_r, 0, TAU, 40, rc, 2.0 * u, true)
+func _badge(c: Vector2, r: float, icon: String, col: Color) -> void:
+	var ci := overlay
+	ci.draw_circle(c + Vector2(1, 2), r + 3, Color(0, 0, 0, 0.5))
+	ci.draw_circle(c, r + 2, col)
+	ci.draw_circle(c, r - 1, Color(0.04, 0.05, 0.05, 0.92))
+	K.draw_icon(ci, icon, c, r * 1.2, col, 0.0, false)
+
+
+func _draw_zone_progress(u: float) -> void:
+	for z in mission.zones:
+		if z.active and z.progress > 0.01 and cam:
+			var sp := cam.unproject_position(player.global_position + Vector3(0, 2.3, 0))
+			var r := 26 * u
+			overlay.draw_circle(sp, r + 4, Color(0, 0, 0, 0.6))
+			overlay.draw_arc(sp, r, -PI / 2, -PI / 2 + TAU, 40, Color(1, 1, 1, 0.15), 5 * u, true)
+			overlay.draw_arc(sp, r, -PI / 2, -PI / 2 + TAU * z.progress, 40, z.color, 5 * u, true)
+			K.draw_icon(overlay, z.icon, sp, r * 1.1, z.color, 0.0, false)
+
+
+func _draw_weapon_card(u: float, br: Vector2) -> void:
+	var ci := overlay
+	var d := Weapons.get_def(player.weapon_id)
+	var w := 250 * u
+	var h := 70 * u
+	var r := Rect2(br - Vector2(w, h), Vector2(w, h))
+	K.para(ci, r, -0.22, Color(0.03, 0.035, 0.035, 0.72))
+	K.draw_icon(ci, d["icon"], r.position + Vector2(62 * u, h * 0.42), 92 * u, K.INK)
+	var ammo_col := K.RED if player.ammo == 0 else (K.AMBER if player.ammo <= player.mag_size * 0.25 else K.INK)
+	K.text(ci, Vector2(r.end.x - 52 * u, r.position.y + 44 * u), str(player.ammo), 38 * u, ammo_col, HORIZONTAL_ALIGNMENT_RIGHT)
+	K.text(ci, Vector2(r.end.x - 48 * u, r.position.y + 44 * u), "/ %d" % player.mag_size, 15 * u, K.DIM, HORIZONTAL_ALIGNMENT_LEFT, "mid")
+	K.text(ci, r.position + Vector2(16 * u, h - 8 * u), d["name"], 12 * u, K.DIM, HORIZONTAL_ALIGNMENT_LEFT, "mid")
 	if player.is_reloading():
-		overlay.draw_arc(reload_c, reload_r, -PI / 2, -PI / 2 + TAU * player.reload_progress(), 40, AMBER, 3.5 * u, true)
-	_icon("reload", reload_c, reload_r * 1.1, Color(1, 1, 1, 0.9))
+		ci.draw_rect(Rect2(r.position + Vector2(10 * u, h - 4 * u), Vector2((w - 20 * u) * player.reload_progress(), 3 * u)), K.AMBER)
+		K.text(ci, Vector2(r.end.x - 12 * u, r.position.y + 14 * u), "RELOADING", 11 * u, K.AMBER, HORIZONTAL_ALIGNMENT_RIGHT, "mid")
+	elif player.ammo <= player.mag_size * 0.25:
+		K.text(ci, Vector2(r.end.x - 12 * u, r.position.y + 14 * u), "RELOAD" if player.ammo == 0 else "LOW AMMO", 11 * u, Color(ammo_col, 0.6 + 0.4 * sin(_t * 9.0)), HORIZONTAL_ALIGNMENT_RIGHT, "mid")
 
 
-func _draw_banner(u: float, s: Vector2) -> void:
-	var k := clampf(minf((2.8 - banner_t) / 0.3, banner_t / 0.45), 0.0, 1.0)
+func _draw_sticks(u: float) -> void:
+	var ci := overlay
+	var act := move_id >= 0
+	ci.draw_circle(move_base, stick_r, Color(0.02, 0.03, 0.03, 0.32 if act else 0.2))
+	ci.draw_arc(move_base, stick_r, 0, TAU, 72, Color(1, 1, 1, 0.35 if act else 0.22), 2.0 * u, true)
+	for i in 24:
+		var a := i * TAU / 24.0
+		var r0 := stick_r - (8.0 if i % 6 == 0 else 4.0) * u
+		ci.draw_line(move_base + Vector2(cos(a), sin(a)) * r0, move_base + Vector2(cos(a), sin(a)) * (stick_r - 1), Color(1, 1, 1, 0.25), 1.5)
+	if act:
+		var d := move_knob - move_base
+		if d.length() > 4:
+			var a := d.angle()
+			ci.draw_arc(move_base, stick_r + 6 * u, a - 0.5, a + 0.5, 20, Color(K.CYAN, 0.8), 4 * u, true)
+	var kr := stick_r * 0.38
+	ci.draw_circle(move_knob + Vector2(0, 3), kr, Color(0, 0, 0, 0.35))
+	ci.draw_circle(move_knob, kr, Color(0.85, 0.9, 0.88, 0.75 if act else 0.45))
+	ci.draw_circle(move_knob, kr * 0.62, Color(1, 1, 1, 0.25))
+	ci.draw_arc(move_knob, kr, 0, TAU, 40, Color(1, 1, 1, 0.9), 1.5, true)
+	if not act:
+		K.text(ci, move_base + Vector2(0, stick_r + 26 * u), "MOVE", 12 * u, Color(K.INK, 0.45), HORIZONTAL_ALIGNMENT_CENTER, "mid")
+	var aact := aim_id >= 0
+	var firing := player.aim_trigger
+	ci.draw_circle(aim_base, stick_r, Color(0.55, 0.08, 0.05, 0.3) if firing else Color(0.02, 0.03, 0.03, 0.28 if aact else 0.2))
+	ci.draw_arc(aim_base, stick_r, 0, TAU, 72, Color(1, 0.4, 0.32, 0.9 if aact else 0.5), 2.5 * u, true)
+	for i in 36:
+		if i % 2 == 0:
+			var a0 := i * TAU / 36.0
+			ci.draw_arc(aim_base, stick_r * 0.45, a0, a0 + TAU / 36.0, 4, Color(1, 0.5, 0.4, 0.4), 1.5, true)
+	var ak := float(player.ammo) / player.mag_size
+	ci.draw_arc(aim_base, stick_r + 9 * u, -PI * 0.75, PI * 0.25, 48, Color(1, 1, 1, 0.12), 4 * u, true)
+	if ak > 0:
+		ci.draw_arc(aim_base, stick_r + 9 * u, -PI * 0.75, -PI * 0.75 + PI * ak, 48, K.AMBER if ak <= 0.25 else Color(1, 0.95, 0.8, 0.85), 4 * u, true)
+	var akr := stick_r * 0.4
+	ci.draw_circle(aim_knob + Vector2(0, 3), akr, Color(0, 0, 0, 0.35))
+	ci.draw_circle(aim_knob, akr, Color(0.95, 0.3, 0.22, 0.85) if firing else Color(0.25, 0.08, 0.06, 0.75))
+	K.draw_icon(ci, "reticule", aim_knob, akr * 1.5, Color.WHITE, 0.0, false)
+	if not aact:
+		K.text(ci, aim_base + Vector2(0, stick_r + 26 * u), "AIM  &  FIRE", 12 * u, Color(K.INK, 0.45), HORIZONTAL_ALIGNMENT_CENTER, "mid")
+	var ammo_col := K.RED if player.ammo == 0 else (K.AMBER if ak <= 0.25 else K.INK)
+	var ap := aim_home + Vector2(cos(deg_to_rad(302.0)), sin(deg_to_rad(302.0))) * (stick_r + 46.0 * u)
+	K.draw_icon(ci, Weapons.get_def(player.weapon_id)["icon"], ap + Vector2(-6 * u, -16 * u), 54 * u, Color(K.INK, 0.8))
+	K.text(ci, ap + Vector2(0, 22 * u), str(player.ammo), 26 * u, ammo_col, HORIZONTAL_ALIGNMENT_CENTER)
+	_action("reload", "reload-gun-barrel", player.reload_progress() if player.is_reloading() else -1.0, player.ammo == 0, "")
+	_action("grenade", "grenade", -1.0, false, str(player.grenades), player.grenades <= 0)
+	_action("dash", "sprint", player.dash_ready() if player.dash_ready() < 1.0 else -1.0, false, "")
+
+
+func _action(k: String, icon: String, progress: float, alarm: bool, badge: String, disabled := false) -> void:
+	var ci := overlay
+	var c: Vector2 = btn[k][0]
+	var r: float = btn[k][1]
+	ci.draw_circle(c + Vector2(0, 3), r, Color(0, 0, 0, 0.35))
+	ci.draw_circle(c, r, Color(0.03, 0.04, 0.04, 0.72))
+	var ring := K.RED if alarm else Color(K.AMBER, 0.75)
+	if disabled:
+		ring = Color(1, 1, 1, 0.15)
+	ci.draw_arc(c, r, 0, TAU, 40, ring, 2.0 * _u, true)
+	if progress >= 0.0:
+		ci.draw_arc(c, r - 3 * _u, -PI / 2, -PI / 2 + TAU * progress, 40, K.AMBER, 4.0 * _u, true)
+	K.draw_icon(ci, icon, c, r * 1.15, Color(1, 1, 1, 0.3 if disabled else 0.95))
+	if badge != "":
+		var bc := c + Vector2(r * 0.72, -r * 0.72)
+		ci.draw_circle(bc, 10 * _u, K.AMBER if not disabled else Color(0.3, 0.3, 0.3))
+		K.text(ci, bc + Vector2(0, 5 * _u), badge, 14 * _u, Color(0.07, 0.06, 0.03), HORIZONTAL_ALIGNMENT_CENTER)
+
+
+func _draw_pause_btn(u: float) -> void:
+	var c: Vector2 = btn["pause"][0]
+	var r: float = btn["pause"][1]
+	overlay.draw_circle(c, r, Color(0.03, 0.04, 0.04, 0.7))
+	overlay.draw_arc(c, r, 0, TAU, 32, Color(K.AMBER, 0.5), 1.5 * u, true)
+	K.draw_icon(overlay, "pause-button", c, r * 1.2, K.INK, 0.0, false)
+
+
+func _draw_intro(u: float, s: Vector2) -> void:
+	var ci := overlay
+	var k := clampf(minf((3.4 - intro_t) / 0.35, intro_t / 0.5), 0.0, 1.0)
 	var e := 1.0 - pow(1.0 - k, 3.0)
-	var w := 360 * u
-	var h := 54 * u
-	var r := Rect2(s.x * 0.5 - w * 0.5, 62 * u - (1.0 - e) * 20 * u, w, h)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.02, 0.025, 0.02, 0.72 * e)
-	sb.set_corner_radius_all(int(8 * u))
-	sb.border_width_left = int(3 * u)
-	sb.border_color = Color(AMBER, e)
-	overlay.draw_style_box(sb, r)
-	_icon("target", r.position + Vector2(30 * u, h * 0.5), 28 * u, Color(1, 1, 1, e))
-	_txt(r.position + Vector2(56 * u, h * 0.5 - 6 * u), "NEW OBJECTIVE", 12 * u, Color(AMBER, e), HORIZONTAL_ALIGNMENT_LEFT, font_mid)
-	_txt(r.position + Vector2(56 * u, h * 0.5 + 15 * u), "ELIMINATE THE TARGET", 22 * u, Color(INK, e))
+	var w := 560 * u
+	var h := 108 * u
+	var r := Rect2(Vector2(s.x * 0.5 - w * 0.5 + (1.0 - e) * 80 * u, s.y * 0.3 - h * 0.5), Vector2(w, h))
+	K.para(ci, r, -0.15, Color(0.03, 0.035, 0.035, 0.85 * e))
+	K.para(ci, Rect2(r.position, Vector2(w * e, 4 * u)), -0.15, Color(K.AMBER, e))
+	K.para(ci, Rect2(r.position + Vector2(0, h - 4 * u), Vector2(w * e, 4 * u)), 0.0, Color(K.AMBER, e))
+	var c := r.position + Vector2(60 * u, h * 0.5)
+	var d := 36 * u
+	ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -d), c + Vector2(d, 0), c + Vector2(0, d), c + Vector2(-d, 0)]), Color(K.AMBER, e))
+	K.draw_icon(ci, intro.get("icon", "targeted"), c, 42 * u, Color(0.08, 0.06, 0.02, e), 0.0, false)
+	K.text(ci, r.position + Vector2(114 * u, 40 * u), "OPERATION  " + str(intro.get("title", "")), 18 * u, Color(K.AMBER, e), HORIZONTAL_ALIGNMENT_LEFT, "wide")
+	K.text(ci, r.position + Vector2(112 * u, 80 * u), intro.get("obj", ""), 36 * u, Color(K.INK, e))
 
 
-# ------------------------------------------------------------------ screens
-
-func _label(text: String, size: int, col: Color, f: Font = null) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_color_override("font_color", col)
-	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
-	l.add_theme_constant_override("shadow_offset_y", 3)
-	if f:
-		l.add_theme_font_override("font", f)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	return l
+func _fmt(n: int) -> String:
+	var s := str(n)
+	var out := ""
+	for i in s.length():
+		if i > 0 and (s.length() - i) % 3 == 0:
+			out += ","
+		out += s[i]
+	return out
 
 
-func _button(text: String, icon_key: String) -> Button:
-	var b := Button.new()
-	b.text = "  " + text
-	b.icon = icons[icon_key]
-	b.expand_icon = true
-	b.add_theme_font_size_override("font_size", 34)
-	b.add_theme_constant_override("icon_max_width", 30)
-	for st in ["normal", "hover", "pressed", "focus"]:
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = AMBER.lightened(0.12 if st == "hover" else 0.0).darkened(0.15 if st == "pressed" else 0.0)
-		sb.set_corner_radius_all(8)
-		sb.content_margin_left = 54
-		sb.content_margin_right = 60
-		sb.content_margin_top = 12
-		sb.content_margin_bottom = 12
-		sb.shadow_color = Color(0, 0, 0, 0.5)
-		sb.shadow_size = 10
-		sb.shadow_offset = Vector2(0, 5)
-		if st == "focus":
-			sb.draw_center = false
-			sb.shadow_size = 0
-		b.add_theme_stylebox_override(st, sb)
-	for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
-		b.add_theme_color_override(c, Color(0.07, 0.08, 0.06))
-	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	b.pivot_offset = Vector2(150, 30)
-	return b
+# ------------------------------------------------------------------ pause
 
-
-func _screen_base(root: Control) -> Control:
-	var scr := Control.new()
-	scr.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.add_child(scr)
+func show_pause(on: bool) -> void:
+	if end_layer.visible:
+		return
+	get_tree().paused = on
+	release_all()
+	for c in pause_layer.get_children():
+		c.queue_free()
+	pause_layer.visible = on
+	if not on:
+		return
 	var bg := ColorRect.new()
+	bg.color = Color(0.01, 0.015, 0.015, 0.8)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	var sm := ShaderMaterial.new()
-	sm.shader = load("res://scripts/screen_bg.gdshader")
-	bg.material = sm
-	scr.add_child(bg)
-	return scr
-
-
-func _build_start(root: Control) -> void:
-	start_screen = _screen_base(root)
+	pause_layer.add_child(bg)
 	var box := VBoxContainer.new()
 	box.set_anchors_preset(Control.PRESET_CENTER)
 	box.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	box.grow_vertical = Control.GROW_DIRECTION_BOTH
-	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	box.add_theme_constant_override("separation", 14)
-	start_screen.add_child(box)
-	box.add_child(_label("OPERATION NIGHTFALL   ·   SINGLE TARGET", 22, AMBER, font_mid))
-	var title := _label("ROOM CLEAR", 112, INK)
-	title.add_theme_constant_override("shadow_offset_y", 6)
-	box.add_child(title)
-	# objective card
-	var card := PanelContainer.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.06, 0.07, 0.06, 0.85)
-	sb.border_color = Color(AMBER, 0.6)
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(8)
-	sb.content_margin_left = 26
-	sb.content_margin_right = 30
-	sb.content_margin_top = 14
-	sb.content_margin_bottom = 14
-	card.add_theme_stylebox_override("panel", sb)
-	card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 20)
-	card.add_child(hb)
-	var ic := TextureRect.new()
-	ic.texture = icons["target"]
-	ic.custom_minimum_size = Vector2(64, 64)
-	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	hb.add_child(ic)
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 0)
-	hb.add_child(vb)
-	var l1 := _label("OBJECTIVE", 18, AMBER, font_mid)
-	l1.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	vb.add_child(l1)
-	var l2 := _label("ELIMINATE THE TARGET", 38, INK)
-	l2.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	vb.add_child(l2)
-	var l3 := _label("A hostile officer is holed up in a two-room safehouse. He will fight from cover.", 18, Color(0.7, 0.73, 0.66), font_mid)
-	l3.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	vb.add_child(l3)
-	box.add_child(card)
-	box.add_child(_label("LEFT THUMB  move + aim      ·      RIGHT THUMB  fire      ·      BUTTON  reload", 18, Color(0.62, 0.65, 0.58), font_mid))
-	var sp := Control.new()
-	sp.custom_minimum_size = Vector2(0, 8)
-	box.add_child(sp)
-	var play := _button("PLAY", "play")
-	play.pressed.connect(func() -> void:
-		Sfx.play("click")
-		if OS.has_feature("web"):
-			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
-		play_pressed.emit())
-	box.add_child(play)
-	var t := play.create_tween().set_loops()
-	t.tween_property(play, "scale", Vector2(1.05, 1.05), 0.7).set_trans(Tween.TRANS_SINE)
-	t.tween_property(play, "scale", Vector2.ONE, 0.7).set_trans(Tween.TRANS_SINE)
+	box.add_theme_constant_override("separation", 12)
+	pause_layer.add_child(box)
+	var t := K.label("PAUSED", 72, K.INK, "wide")
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(t)
+	var sub := K.label(mission.def["name"] + "   ·   " + mission.objective_text(), 18, K.AMBER, "mid")
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(sub)
+	var resume := K.menu_button("RESUME", "", "play-button", true)
+	resume.pressed.connect(func() -> void: show_pause(false))
+	box.add_child(resume)
+	var rs := K.menu_button("RESTART", "same map, fresh start", "return-arrow")
+	rs.pressed.connect(func() -> void:
+		get_tree().paused = false
+		mission.restart())
+	box.add_child(rs)
+	var aa := K.menu_button("AIM ASSIST: " + ("ON" if Game.aim_assist else "OFF"), "tap to toggle", "on-target")
+	aa.pressed.connect(func() -> void:
+		Game.aim_assist = not Game.aim_assist
+		Game.save()
+		show_pause(true))
+	box.add_child(aa)
+	var q := K.menu_button("QUIT TO MENU", "", "exit-door")
+	q.pressed.connect(func() -> void: Game.to_menu())
+	box.add_child(q)
 
 
-func _build_end(root: Control) -> void:
-	end_screen = _screen_base(root)
-	end_screen.visible = false
+# ------------------------------------------------------------------ debrief
 
-
-func hide_start() -> void:
-	var t := create_tween()
-	t.tween_property(start_screen, "modulate:a", 0.0, 0.45)
-	t.tween_callback(func() -> void: start_screen.visible = false)
-
-
-func show_end(win: bool, stats: Dictionary) -> void:
+func show_end(r: Dictionary) -> void:
 	playing = false
 	release_all()
-	for c in end_screen.get_children():
-		if c is VBoxContainer:
-			c.queue_free()
-	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
-	box.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	box.grow_vertical = Control.GROW_DIRECTION_BOTH
-	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	box.add_theme_constant_override("separation", 12)
-	end_screen.add_child(box)
-	var ic := TextureRect.new()
-	ic.texture = icons["shield_ok" if win else "shield_fail"]
-	ic.custom_minimum_size = Vector2(110, 110)
-	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	box.add_child(ic)
-	box.add_child(_label("TARGET ELIMINATED" if win else "KILLED IN ACTION", 24, AMBER, font_mid))
-	box.add_child(_label("MISSION COMPLETE" if win else "MISSION FAILED", 96, GREEN if win else RED))
+	end_layer.visible = true
+	for c in end_layer.get_children():
+		c.queue_free()
+	var win: bool = r["win"]
+	var bg := ColorRect.new()
+	bg.color = Color(0.01, 0.015, 0.015, 0.0)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	end_layer.add_child(bg)
+	create_tween().tween_property(bg, "color:a", 0.84, 0.5)
+	var draw := Control.new()
+	draw.set_anchors_preset(Control.PRESET_FULL_RECT)
+	draw.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	draw.set_meta("debrief", true)
+	end_layer.add_child(draw)
+	var start := _t
+	var shown := [0]
+	draw.draw.connect(func() -> void: _draw_end(draw, r, _t - start, shown))
 	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 56)
-	for k in stats:
-		var v := VBoxContainer.new()
-		v.add_theme_constant_override("separation", -6)
-		v.add_child(_label(str(stats[k]), 44, INK))
-		v.add_child(_label(k, 18, Color(0.66, 0.69, 0.62), font_mid))
-		row.add_child(v)
-	box.add_child(row)
-	var sp := Control.new()
-	sp.custom_minimum_size = Vector2(0, 10)
-	box.add_child(sp)
-	var b := _button("RESTART", "reload")
-	b.pressed.connect(func() -> void:
-		Sfx.play("click")
-		restart_pressed.emit())
-	box.add_child(b)
-	end_screen.visible = true
-	end_screen.modulate.a = 0.0
-	box.scale = Vector2(0.92, 0.92)
-	var t := create_tween().set_parallel()
-	t.tween_property(end_screen, "modulate:a", 1.0, 0.6)
-	t.tween_property(box, "scale", Vector2.ONE, 0.7).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	box.pivot_offset = box.size * 0.5
+	row.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	row.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	row.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	row.offset_bottom = -36
+	row.add_theme_constant_override("separation", 18)
+	end_layer.add_child(row)
+	if win and Game.current >= 0 and Game.current + 1 < Game.MISSIONS.size():
+		var nx := K.menu_button("NEXT MISSION", Game.MISSIONS[Game.current + 1]["name"], "play-button", true)
+		nx.pressed.connect(func() -> void: mission.next_mission())
+		row.add_child(nx)
+	var rt := K.menu_button("REPLAY" if win else "RETRY", "", "return-arrow", not win)
+	rt.pressed.connect(func() -> void: mission.restart())
+	row.add_child(rt)
+	var mn := K.menu_button("MENU", "", "exit-door")
+	mn.pressed.connect(func() -> void: Game.to_menu())
+	row.add_child(mn)
+	row.modulate.a = 0.0
+	var tw := create_tween()
+	tw.tween_interval(1.4)
+	tw.tween_property(row, "modulate:a", 1.0, 0.4)
 
 
-func fade_out(dur: float) -> void:
-	create_tween().tween_property(fade, "color:a", 1.0, dur)
+func _draw_end(ci: Control, r: Dictionary, t: float, shown: Array) -> void:
+	var u := clampf(ci.size.y / 720.0, 0.85, 1.6)
+	var s := ci.size
+	var win: bool = r["win"]
+	var col := K.GREEN if win else K.RED
+	var cx := s.x * 0.5
+	var y := s.y * 0.13
+	var k := clampf(t / 0.4, 0.0, 1.0)
+	K.text(ci, Vector2(cx, y), "OPERATION  " + str(mission.def["name"]), 20 * u, Color(K.AMBER, k), HORIZONTAL_ALIGNMENT_CENTER, "wide")
+	var title := "MISSION COMPLETE" if win else "MISSION FAILED"
+	K.text(ci, Vector2(cx, y + 74 * u), title, (76 + (1.0 - k) * 30) * u, Color(col, k), HORIZONTAL_ALIGNMENT_CENTER, "wide")
+	if not win:
+		K.text(ci, Vector2(cx, y + 108 * u), r["reason"], 20 * u, K.INK, HORIZONTAL_ALIGNMENT_CENTER, "mid")
+	var sy := y + 150 * u
+	for i in 3:
+		var appear := clampf((t - 0.5 - i * 0.35) / 0.25, 0.0, 1.0)
+		var filled: bool = i < int(r["stars"]) and appear > 0.0
+		if filled and shown[0] <= i and appear > 0.5:
+			shown[0] = i + 1
+			Sfx.play("star", -2.0, 1.0 + i * 0.12)
+		var sc := 1.0 + (1.0 - appear) * 0.8 if filled else 1.0
+		K.star(ci, Vector2(cx + (i - 1) * 74 * u, sy), 30 * u * sc, filled, K.AMBER if filled else Color(1, 1, 1, 0.25))
+	var labels := ["MISSION COMPLETE", "HEALTH 50+", "UNDER %d:%02d" % [int(r["par"]) / 60, int(r["par"]) % 60]]
+	for i in 3:
+		K.text(ci, Vector2(cx + (i - 1) * 74 * u, sy + 46 * u), labels[i], 10 * u, Color(K.DIM, k), HORIZONTAL_ALIGNMENT_CENTER, "mid")
+	var by := sy + 86 * u
+	var lines: Array = r["breakdown"]
+	for i in lines.size():
+		var a := clampf((t - 1.2 - i * 0.15) / 0.2, 0.0, 1.0)
+		var ln: Array = lines[i]
+		K.text(ci, Vector2(cx - 190 * u, by + i * 28 * u), ln[0], 16 * u, Color(K.DIM, a), HORIZONTAL_ALIGNMENT_LEFT, "mid")
+		K.text(ci, Vector2(cx + 190 * u, by + i * 28 * u), "+" + _fmt(int(ln[1] * a)), 18 * u, Color(K.INK, a), HORIZONTAL_ALIGNMENT_RIGHT)
+	var ty := by + lines.size() * 28 * u + 20 * u
+	var tk := clampf((t - 1.8) / 0.8, 0.0, 1.0)
+	ci.draw_line(Vector2(cx - 190 * u, ty - 20 * u), Vector2(cx + 190 * u, ty - 20 * u), Color(K.AMBER, 0.4 * tk), 1.5)
+	K.text(ci, Vector2(cx - 190 * u, ty + 8 * u), "TOTAL", 20 * u, Color(K.AMBER, tk), HORIZONTAL_ALIGNMENT_LEFT, "wide")
+	K.text(ci, Vector2(cx + 190 * u, ty + 10 * u), _fmt(int(r["score"] * tk)), 34 * u, Color(K.INK, tk), HORIZONTAL_ALIGNMENT_RIGHT)
+	var st := "TIME %d:%02d   ·   ACCURACY %d%%   ·   KILLS %d   ·   HEADSHOTS %d" % [int(r["time"]) / 60, int(r["time"]) % 60, int(r["accuracy"]), r["kills"], r["headshots"]]
+	K.text(ci, Vector2(cx, ty + 42 * u), st, 15 * u, Color(K.DIM, tk), HORIZONTAL_ALIGNMENT_CENTER, "mid")
+	var xk := clampf((t - 2.4) / 0.6, 0.0, 1.0)
+	K.text(ci, Vector2(cx, ty + 72 * u), "+%d XP   ·   %s" % [int(r["xp"] * xk), Game.rank_name()], 18 * u, Color(K.CYAN, xk), HORIZONTAL_ALIGNMENT_CENTER)
+	if r["new_rank"] and xk >= 1.0:
+		K.text(ci, Vector2(cx, ty + 96 * u), "PROMOTED!", 18 * u, Color(K.AMBER, 0.6 + 0.4 * sin(t * 6.0)), HORIZONTAL_ALIGNMENT_CENTER, "wide")
+	for i in r["unlocks"].size():
+		var id: String = r["unlocks"][i]
+		var d := Weapons.get_def(id)
+		var uy: float = ty + 126 * u + i * 40 * u
+		K.draw_icon(ci, d["icon"], Vector2(cx - 150 * u, uy - 6 * u), 54 * u, Color(K.AMBER, xk))
+		K.text(ci, Vector2(cx - 110 * u, uy), "NEW WEAPON UNLOCKED:  " + d["name"], 18 * u, Color(K.AMBER, xk))

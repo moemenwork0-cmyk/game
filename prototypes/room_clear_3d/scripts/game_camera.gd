@@ -9,7 +9,7 @@ var follow: Soldier
 var focus: Node3D
 var threat: Soldier          ## kept in frame while he is close and aware
 var bounds := Rect2(-6.0, -3.2, 12.0, 6.2)
-var offset_dir := Vector3(0, 9.2, 5.6)
+var offset_dir := Vector3(0, 10.2, 4.7)
 var zoom := 1.0
 var trauma := 0.0
 

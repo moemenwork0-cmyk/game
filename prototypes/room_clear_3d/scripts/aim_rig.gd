@@ -7,6 +7,7 @@ extends SkeletonModifier3D
 var rifle: Rifle
 var twist := 0.0                 ## torso yaw relative to the hips (rad, about world up)
 var lean := Vector3.ZERO         ## flinch: world-space rotation vector (axis * angle)
+var kick := 0.0                  ## recoil: upper body rocks back (rad)
 var aim_dir := Vector3.FORWARD   ## world direction the head should look
 var weight := 1.0                ## 0 = pure animation (dead), 1 = full combat pose
 var left_override := false       ## reload: left hand goes to left_target instead of the handguard
@@ -44,6 +45,9 @@ func _process_modification() -> void:
 		var i: int = _b[e[0]]
 		var g := sk.get_bone_global_pose(i)
 		var q := Quaternion(up, twist * e[1] * weight)
+		if kick > 0.0001:
+			var right := (inv.basis * (Basis(Vector3.UP, rifle.global_rotation.y) * Vector3.RIGHT)).normalized()
+			q = Quaternion(right, kick * e[1] * weight) * q
 		if lean_ang > 0.0001:
 			q = Quaternion(lean_axis, lean_ang * e[1] * weight) * q
 		g.basis = Basis(q) * g.basis
