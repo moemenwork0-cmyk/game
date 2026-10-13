@@ -37,6 +37,7 @@ common/physics_ticks_per_second=60
 
 [rendering]
 
+occlusion_culling/use_occlusion_culling=true
 renderer/rendering_method="forward_plus"
 renderer/rendering_method.mobile="mobile"
 textures/vram_compression/import_etc2_astc=true

@@ -26,6 +26,7 @@ func build(m: MapGen) -> void:
 	player_spawn = m.player_spawn
 	_floor()
 	_walls()
+	_ceiling()
 	_windows()
 	_doors()
 	_props()
@@ -114,6 +115,8 @@ func _flush_batches() -> void:
 		"cap": _flat("cap", Color(0.03, 0.032, 0.035), 0.9),
 		"frame": _flat("wframe", Color(0.1, 0.1, 0.1), 0.5, 0.4),
 		"slat": _flat("slat", Color(0.7, 0.7, 0.66), 0.6),
+		"ceiling": _pbr("ceil", "painted_plaster_wall", 0.4, Color(0.62, 0.58, 0.52)),
+		"beam": _flat("beam", Color(0.16, 0.15, 0.14), 0.7),
 		"floor_c": _pbr("floor", "concrete_floor_worn_001", 0.38, Color(0.78, 0.78, 0.76)),
 		"floor_w": _pbr("floorw", "wood_floor_worn", 0.5, Color(0.7, 0.62, 0.55)),
 		"rug": _pbr("rug", "dirty_carpet", 0.6, Color(0.55, 0.6, 0.5)),
@@ -126,7 +129,7 @@ func _flush_batches() -> void:
 		var mi := MeshInstance3D.new()
 		mi.mesh = st.commit()
 		mi.material_override = mats.get(key, _flat("x", Color.MAGENTA))
-		if key == "cap":
+		if key in ["cap", "ceiling", "beam"]:
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		if key.begins_with("floor") or key.begins_with("rug"):
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -197,6 +200,14 @@ func _walls() -> void:
 		else:
 			_add_box("band" if y0 < 0.01 else "plaster", center, size)
 		_add_box("cap", Vector3(center.x, y0 + h + 0.004, center.z), Vector3(size.x + 0.002, 0.008, size.z + 0.002))
+		# full-height walls hide whatever is behind them from the renderer
+		if y0 < 0.01 and h > 2.0 and len > 0.6:
+			var oc := OccluderInstance3D.new()
+			var bo := BoxOccluder3D.new()
+			bo.size = size - Vector3(0.08, 0.1, 0.08)
+			oc.occluder = bo
+			oc.position = center
+			add_child(oc)
 		var r := Rect2(Vector2(center.x - size.x * 0.5, center.z - size.z * 0.5), Vector2(size.x, size.z))
 		if y0 < 0.01:
 			footprints.append(r)
@@ -212,15 +223,45 @@ func _walls() -> void:
 			else:
 				_add_box("trim", Vector3(p.x + s * half, 1.1, p.y), Vector3(0.08, 2.2, WALL_T + 0.06))
 		if not d["entrance"]:
-			var lintel := Vector3(WALL_T, 0.4, d["w"]) if d["axis"] == "x" else Vector3(d["w"], 0.4, WALL_T)
-			_add_box("plaster", Vector3(p.x, 2.4, p.y), lintel)
-			_add_box("cap", Vector3(p.x, 2.604, p.y), lintel + Vector3(0.002, -0.39, 0.002))
+			var lh := MapGen.WALL_H - 2.2
+			var ly := 2.2 + lh * 0.5
+			var lintel := Vector3(WALL_T, lh, d["w"]) if d["axis"] == "x" else Vector3(d["w"], lh, WALL_T)
+			_add_box("plaster", Vector3(p.x, ly, p.y), lintel)
 			var lc := CollisionShape3D.new()
 			var lb := BoxShape3D.new()
 			lb.size = lintel
 			lc.shape = lb
-			lc.position = Vector3(p.x, 2.4, p.y)
+			lc.position = Vector3(p.x, ly, p.y)
 			body.add_child(lc)
+
+
+## Closed roof over the whole building (the camera now sits inside, behind the operator).
+func _ceiling() -> void:
+	var b := map.bounds.grow(WALL_T * 0.5 + 0.02)
+	var y := MapGen.WALL_H
+	_add_box("ceiling", Vector3(b.get_center().x, y + 0.06, b.get_center().y), Vector3(b.size.x, 0.12, b.size.y))
+	# light beams across each room so the ceiling reads as a real structure
+	for r in map.rooms:
+		var rr: Rect2 = r["rect"]
+		if rr.size.x >= rr.size.y:
+			var n := maxi(1, int(rr.size.x / 2.2))
+			for i in n:
+				var x := rr.position.x + rr.size.x * (i + 0.5) / n
+				_add_box("beam", Vector3(x, y - 0.09, rr.get_center().y), Vector3(0.22, 0.18, rr.size.y))
+		else:
+			var n := maxi(1, int(rr.size.y / 2.2))
+			for i in n:
+				var z := rr.position.y + rr.size.y * (i + 0.5) / n
+				_add_box("beam", Vector3(rr.get_center().x, y - 0.09, z), Vector3(rr.size.x, 0.18, 0.22))
+	var body := StaticBody3D.new()
+	body.set_meta("surface", "plaster")
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(b.size.x, 0.12, b.size.y)
+	cs.shape = bs
+	cs.position = Vector3(b.get_center().x, y + 0.06, b.get_center().y)
+	body.add_child(cs)
+	add_child(body)
 
 
 func _windows() -> void:
@@ -366,7 +407,7 @@ func prop(id: String, pos: Vector3, yaw_deg: float, opts := {}) -> Node3D:
 	for m in inst.find_children("*", "MeshInstance3D", true, false):
 		var mi := m as MeshInstance3D
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if (not dyn or ab.size.y > 0.4) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		mi.visibility_range_end = 0.0
+		mi.visibility_range_end = 26.0
 	if not dyn and pos.y < 0.05:
 		var r := _xz_rect(body.transform, ab)
 		footprints.append(r)

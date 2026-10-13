@@ -141,6 +141,7 @@ func _mission_flow(delta: float) -> void:
 				st.append(e.state_name())
 		var gl := _goal(m)
 		print("   goal=%s path=%d" % [gl.snapped(Vector3.ONE * 0.1), m.level.find_path(p.global_position, gl).size()])
+		print("   mt=%s vel=%s view=%.2f" % [p.move_target.snapped(Vector3.ONE * 0.1), p.velocity.snapped(Vector3.ONE * 0.1), p.view_yaw])
 		print("t=%.1f hp=%d ammo=%d nades=%d score=%d stage=%d kills=%d alive=%d %s pos=%s" % [t, p.hp, p.ammo, p.grenades, m.score, m.stage, m.kills, alive, str(st), p.global_position.snapped(Vector3.ONE * 0.1)])
 	if m.state == "play" and p.alive:
 		if not fair:
@@ -181,15 +182,18 @@ func _mission_flow(delta: float) -> void:
 		else:
 			p.input_aim = Vector2.ZERO
 			p.aim_trigger = false
-		p.input_move = mv
+		# third person: look where we walk unless shooting, sticks are view-relative
+		if not target and mv.length() > 0.1:
+			p.view_yaw = rotate_toward(p.view_yaw, atan2(-mv.x, -mv.y), 6.0 * delta)
+		var local := mv.rotated(p.view_yaw)
 		m.hud.move_id = 0 if mv.length() > 0 else -1
-		m.hud.move_knob = m.hud.move_base + mv * m.hud.stick_r
+		m.hud.move_knob = m.hud.move_base + local * m.hud.stick_r
 		m.hud.aim_id = 1 if target else -1
-		m.hud.aim_knob = m.hud.aim_base + p.input_aim * m.hud.stick_r
 		m.hud.touch_seen = true
 		if p.ammo < 5 and not target:
 			p.start_reload()
 	if m.state == "play" and t > 8.0: _shot("g2_fight_%02d" % mission_index)
+	if m.state == "play" and t > 40.0: _shot("g7_late_%02d" % mission_index)
 	if m.state == "play" and m.kills >= 1: _shot("g3_kill_%02d" % mission_index)
 	if m.state == "play" and p.is_throwing(): _shot("g4_grenade_%02d" % mission_index)
 	if m.state == "over": _shot("g5_over_%02d" % mission_index)

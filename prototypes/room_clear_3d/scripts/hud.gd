@@ -28,6 +28,9 @@ var aim_base := Vector2.ZERO
 var aim_knob := Vector2.ZERO
 var aim_home := Vector2.ZERO
 var stick_r := 70.0
+var look_id := -1             # touch turning the view (right half, or the fire button)
+var look_last := Vector2.ZERO
+const LOOK_SENS := 3.2        # radians per screen-height of drag
 var btn := {}                 # name -> [center, radius]
 var mouse_fire := false
 var touch_seen := false
@@ -173,17 +176,9 @@ func _process(delta: float) -> void:
 			player.input_move = (move_knob - move_base) / stick_r if move_id >= 0 else Vector2.ZERO
 			if player.input_move.length() < 0.1:
 				player.input_move = Vector2.ZERO
-			if aim_id >= 0:
-				player.input_aim = (aim_knob - aim_base) / stick_r
-				player.aim_trigger = player.input_aim.length() > 0.45
-			else:
-				player.input_aim = Vector2.ZERO
-				player.aim_trigger = false
-			player.fire_held = mouse_fire
+			player.fire_held = mouse_fire or aim_id >= 0
 		else:
 			player.input_move = Vector2.ZERO
-			player.input_aim = Vector2.ZERO
-			player.aim_trigger = false
 			player.fire_held = false
 	overlay.queue_redraw()
 	if end_layer.visible:
@@ -195,6 +190,9 @@ func _process(delta: float) -> void:
 # ------------------------------------------------------------------ input
 
 func _input(event: InputEvent) -> void:
+	# desktop: the mouse drives the view directly, ignore its emulated touches
+	if (event is InputEventScreenTouch or event is InputEventScreenDrag) and event.device == InputEvent.DEVICE_ID_EMULATION and not Game.is_phone():
+		return
 	if event is InputEventScreenTouch:
 		touch_seen = true
 		var e := event as InputEventScreenTouch
@@ -203,47 +201,56 @@ func _input(event: InputEvent) -> void:
 				return
 			for k in btn:
 				var b: Array = btn[k]
-				if not (k in ["pause", "settings"]) and not uses_touch():
-					continue
 				if e.position.distance_to(b[0]) < b[1] * 1.3:
 					_press(k)
 					return
-			if e.position.x < overlay.size.x * 0.45:
+			if e.position.distance_to(aim_home) < stick_r * 0.95 and aim_id < 0:
+				# fire button: shoots while held, turns the view when dragged
+				aim_id = e.index
+				aim_knob = e.position
+				look_last = e.position
+			elif e.position.x < overlay.size.x * 0.45:
 				if move_id < 0:
 					move_id = e.index
 					move_base = _clamp_base(e.position, true)
 					_drag_stick(e.position, true)
-			elif aim_id < 0 and e.position.y > overlay.size.y * 0.22:
-				aim_id = e.index
-				aim_base = _clamp_base(e.position, false)
-				_drag_stick(e.position, false)
+			elif look_id < 0:
+				look_id = e.index
+				look_last = e.position
 		else:
 			if e.index == move_id:
 				move_id = -1
 			if e.index == aim_id:
 				aim_id = -1
+			if e.index == look_id:
+				look_id = -1
 	elif event is InputEventScreenDrag:
 		var e := event as InputEventScreenDrag
 		if e.index == move_id:
 			_drag_stick(e.position, true)
-		elif e.index == aim_id:
-			_drag_stick(e.position, false)
-	elif event is InputEventMouseButton and event.device != InputEvent.DEVICE_ID_EMULATION:
+		elif e.index == aim_id or e.index == look_id:
+			if e.index == aim_id:
+				aim_knob = e.position
+			_turn(e.position.x - look_last.x)
+			look_last = e.position
+	elif event is InputEventMouseButton:
 		var e := event as InputEventMouseButton
 		if not playing or get_tree().paused:
 			return
-		if e.pressed and btn.has("pause") and e.position.distance_to(btn["pause"][0]) < btn["pause"][1] * 1.3:
-			_press("pause")
-			return
+		if e.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			for k in ["pause", "settings"]:
+				if btn.has(k) and e.position.distance_to(btn[k][0]) < btn[k][1] * 1.3:
+					_press(k)
+					return
+			if not Game.is_phone():
+				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		if e.button_index == MOUSE_BUTTON_LEFT:
 			mouse_fire = e.pressed
-			if player:
-				player.mouse_aim = true
 		elif e.button_index == MOUSE_BUTTON_RIGHT and e.pressed:
 			_press("grenade")
-	elif event is InputEventMouseMotion and event.device != InputEvent.DEVICE_ID_EMULATION and not touch_seen:
-		if player and playing:
-			player.mouse_aim = true
+	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		if player and playing and not get_tree().paused:
+			player.view_yaw -= (event as InputEventMouseMotion).relative.x * 0.0032
 	elif event is InputEventKey and event.pressed and not event.echo:
 		match (event as InputEventKey).keycode:
 			KEY_R: _press("reload")
@@ -254,6 +261,11 @@ func _input(event: InputEvent) -> void:
 					show_pause(false)
 				else:
 					_press("pause")
+
+
+func _turn(dx: float) -> void:
+	if player and playing and not get_tree().paused:
+		player.view_yaw -= dx / maxf(overlay.size.y, 1.0) * LOOK_SENS
 
 
 func _clamp_base(p: Vector2, left: bool) -> Vector2:
@@ -286,7 +298,7 @@ func _press(k: String) -> void:
 			if player.throw_ahead():
 				Sfx.play("ui_click", -8.0)
 		"dash":
-			var d := Vector3(player.input_move.x, 0, player.input_move.y)
+			var d := Basis(Vector3.UP, player.view_yaw) * Vector3(player.input_move.x, 0, player.input_move.y)
 			if d.length() < 0.2:
 				d = Vector3(player.velocity.x, 0, player.velocity.z)
 			player.dash(d)
@@ -294,18 +306,12 @@ func _press(k: String) -> void:
 			show_pause(true)
 
 
-func _physics_process(_d: float) -> void:
-	if player and player.mouse_aim and playing and not touch_seen and cam:
-		var p := overlay.get_local_mouse_position()
-		var o := cam.project_ray_origin(p)
-		var dir := cam.project_ray_normal(p)
-		if absf(dir.y) > 0.001:
-			player.mouse_point = o + dir * ((1.2 - o.y) / dir.y)
-
-
 func release_all() -> void:
 	move_id = -1
 	aim_id = -1
+	look_id = -1
+	if not Game.is_phone():
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	mouse_fire = false
 
 
@@ -318,10 +324,9 @@ func show_intro(_title: String, _obj: String, _icon: String) -> void:
 
 func on_player_hurt(from: Vector3) -> void:
 	hurt_k = minf(hurt_k + 0.5, 1.0)
-	if player and cam:
-		var a := cam.unproject_position(player.global_position + Vector3(0, 1.2, 0))
-		var b := cam.unproject_position(from + Vector3(0, 1.2, 0))
-		dmg_marks.append([(b - a).angle(), 1.2])
+	if player:
+		var d := Basis(Vector3.UP, player.view_yaw).inverse() * (from - player.global_position)
+		dmg_marks.append([atan2(d.z, d.x), 1.2])
 
 
 func on_alert(e: Enemy, kind: String) -> void:
@@ -369,7 +374,7 @@ func _draw_overlay() -> void:
 		else:
 			_draw_weapon_card(u, Vector2(s.x - 24 * u, s.y - 24 * u))
 			if _t < 12.0:
-				K.text(ci, Vector2(s.x * 0.5, s.y - 22 * u), "WASD move   ·   MOUSE aim   ·   CLICK fire   ·   R reload   ·   SPACE dash   ·   G / RMB grenade   ·   ESC pause", 14 * u, Color(K.INK, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "mid")
+				K.text(ci, Vector2(s.x * 0.5, s.y - 22 * u), "WASD move   ·   MOUSE look   ·   CLICK fire   ·   R reload   ·   SPACE dash   ·   G / RMB grenade   ·   ESC pause", 14 * u, Color(K.INK, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "mid")
 		_draw_square_btn("pause", "ic_pause")
 		_draw_square_btn("settings", "cog")
 	if Game.show_fps:
@@ -454,7 +459,7 @@ const MAP_SPAN := 12.0   ## metres from the centre to the edge of the minimap
 
 func _mm(p: Vector3) -> Vector2:
 	var o := player.global_position
-	return map_c + Vector2(p.x - o.x, p.z - o.z) * (map_r / MAP_SPAN)
+	return map_c + Vector2(p.x - o.x, p.z - o.z).rotated(player.view_yaw) * (map_r / MAP_SPAN)
 
 
 func _clip_seg(a: Vector2, b: Vector2, r: float) -> Array:
@@ -504,11 +509,9 @@ func _draw_radar(u: float, s: Vector2) -> void:
 		disc.append(c + Vector2.from_angle(i * TAU / 40.0) * r)
 	for room in mission.map.rooms:
 		var rr: Rect2 = room["rect"]
-		var p0 := _mm(Vector3(rr.position.x, 0, rr.position.y))
-		var rect := Rect2(p0, rr.size * sc)
-		if not rect.grow(2).intersects(Rect2(c - Vector2(r, r), Vector2(r, r) * 2.0)):
+		var poly := PackedVector2Array([_mm(Vector3(rr.position.x, 0, rr.position.y)), _mm(Vector3(rr.end.x, 0, rr.position.y)), _mm(Vector3(rr.end.x, 0, rr.end.y)), _mm(Vector3(rr.position.x, 0, rr.end.y))])
+		if (poly[0] + poly[2]).distance_to(c * 2.0) * 0.5 > r + rr.size.length() * sc * 0.5:
 			continue
-		var poly := PackedVector2Array([rect.position, Vector2(rect.end.x, rect.position.y), rect.end, Vector2(rect.position.x, rect.end.y)])
 		for part in Geometry2D.intersect_polygons(poly, disc):
 			ci.draw_colored_polygon(part, Color(0.42, 0.4, 0.3, 0.42))
 	for w in mission.map.walls:
@@ -573,7 +576,7 @@ func _draw_radar(u: float, s: Vector2) -> void:
 			ci.draw_circle(mp, 8 * u * pulse, Color(col, 0.25))
 			ci.draw_circle(mp, 4.5 * u, col)
 	# operator: view wedge + arrow in the centre
-	var fwd := Vector2(-sin(player.aim_yaw), -cos(player.aim_yaw))
+	var fwd := Vector2(-sin(player.aim_yaw), -cos(player.aim_yaw)).rotated(player.view_yaw)
 	var ang := fwd.angle()
 	var wedge := PackedVector2Array([c])
 	for i in 9:
@@ -586,7 +589,7 @@ func _draw_radar(u: float, s: Vector2) -> void:
 	ci.draw_arc(c, r + 3 * u, PI, TAU, 48, Color(0.95, 0.95, 0.9, 0.95), 3.0 * u, true)
 	ci.draw_arc(c, r + 3 * u, 0, PI, 48, Color(0.55, 0.55, 0.52, 0.95), 3.0 * u, true)
 	ci.draw_arc(c, r - 2 * u, PI * 1.15, PI * 1.85, 24, Color(1, 1, 1, 0.18), 3.0 * u, true)
-	var n := c + Vector2(0, -r - 3 * u)
+	var n := c + Vector2(0, -1).rotated(player.view_yaw) * (r + 3 * u)
 	ci.draw_circle(n, 8 * u, Color(0.13, 0.12, 0.08, 0.95))
 	ci.draw_arc(n, 8 * u, 0, TAU, 16, Color(0.9, 0.9, 0.85), 1.5 * u, true)
 	K.text(ci, n + Vector2(0, 4.5 * u), "N", 12 * u, K.INK, HORIZONTAL_ALIGNMENT_CENTER)
@@ -616,10 +619,10 @@ func _draw_world_marks(u: float, s: Vector2) -> void:
 		return
 	var ci := overlay
 	if player.alive:
-		var pc := cam.unproject_position(player.global_position + Vector3(0, 1.2, 0))
+		var pc := s * 0.5
 		for d in dmg_marks:
 			var k: float = clampf(d[1] / 1.2, 0.0, 1.0)
-			ci.draw_arc(pc, 105.0 * u, d[0] - 0.42, d[0] + 0.42, 24, Color(1, 0.15, 0.1, k * 0.9), 7.0 * u, true)
+			ci.draw_arc(pc, 150.0 * u, d[0] - 0.42, d[0] + 0.42, 24, Color(1, 0.15, 0.1, k * 0.9), 7.0 * u, true)
 	var m := 46.0 * u
 	for mk in mission.markers():
 		var wp: Vector3 = mk["pos"]
@@ -676,6 +679,7 @@ func _draw_world_marks(u: float, s: Vector2) -> void:
 		var k: float = hm[1] / 0.6
 		var sz := lerpf(46.0, 30.0, k) * u
 		K.draw_icon(ci, "helmet-head-shot" if hm[2] else "death-skull", sp + Vector2(0, -20 * u * (1.0 - k)), sz, Color(K.RED if hm[2] else Color.WHITE, k))
+	_draw_crosshair(u)
 	if player.locked and player.alive:
 		var c := cam.unproject_position(player.locked.chest_pos())
 		var g := 16 * u + sin(_t * 10.0) * 2.0 * u
@@ -692,6 +696,21 @@ func _draw_world_marks(u: float, s: Vector2) -> void:
 		var sp := cam.unproject_position(wp) + Vector2(0, -(1.0 - k) * 50 * u)
 		var sz: float = (22.0 + (1.0 - k) * 4.0) * u * float(pp[4])
 		K.text(ci, sp, pp[1], sz, Color(pp[2], clampf(k * 1.5, 0.0, 1.0)), HORIZONTAL_ALIGNMENT_CENTER)
+
+
+## Where the rifle points: a small four-tick reticle on the laser's end, red over a hostile.
+func _draw_crosshair(u: float) -> void:
+	if not player.alive or not playing or cam.is_position_behind(player.aim_point):
+		return
+	var c := cam.unproject_position(player.aim_point)
+	var hot := player.locked != null
+	var col := Color(1, 0.3, 0.25, 0.95) if hot else Color(1, 1, 1, 0.85)
+	var g := (7.0 + player.spread * 60.0 + (4.0 if player.fire_held else 0.0)) * u
+	var l := 7.0 * u
+	for d in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
+		overlay.draw_line(c + d * g + Vector2(1, 1), c + d * (g + l) + Vector2(1, 1), Color(0, 0, 0, 0.5), 2.5 * u)
+		overlay.draw_line(c + d * g, c + d * (g + l), col, 2.0 * u)
+	overlay.draw_circle(c, 1.6 * u, col)
 
 
 func _badge(c: Vector2, r: float, icon: String, col: Color) -> void:
@@ -749,26 +768,21 @@ func _draw_sticks(u: float) -> void:
 	_tex("stick_knob", move_knob, stick_r * 0.86, Color(1, 1, 1, 1.0 if act else 0.8))
 	if not act and _t < 10.0 and Game.current <= 1:
 		K.text(ci, move_base + Vector2(0, -stick_r - 14 * u), "DRAG TO MOVE", 13 * u, Color(K.INK, 0.7), HORIZONTAL_ALIGNMENT_CENTER, "mid")
-	# fire: big glass button with a cartridge; becomes an aim stick while held
+	# fire: big glass button with a cartridge; drag it to turn while shooting
 	var aact := aim_id >= 0
-	var firing := player.aim_trigger
 	var fr := stick_r * 0.78
+	var press := 0.93 if aact else 1.0
+	_tex("btn_round", aim_home, fr * 2.0 * press, Color(1, 0.72, 0.66) if aact else Color.WHITE)
+	_tex("ic_bullet", aim_home, fr * 1.15 * press, Color(1, 1, 1, 0.95))
 	if aact:
-		_tex("stick_ring", aim_base, stick_r * 2.0, Color(1, 0.55, 0.45, 0.95) if firing else Color(1, 1, 1, 0.8))
-		var d := aim_knob - aim_base
-		if d.length() > 4:
-			ci.draw_arc(aim_base, stick_r * 0.98, d.angle() - 0.45, d.angle() + 0.45, 20, Color(1, 0.4, 0.3, 0.85) if firing else Color(1, 1, 1, 0.6), 4 * u, true)
-		_tex("btn_round", aim_knob, stick_r * 0.95, Color(1, 0.8, 0.75) if firing else Color.WHITE)
-		_tex("ic_bullet", aim_knob, stick_r * 0.55, Color.WHITE)
-	else:
-		_tex("btn_round", aim_home, fr * 2.0)
-		_tex("ic_bullet", aim_home, fr * 1.15, Color(1, 1, 1, 0.95))
-		if _t < 10.0 and Game.current <= 1:
-			K.text(ci, aim_home + Vector2(0, -fr - 14 * u), "HOLD & DRAG TO AIM + FIRE", 13 * u, Color(K.INK, 0.7), HORIZONTAL_ALIGNMENT_CENTER, "mid")
+		ci.draw_arc(aim_home, fr * 1.02, 0, TAU, 48, Color(1, 0.35, 0.25, 0.8), 3.0 * u, true)
+	if _t < 10.0 and Game.current <= 1:
+		K.text(ci, Vector2(overlay.size.x * 0.7, overlay.size.y * 0.47), "DRAG HERE TO LOOK AROUND", 14 * u, Color(K.INK, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "mid")
+		K.text(ci, Vector2(overlay.size.x * 0.7, overlay.size.y * 0.47 + 20 * u), "HOLD THE BULLET TO FIRE  ·  DRAG IT TO TURN", 12 * u, Color(K.INK, 0.4), HORIZONTAL_ALIGNMENT_CENTER, "mid")
 	# ammo arc around the fire button
 	var ak := float(player.ammo) / player.mag_size
-	var ac := aim_base if aact else aim_home
-	var arr := (stick_r if aact else fr) + 7 * u
+	var ac := aim_home
+	var arr := fr + 7 * u
 	ci.draw_arc(ac, arr, -PI * 0.75, PI * 0.25, 48, Color(0, 0, 0, 0.35), 5 * u, true)
 	if ak > 0:
 		ci.draw_arc(ac, arr, -PI * 0.75, -PI * 0.75 + PI * ak, 48, K.RED if ak <= 0.25 else Color(0.96, 0.95, 0.9, 0.9), 3.5 * u, true)

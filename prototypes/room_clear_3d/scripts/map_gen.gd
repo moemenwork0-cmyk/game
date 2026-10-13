@@ -11,7 +11,7 @@ extends RefCounted
 const SNAP := 0.5
 const MIN_ROOM := 3.6
 const DOOR_W := 1.3
-const WALL_H := 2.6
+const WALL_H := 3.0
 
 ## footprint (width x, depth z), height, scale for each prop id (front faces +Z)
 const FOOT := {
@@ -544,7 +544,7 @@ func _lights() -> void:
 		var cool := Color(0.75, 0.85, 1.0)
 		var col := cool if t in ["storage", "armory", "hall"] else warm
 		var c := r.get_center()
-		lights.append({"pos": Vector3(c.x, 2.25, c.y), "energy": 1.6 + r.get_area() * 0.02, "range": maxf(r.size.x, r.size.y) * 0.75 + 1.0,
+		lights.append({"pos": Vector3(c.x, 2.62, c.y), "energy": 1.6 + r.get_area() * 0.02, "range": maxf(r.size.x, r.size.y) * 0.75 + 1.0,
 			"color": col, "flicker": rng.randf() < 0.18})
 
 

@@ -134,7 +134,7 @@ func _environment() -> void:
 			vp.scaling_3d_scale = 0.7
 			vp.msaa_3d = Viewport.MSAA_DISABLED
 			vp.mesh_lod_threshold = 6.0
-			moon.directional_shadow_max_distance = 18.0
+			moon.shadow_enabled = false
 		1:
 			vp.scaling_3d_scale = 0.85 if OS.has_feature("web") else 1.0
 			vp.msaa_3d = Viewport.MSAA_2X

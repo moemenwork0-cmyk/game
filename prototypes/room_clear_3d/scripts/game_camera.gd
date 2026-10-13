@@ -1,6 +1,7 @@
 class_name GameCamera
 extends Camera3D
-## Tilted top-down follow camera with aim look-ahead, trauma shake, a kill cam and a menu orbit.
+## Over-the-shoulder third-person camera (pulled in when a wall is behind the operator),
+## trauma shake, a kill cam and a menu orbit.
 
 enum Mode { ORBIT, FOLLOW, KILLCAM }
 
@@ -20,9 +21,12 @@ var _noise := FastNoiseLite.new()
 var _t := 0.0
 
 
+const SHOULDER := Vector3(0.72, 1.85, 2.75)   ## right, up, back from the operator's feet
+
+
 func _ready() -> void:
-	fov = 46.0
-	near = 0.3
+	fov = 70.0
+	near = 0.06
 	far = 80.0
 	_noise.frequency = 1.6
 	Fx.trauma_added.connect(func(a: float) -> void: trauma = minf(trauma + a, 1.0))
@@ -55,20 +59,32 @@ func _compute(k: float) -> void:
 			want_pos = c + Vector3(sin(_orbit_t) * 11.0, 11.0, cos(_orbit_t) * 9.0 + 2.0)
 		Mode.FOLLOW:
 			if follow:
-				var ahead := Basis(Vector3.UP, follow.aim_yaw) * Vector3(0, 0, -1.3)
-				var base := follow.global_position + ahead
-				if threat and threat.alive and threat.get("aware"):
-					var d := threat.global_position - follow.global_position
-					if d.length() < 13.0:
-						base = follow.global_position + d * 0.4
-				base.x = clampf(base.x, bounds.position.x, bounds.end.x)
-				base.z = clampf(base.z, bounds.position.y, bounds.end.y)
-				want_look = base + Vector3(0, 0.6, 0)
-				want_pos = base + offset_dir * zoom
+				var yaw: float = follow.get("view_yaw") if follow.get("view_yaw") != null else follow.aim_yaw
+				var b := Basis(Vector3.UP, yaw)
+				var head := follow.global_position + Vector3(0, 1.55, 0)
+				var crouch: float = follow.crouch_k * 0.45
+				var want := follow.global_position + b * (SHOULDER - Vector3(0, crouch, 0))
+				want_pos = _spring(head, want)
+				want_look = follow.global_position + Vector3(0, 1.6 - crouch, 0) + b * Vector3(0.72, 0, -9.0)
+				# camera follows tight; position smoothing only (no look-ahead lag)
+				k = maxf(k, 0.45)
 		Mode.KILLCAM:
 			if focus:
 				var c := focus.global_position
-				want_look = c + Vector3(0, 0.5, 0)
-				want_pos = c + Vector3(1.6, 4.2, 3.6)
+				want_look = c + Vector3(0, 0.6, 0)
+				_orbit_t += get_process_delta_time() * 0.35
+				want_pos = _spring(c + Vector3(0, 1.2, 0), c + Vector3(sin(_orbit_t) * 2.6, 1.9, cos(_orbit_t) * 2.6))
 	_pos = _pos.lerp(want_pos, k)
 	_look = _look.lerp(want_look, k)
+
+
+## Keeps the camera inside the room: pulls it toward the pivot when a wall is in between.
+func _spring(pivot: Vector3, want: Vector3) -> Vector3:
+	var space := get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(pivot, want, 1)
+	var h := space.intersect_ray(q)
+	if h.is_empty():
+		return want
+	var d := (want - pivot)
+	var hit_d := pivot.distance_to(h.position)
+	return pivot + d.normalized() * maxf(hit_d - 0.25, 0.2)

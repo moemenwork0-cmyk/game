@@ -1,10 +1,12 @@
-# Room Clear — Godot 4.7 (web, mobile, desktop)
+# Room Clear — Godot 4.7 (Android, desktop)
 
-Top-down tactical shooter. Twelve-mission campaign plus endless Quick Ops; every building is
+Third-person (over-the-shoulder) tactical shooter inside fully roofed buildings. Twelve-mission campaign plus endless Quick Ops; every building is
 generated from a seed (rooms, doors, furniture, lights, guards), so maps load instantly and the
 same mission always gives the same building.
 
 ## بالعربي
+- **منظور من ورا اللاعب (Third Person)**: الكاميرا فوق كتفه، والمبنى كامل بسقف وكمرات. الإيد الشمال للحركة،
+  واسحب بالإيد اليمين في أي حتة عشان تلف. زر الطلقة بيضرب وانت ضاغط عليه، ولو سحبته بيلف معاك.
 - **حملة 12 مهمة، كل مهمة مختلفة**: اغتيال هدف، سحب لابتوب، جمع 3 مستندات من غرف مختلفة، تطهير المبنى،
   إنقاذ رهينة، تفكيك قنبلة بوقت، تفخيخ 3 مخازن سلاح والهروب قبل الانفجار، تسلل من غير ما حد يشوفك
   (لو شافوك بيضرب إنذار وييجي فريق دعم)، مطاردة هدف بيهرب لعربيته، إنقاذ رهينتين، الدفاع عن غرفة اللاسلكي
@@ -18,7 +20,7 @@ same mission always gives the same building.
 ## Run
 - **Phone (fastest)**: install `dist/RoomClear.apk` (Android 64-bit; allow "install unknown apps"). Landscape, touch only.
 - **Desktop preview**: open `prototypes/room_clear_3d/project.godot` in Godot 4.7 and press F5.
-  WASD move · mouse aim · LMB fire · R reload (touch controls also work with a touchscreen).
+  WASD move · mouse look (click to capture) · LMB fire · RMB grenade · R reload · Space dash.
 
 ## Export the Android APK
 ```

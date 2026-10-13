@@ -375,7 +375,7 @@ func _main_screen() -> Control:
 	vb.add_child(_rank_bar)
 	_stars_lbl = K.label("", 16, K.DIM, "mid")
 	vb.add_child(_stars_lbl)
-	var ver := K.label("v3.0  ·  procedural ops", 13, Color(K.DIM, 0.5), "mid")
+	var ver := K.label("v4.0  ·  third person", 13, Color(K.DIM, 0.5), "mid")
 	ver.anchor_left = 1.0
 	ver.anchor_right = 1.0
 	ver.anchor_top = 1.0

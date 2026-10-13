@@ -1,13 +1,16 @@
 class_name Player
 extends Soldier
-## The operator. Twin-stick on touch: left stick moves, right stick aims and fires once pushed
-## past the trigger point. Desktop: WASD + mouse aim + click. Aim assist gently bends the aim
-## toward a visible hostile near the aim line (it never snaps across the screen).
+## The operator, played from over the shoulder. Touch: left stick moves (relative to the view),
+## dragging on the right half turns, the fire button shoots (and turns while dragged).
+## Desktop: WASD + mouse look + click. Aim assist bends the shot toward a visible hostile near
+## the crosshair and slows the turn across him.
 
 const SPEED := 4.4
 
 var input_move := Vector2.ZERO     ## left stick (-1..1), set by the HUD
-var input_aim := Vector2.ZERO      ## right stick (-1..1)
+var input_aim := Vector2.ZERO      ## unused in third person (kept for the dev bot)
+var view_yaw := 0.0                ## where the camera looks; turned by the HUD / mouse
+var aim_point := Vector3.ZERO      ## where the laser lands (HUD crosshair)
 var aim_trigger := false           ## right stick pushed far enough to shoot
 var fire_held := false             ## desktop click / key
 var mouse_aim := false
@@ -32,6 +35,7 @@ func _ready() -> void:
 	max_hp = 100.0
 	hp = max_hp
 	_face = aim_yaw
+	view_yaw = aim_yaw
 	aim_up = 1.0
 	hurt.connect(func(_a: float, _f: Vector3) -> void: _since_hurt = 0.0)
 	rifle.light.shadow_enabled = Game.quality >= 2
@@ -88,6 +92,7 @@ func _process(delta: float) -> void:
 	_laser.global_transform = Transform3D(rifle.global_transform.basis.orthonormalized() * Basis.from_scale(Vector3(1, 1, len)), from + dir * len * 0.5)
 	_dot.visible = not h.is_empty()
 	_dot.global_position = to
+	aim_point = to
 	var on_enemy: bool = not h.is_empty() and h.collider is Enemy
 	# x-ray silhouette only while a wall or prop hides the operator from the camera
 	var cam := get_viewport().get_camera_3d()
@@ -108,23 +113,20 @@ func think(delta: float) -> void:
 	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN): kb.y += 1
 	if kb.length() > 0.1:
 		mv = kb.limit_length(1.0)
-	move_target = Vector3(mv.x, 0, mv.y) * SPEED * (0.8 if is_reloading() else 1.0)
-	# where do we want to point?
-	var shooting := false
+	# stick / keys are relative to the view
+	var wm := Basis(Vector3.UP, view_yaw) * Vector3(mv.x, 0, mv.y)
+	move_target = wm * SPEED * (0.8 if is_reloading() else 1.0)
+	var shooting := fire_held or aim_trigger
 	if input_aim.length() > 0.2:
-		_face = atan2(-input_aim.x, -input_aim.y)
-		shooting = aim_trigger
-	elif mouse_aim:
-		var d := mouse_point - global_position
-		if Vector2(d.x, d.z).length() > 0.4:
-			_face = atan2(-d.x, -d.z)
-		shooting = fire_held
-	else:
-		if mv.length() > 0.25:
-			_face = atan2(-mv.x, -mv.y)
-		shooting = fire_held
+		# dev bot / gamepad style absolute aim also turns the view
+		view_yaw = rotate_toward(view_yaw, atan2(-input_aim.x, -input_aim.y), 10.0 * delta)
+	_face = view_yaw
 	var want := _assist(_face, shooting)
 	aim_yaw = rotate_toward(aim_yaw, want, 16.0 * delta)
+	# aim magnetism: while shooting at someone, the view drifts onto him
+	if locked and shooting:
+		var to := locked.global_position - global_position
+		view_yaw = rotate_toward(view_yaw, atan2(-to.x, -to.z), 1.6 * delta)
 	aim_up = 1.0
 	if shooting and alive:
 		if ammo <= 0:
@@ -146,9 +148,9 @@ func _assist(face: float, shooting: bool) -> float:
 		return face
 	var best: Soldier
 	var best_err := 1e9
-	var cone := deg_to_rad(24.0 if shooting else 14.0)
-	if mouse_aim and input_aim.length() < 0.2:
-		cone = deg_to_rad(5.0)
+	var cone := deg_to_rad(9.0 if shooting else 6.0)
+	if mouse_aim and not Game.is_phone():
+		cone = deg_to_rad(3.5)
 	for n in get_tree().get_nodes_in_group("enemies"):
 		var e := n as Soldier
 		if not e.alive:
@@ -189,10 +191,10 @@ func can_see(other: Soldier) -> bool:
 ## Grenade toward the aim, landing ~7 m ahead (or at the mouse point).
 func throw_ahead() -> bool:
 	var at := global_position + Basis(Vector3.UP, aim_yaw) * Vector3(0, 0, -7.0)
-	if mouse_aim and input_aim.length() < 0.2:
-		var d := mouse_point - global_position
-		d.y = 0
-		at = global_position + d.limit_length(12.0)
+	var d := aim_point - global_position
+	d.y = 0
+	if d.length() > 1.0:
+		at = global_position + d.limit_length(9.0) - d.normalized() * 0.4
 	if locked:
 		at = locked.global_position
 	return throw_grenade(at)
