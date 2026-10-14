@@ -11,6 +11,7 @@
     "test": "vitest run",
     "lint": "eslint src sim tests scripts",
     "zip": "node scripts/zip.mjs",
+    "single": "node scripts/singlefile.mjs",
     "shots": "node scripts/shots.mjs",
     "sim": "tsx sim/simulate.ts",
     "smoke": "node scripts/smoke.mjs"
