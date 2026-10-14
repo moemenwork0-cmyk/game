@@ -35,9 +35,9 @@ export function renderBoardBase(lay: Layout): BoardBase {
   // Frame fill with a faint top sheen.
   roundRectPath(ctx, x, y, b, b, R);
   const g = ctx.createLinearGradient(0, y, 0, y + b);
-  g.addColorStop(0, '#24134D');
+  g.addColorStop(0, '#18234A');
   g.addColorStop(0.18, P.boardFill);
-  g.addColorStop(1, '#170B33');
+  g.addColorStop(1, '#10182F');
   ctx.fillStyle = g;
   ctx.fill();
 

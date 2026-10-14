@@ -28,6 +28,6 @@
     "vitest": "^3.2.7"
   },
   "dependencies": {
-    "@fontsource/baloo-2": "^5.2.5"
+    "@fontsource/baloo-bhaijaan-2": "^5.2.5"
   }
 }

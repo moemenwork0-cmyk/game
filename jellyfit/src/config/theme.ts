@@ -1,25 +1,29 @@
 /** Visual and feel tunables (spec 5, 9). */
 export const THEME = {
+  /**
+   * Calm palette (player feedback replaced the spec's purple → pink gradient, see DECISIONS.md):
+   * a soft deep-blue background that is easy on the eyes and lets the jelly colours carry the screen.
+   */
   palette: {
-    bgTop: '#2B1660',
-    bgMid: '#5B2A86',
-    bgBottom: '#B4457F',
-    boardFill: '#1C0F3D',
-    boardBorder: '#3A2470',
-    socket: '#2A1856',
-    socketShadow: '#1A0D38',
-    socketHighlight: '#3B2575',
+    bgTop: '#1A2547',
+    bgMid: '#22305A',
+    bgBottom: '#2A3B6B',
+    boardFill: '#131C38',
+    boardBorder: '#2B3B6A',
+    socket: '#1C2749',
+    socketShadow: '#111933',
+    socketHighlight: '#28365F',
     gold: '#FFC93C',
     goldText: '#4A2A00',
-    panel: 'rgba(36,18,79,0.92)',
-    panelBorder: '#4B2E8F',
+    panel: 'rgba(23,33,64,0.96)',
+    panelBorder: '#33467C',
     text: '#FFFFFF',
-    textSecondary: '#C9B8F2',
+    textSecondary: '#A9B8DE',
     coin: '#FFD54A',
   },
 
-  /** Classic Jelly: Strawberry, Tangerine, Lemon, Lime, Ocean, Grape, Aqua. */
-  jelly: ['#FF3D6E', '#FF8C2B', '#FFD23F', '#45D65C', '#2E8CFF', '#A35CFF', '#14D2C8'],
+  /** Classic Jelly, slightly softened: Strawberry, Tangerine, Lemon, Lime, Ocean, Grape, Aqua. */
+  jelly: ['#F4517A', '#F7953F', '#F6CD4C', '#55CC6B', '#4891F2', '#9C6BF2', '#2BC8BF'],
 
   layout: {
     columnMax: 520,
@@ -45,6 +49,10 @@ export const THEME = {
     pickupMs: 120,
     pickupOvershoot: 1.15,
     touchLiftCells: 1.4,
+    /** Touch drag speed-up (piece moves this much faster than the finger). See DECISIONS.md. */
+    touchGainX: 1.2,
+    touchGainUp: 1.6,
+    touchGainDown: 1.0,
     mouseLiftCells: 0.25,
     shadowOffset: 8,
     shadowAlpha: 0.35,
@@ -110,5 +118,5 @@ export const THEME = {
     panelDelayMs: 900,
   },
 
-  bokeh: { count: 12, minAlpha: 0.04, maxAlpha: 0.08, minSpeed: 4, maxSpeed: 10 },
+  bokeh: { count: 10, minAlpha: 0.025, maxAlpha: 0.05, minSpeed: 4, maxSpeed: 9 },
 } as const;

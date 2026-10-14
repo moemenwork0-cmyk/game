@@ -39,13 +39,13 @@ describe('scoring', () => {
 
   it('feedback words', () => {
     expect(feedbackWord(1, 1, false)).toBeNull();
-    expect(feedbackWord(2, 1, false)).toBe('Good');
-    expect(feedbackWord(3, 1, false)).toBe('Great');
-    expect(feedbackWord(4, 1, false)).toBe('Excellent');
-    expect(feedbackWord(6, 1, false)).toBe('Amazing');
-    expect(feedbackWord(1, 5, false)).toBe('On fire');
-    expect(feedbackWord(1, 8, false)).toBe('Unstoppable');
-    expect(feedbackWord(1, 1, true)).toBe('Perfect!');
+    expect(feedbackWord(2, 1, false)).toBe('good');
+    expect(feedbackWord(3, 1, false)).toBe('great');
+    expect(feedbackWord(4, 1, false)).toBe('excellent');
+    expect(feedbackWord(6, 1, false)).toBe('amazing');
+    expect(feedbackWord(1, 5, false)).toBe('onFire');
+    expect(feedbackWord(1, 8, false)).toBe('unstoppable');
+    expect(feedbackWord(1, 1, true)).toBe('perfect');
     expect(feedbackWord(0, 9, false)).toBeNull();
   });
 });

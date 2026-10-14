@@ -3,6 +3,7 @@
  * the visual state (appearing blocks, popping blocks, flyers, effects) so input never locks.
  */
 import { THEME } from '../config/theme';
+import { STR } from '../config/strings';
 import { Rng } from '../core/rng';
 import { clamp01, easeOutBack, easeOutCubic, easeOutQuad, lerp } from '../core/tween';
 import { PIECES } from '../game/rules';
@@ -81,6 +82,8 @@ export class Renderer {
   private gameOverAt = -1;
   private flashAt = -1e9;
   reducedMotion = false;
+  /** 'menu' draws only the background and floating decorative jellies. */
+  mode: 'menu' | 'game' = 'menu';
   colors: readonly string[] = THEME.jelly;
 
   constructor(
@@ -241,7 +244,7 @@ export class Renderer {
       this.after(snap + 80, now, () => this.popups.score(sx, sy, value, this.now, size));
       if (res.word) {
         const color = this.colors[res.color];
-        const word = res.word;
+        const word = STR.words[res.word];
         this.after(snap + 40, now, () => this.popups.showWord(word, darkOutline(color), this.now));
       }
     }
@@ -337,6 +340,10 @@ export class Renderer {
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
     this.bg.draw(ctx);
+    if (this.mode === 'menu') {
+      this.drawMenuDecor(now);
+      return;
+    }
 
     ctx.setTransform(L.dpr, 0, 0, L.dpr, this.camera.x * L.dpr, this.camera.y * L.dpr);
     if (this.base) ctx.drawImage(this.base.canvas, L.boardX - this.base.off, L.boardY - this.base.off, this.base.canvas.width / L.dpr, this.base.canvas.height / L.dpr);
@@ -396,6 +403,14 @@ export class Renderer {
 
     this.drawSweeps(now);
     this.particles.draw(ctx, this.sprites.droplets, this.colors);
+
+    // Tray panel: a soft rounded well that anchors the three pieces.
+    ctx.fillStyle = 'rgba(8,14,36,0.22)';
+    roundRectPath(ctx, L.trayX, L.trayY + 2, L.trayW, L.trayH - 4, 22);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
 
     // Tray.
     for (let slot = 0; slot < 3; slot++) {
@@ -471,6 +486,29 @@ export class Renderer {
     ctx.setTransform(L.dpr, 0, 0, L.dpr, 0, 0);
   }
 
+  /** Home screen: a few big jelly pieces floating around the logo and the play button. */
+  private drawMenuDecor(now: number): void {
+    const L = this.lay;
+    const ctx = this.ctx;
+    const colW = Math.min(L.w, 560);
+    const cx = L.w / 2;
+    const cs = Math.max(26, Math.min(54, Math.min(L.w, L.h) * 0.085));
+    const t = this.reducedMotion ? 0 : now / 1000;
+    for (const d of MENU_DECOR) {
+      const p = PIECES.find((q) => q.id === d.id)!;
+      const x = cx + (d.x - 0.5) * colW * 1.08;
+      const y = L.h * d.y + Math.sin(t * d.speed + d.phase) * cs * 0.18;
+      const k = cs * d.scale;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(d.rot + Math.sin(t * d.speed * 0.7 + d.phase) * 0.04);
+      ctx.globalAlpha = d.alpha;
+      this.pieceCentered(p.index, d.color, k, false);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  }
+
   private drawLineGlow(rows: number, cols: number, pulse: number): void {
     const L = this.lay;
     const ctx = this.ctx;
@@ -540,14 +578,14 @@ export class Renderer {
     const t = clamp01((now - this.gameOverAt) / 380);
     ctx.save();
     ctx.globalAlpha = 0.55 * t;
-    ctx.fillStyle = '#12082A';
+    ctx.fillStyle = '#070C20';
     roundRectPath(ctx, L.boardX, L.boardY, L.boardSize, L.boardSize, THEME.layout.frameRadius);
     ctx.fill();
     ctx.globalAlpha = t;
     ctx.translate(L.boardX + L.boardSize / 2, L.boardY + L.boardSize / 2);
     const sc = easeOutBack(t, 2);
     ctx.scale(sc, sc);
-    outlinedText(ctx, 'No space left', 0, 0, Math.max(30, L.cs * 0.9), '#5B1F8A');
+    outlinedText(ctx, STR.noSpace, 0, 0, Math.max(30, L.cs * 0.95), '#24346B');
     ctx.restore();
   }
 
@@ -557,6 +595,16 @@ export class Renderer {
     return this.ctx.measureText(text).width;
   }
 }
+
+const MENU_DECOR = [
+  { id: 'T1', color: 1, x: 0.1, y: 0.2, rot: -0.22, scale: 0.85, alpha: 0.95, speed: 1.1, phase: 0 },
+  { id: 'sq2', color: 6, x: 0.92, y: 0.17, rot: 0.2, scale: 0.8, alpha: 0.95, speed: 0.9, phase: 1.3 },
+  { id: 'L1', color: 4, x: 0.06, y: 0.62, rot: 0.16, scale: 0.75, alpha: 0.9, speed: 1.0, phase: 2.1 },
+  { id: 'h3', color: 3, x: 0.9, y: 0.6, rot: -0.3, scale: 0.7, alpha: 0.9, speed: 1.2, phase: 0.6 },
+  { id: '1x1', color: 0, x: 0.2, y: 0.88, rot: 0.3, scale: 0.9, alpha: 0.85, speed: 1.3, phase: 1.8 },
+  { id: 'sl2', color: 5, x: 0.84, y: 0.9, rot: -0.15, scale: 0.7, alpha: 0.85, speed: 0.8, phase: 2.7 },
+  { id: '1x1', color: 2, x: 0.5, y: 0.06, rot: 0.25, scale: 0.6, alpha: 0.8, speed: 1.4, phase: 0.3 },
+];
 
 /** Outline colour for feedback words: the jelly colour, darkened so white text stays readable. */
 function darkOutline(hex: string): string {

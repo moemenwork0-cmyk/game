@@ -49,7 +49,7 @@ export const BALANCE = {
   },
 
   words: {
-    lines: { 2: 'Good', 3: 'Great', 4: 'Excellent', 5: 'Amazing' } as Record<number, string>,
+    lines: { 2: 'good', 3: 'great', 4: 'excellent', 5: 'amazing' } as Record<number, 'good' | 'great' | 'excellent' | 'amazing'>,
     comboOnFire: 5,
     comboUnstoppable: 8,
   },

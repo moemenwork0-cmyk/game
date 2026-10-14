@@ -2,8 +2,9 @@
 import { THEME } from '../config/theme';
 import { clamp01, easeOutBack, easeOutCubic, easeInCubic } from '../core/tween';
 import { roundRectPath } from './blockSprites';
+import { STR } from '../config/strings';
 
-export const FONT = '"Baloo 2", "Trebuchet MS", system-ui, sans-serif';
+export const FONT = '"Baloo Bhaijaan 2", "Segoe UI", Tahoma, system-ui, sans-serif';
 
 interface ScorePopup {
   x: number;
@@ -19,6 +20,8 @@ interface Word {
   start: number;
 }
 
+const ARABIC = /[\u0600-\u06FF]/;
+
 export function outlinedText(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -30,12 +33,13 @@ export function outlinedText(
   outlineRatio = 0.22,
 ): void {
   ctx.font = `800 ${size}px ${FONT}`;
+  ctx.direction = ARABIC.test(text) ? 'rtl' : 'ltr';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
   ctx.miterLimit = 2;
   // Soft drop shadow (two offset strokes, no shadowBlur).
-  ctx.strokeStyle = 'rgba(20,6,50,0.35)';
+  ctx.strokeStyle = 'rgba(4,8,28,0.4)';
   ctx.lineWidth = size * outlineRatio;
   ctx.strokeText(text, x, y + size * 0.08);
   ctx.strokeStyle = outline;
@@ -86,7 +90,7 @@ export class Popups {
       const t = (now - p.start) / C.popupMs;
       const pop = t < 0.2 ? easeOutBack(t / 0.2, 2.2) : 1;
       ctx.globalAlpha = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4;
-      outlinedText(ctx, p.text, p.x, p.y - C.popupRise * easeOutCubic(t), p.size * (0.6 + 0.4 * pop), '#5B1F8A', '#fff', 0.24);
+      outlinedText(ctx, p.text, p.x, p.y - C.popupRise * easeOutCubic(t), p.size * (0.6 + 0.4 * pop), '#24346B', '#fff', 0.24);
     }
     ctx.globalAlpha = 1;
   }
@@ -136,12 +140,16 @@ export class Popups {
     if (bump < 260) scale *= 1 + 0.18 * Math.sin((bump / 260) * Math.PI);
     if (scale <= 0.01) return;
 
-    const label = `Combo ×${this.comboLabel}`;
+    const word = STR.comboWord;
+    const num = `×${this.comboLabel}`;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.scale(scale, scale);
     ctx.font = `800 ${size}px ${FONT}`;
-    const tw = ctx.measureText(label).width;
+    const gap = size * 0.3;
+    const ww = ctx.measureText(word).width;
+    const nw = ctx.measureText(num).width;
+    const tw = ww + gap + nw;
     const h = size * 1.5;
     const ring = h * 0.78;
     const w = tw + size * 1.2 + ring;
@@ -165,11 +173,16 @@ export class Popups {
     ctx.fill();
     ctx.globalAlpha = 1;
     ctx.fillStyle = P.goldText;
-    ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(label, x + size * 0.6, size * 0.06);
-    // Grace ring.
-    const rx = x + w - size * 0.45 - ring / 2;
+    // Word and number drawn separately so the number never flips around the Arabic word.
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'right';
+    ctx.fillText(word, x + w - size * 0.6, size * 0.06);
+    ctx.direction = 'ltr';
+    ctx.textAlign = 'right';
+    ctx.fillText(num, x + w - size * 0.6 - ww - gap, size * 0.06);
+    // Grace ring (reading order is right to left, so it sits at the left end).
+    const rx = x + size * 0.45 + ring / 2;
     ctx.lineWidth = ring * 0.22;
     ctx.strokeStyle = 'rgba(74,42,0,0.22)';
     ctx.beginPath();

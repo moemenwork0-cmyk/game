@@ -10,9 +10,9 @@ const fail = (m) => {
   process.exitCode = 1;
 };
 
-async function dragPiece(page, slot, touch) {
+async function dragPiece(page, slot, touch, forceRow = -1) {
   // Find a slot piece and a cell where it fits, then drive the real pointer there.
-  const plan = await page.evaluate((slot) => {
+  const plan = await page.evaluate(({ slot, forceRow }) => {
     const app = window.__jf.app;
     const s = app.session;
     const t = s.tray[slot];
@@ -21,10 +21,11 @@ async function dragPiece(page, slot, touch) {
     for (let i = 0; i < 64; i++) {
       const r = i >> 3;
       const c = i & 7;
+      if (forceRow >= 0 && r !== forceRow) continue;
       if (s.canPlace(slot, r, c)) return { r, c, L, slot };
     }
     return null;
-  }, slot);
+  }, { slot, forceRow });
   if (!plan) return false;
   const { L } = plan;
   const sx = L.trayX + L.slotW * (slot + 0.5);
@@ -37,8 +38,10 @@ async function dragPiece(page, slot, touch) {
     const P = window.__jf.pieceDims(t.piece);
     return { x: L.gridX + (c + P.w / 2) * L.cs, y: L.gridY + (r + P.h / 2) * L.cs, cs: L.cs, h: P.h };
   }, plan);
-  const tx = info.x;
-  const ty = touch ? info.y + 1.4 * info.cs + (info.h * info.cs) / 2 : info.y + 0.25 * info.cs;
+  // Touch: the piece floats 1.4 cells above the finger and moves faster than it (theme.ts drag gains).
+  const lift = 1.4 * info.cs + (info.h * info.cs) / 2;
+  const tx = touch ? sx + (info.x - sx) / 1.2 : info.x;
+  const ty = touch ? sy + Math.min(0, info.y - (sy - lift)) / 1.6 + Math.max(0, info.y - (sy - lift)) : info.y + 0.25 * info.cs;
   const cdp = touch ? await page.context().newCDPSession(page) : null;
   const tp = async (type, x, y) =>
     cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 1 }] });
@@ -56,6 +59,7 @@ async function dragPiece(page, slot, touch) {
   }
   await page.waitForTimeout(150);
   if (touch) await tp('touchEnd', tx, ty);
+  if (touch && forceRow === 0) console.log(`touch: reached the top row with ${Math.round(sy - ty)} px of finger travel (board is ${Math.round(L.boardSize)} px)`);
   else await page.mouse.up();
   await page.waitForTimeout(250);
   return true;
@@ -76,6 +80,17 @@ async function main() {
     await page.goto(`${url}?test=1`);
     await page.waitForFunction(() => !!window.__jf);
     console.log(`${touch ? 'touch' : 'mouse'}: interactive in ${Date.now() - t0} ms`);
+    await page.click('.btn-play', { force: true });
+    await page.waitForTimeout(300);
+    if (touch) {
+      await page.evaluate(() => window.__jf.setBoard(['........', '........', '........', '........', '........', '........', '........', '........']));
+      await page.evaluate(() => window.__jf.setTray(['h3', 'v3', 'sq2']));
+      await page.waitForTimeout(400);
+      const before = await page.evaluate(() => window.__jf.app.session.board.toRows()[0]);
+      await dragPiece(page, 0, true, 0);
+      const row0 = await page.evaluate(() => window.__jf.app.session.board.toRows()[0]);
+      if (row0 === before) fail('touch drag could not reach the top row');
+    }
     let placed = 0;
     for (let k = 0; k < 6; k++) {
       const before = await page.evaluate(() => window.__jf.app.session.stats.placements);

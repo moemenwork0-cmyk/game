@@ -1,5 +1,6 @@
 /** PURE scoring, combo and feedback words (spec 7). */
 import { BALANCE } from '../config/balance';
+import type { WordKey } from '../config/strings';
 
 const S = BALANCE.scoring;
 const W = BALANCE.words;
@@ -61,11 +62,11 @@ export function scorePlacement(
 /**
  * Feedback word for a placement. Priority: perfect > unstoppable > amazing (5+ lines) > on fire > lines.
  */
-export function feedbackWord(lines: number, combo: number, perfect: boolean): string | null {
-  if (perfect) return 'Perfect!';
+export function feedbackWord(lines: number, combo: number, perfect: boolean): WordKey | null {
+  if (perfect) return 'perfect';
   if (lines <= 0) return null;
-  if (combo >= W.comboUnstoppable) return 'Unstoppable';
+  if (combo >= W.comboUnstoppable) return 'unstoppable';
   if (lines >= 5) return W.lines[5];
-  if (combo >= W.comboOnFire) return 'On fire';
+  if (combo >= W.comboOnFire) return 'onFire';
   return W.lines[Math.min(lines, 5)] ?? null;
 }

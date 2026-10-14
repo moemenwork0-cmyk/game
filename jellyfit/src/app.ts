@@ -12,7 +12,10 @@ import { DragController, type DragState } from './input/drag';
 import { Renderer } from './render/renderer';
 import { Hud } from './ui/hud';
 import { ResultsScreen } from './ui/screens/gameover';
-import { LocalStorage, SaveStore, type KeyValueStorage } from './meta/save';
+import { MenuScreen } from './ui/screens/menu';
+import { PauseScreen } from './ui/screens/pause';
+import { SettingsScreen } from './ui/screens/settings';
+import { LocalStorage, SaveStore, type KeyValueStorage, type Settings } from './meta/save';
 import { Haptics } from './platform/haptics';
 import { DebugPanel } from './debug/debugPanel';
 
@@ -32,7 +35,13 @@ export class App {
   readonly haptics = new Haptics();
   readonly hud: Hud;
   readonly results: ResultsScreen;
+  readonly menu: MenuScreen;
+  readonly pauseUi: PauseScreen;
+  readonly settingsUi: SettingsScreen;
   readonly store: SaveStore;
+  /** Which top-level screen is active. */
+  screen: 'menu' | 'game' = 'menu';
+  private prefersReduced = false;
   readonly loop: Loop;
   session!: Session;
   private debug: DebugPanel | null = null;
@@ -50,14 +59,34 @@ export class App {
         this.sfx.pop(total > 14 ? seq / 2 : seq);
       },
     });
-    this.hud = new Hud(this.root);
-    this.results = new ResultsScreen(this.root, () => this.playAgain());
+    this.hud = new Hud(this.root, () => this.pauseGame());
+    this.menu = new MenuScreen(
+      this.root,
+      () => this.startPlaying(),
+      () => this.openSettings(),
+    );
+    this.results = new ResultsScreen(
+      this.root,
+      () => this.playAgain(),
+      () => this.goHome(),
+    );
+    this.pauseUi = new PauseScreen(
+      this.root,
+      () => this.resumeGame(),
+      () => this.openSettings(),
+      () => this.goHome(),
+    );
+    this.settingsUi = new SettingsScreen(
+      this.root,
+      () => this.store.data.settings,
+      (k, v) => this.applySetting(k, v),
+    );
     this.loop = new Loop((dt, now) => this.frame(dt, now));
     this.drag = new DragController(this.canvas, {
       layout: () => this.renderer.lay,
       now: () => this.loop.now,
       pickable: (slot) => {
-        if (this.session.gameOver) return null;
+        if (this.session.gameOver || !this.inputOpen()) return null;
         const t = this.session.tray[slot];
         return t ? { piece: t.piece, color: t.color } : null;
       },
@@ -73,12 +102,8 @@ export class App {
       onReturn: (d) => this.onReturn(d),
     });
 
-    const s = this.store.data.settings;
-    this.audio.sfxOn = s.sfx;
-    this.audio.musicOn = s.music;
-    this.haptics.enabled = s.haptics;
-    const prefersReduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    this.renderer.reducedMotion = s.reducedMotion || prefersReduced;
+    this.prefersReduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.applySettings();
 
     if (opts.debug || opts.test) this.debug = new DebugPanel(this, opts.debug);
     this.bindGlobal();
@@ -104,7 +129,93 @@ export class App {
     this.hud.setBest(this.store.data.best);
     this.syncCombo();
     this.persist();
+    this.showMenu();
     this.loop.start();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Screens
+
+  private inputOpen(): boolean {
+    return this.screen === 'game' && !this.pauseUi.visible && !this.settingsUi.visible && !this.results.visible;
+  }
+
+  showMenu(): void {
+    this.drag.cancel();
+    this.screen = 'menu';
+    this.renderer.mode = 'menu';
+    this.hud.setVisible(false);
+    this.pauseUi.hide();
+    this.results.hide();
+    const s = this.session;
+    const resumable = !s.gameOver && s.stats.placements > 0;
+    this.menu.show(this.store.data.best, resumable);
+  }
+
+  startPlaying(): void {
+    this.audio.unlock();
+    this.sfx.click();
+    if (this.session.gameOver) this.resetSession();
+    this.menu.hide();
+    this.screen = 'game';
+    this.renderer.mode = 'game';
+    this.hud.setVisible(true);
+    this.hud.setBest(this.store.data.best);
+    this.renderer.dealt(this.loop.now);
+  }
+
+  pauseGame(): void {
+    if (this.screen !== 'game' || this.results.visible || this.session.gameOver) return;
+    this.sfx.click();
+    this.drag.cancel();
+    this.persist();
+    this.pauseUi.show();
+  }
+
+  resumeGame(): void {
+    this.sfx.click();
+    this.pauseUi.hide();
+  }
+
+  goHome(): void {
+    this.sfx.click();
+    this.persist();
+    if (this.session.gameOver) this.resetSession();
+    this.showMenu();
+  }
+
+  openSettings(): void {
+    this.sfx.click();
+    this.settingsUi.show();
+  }
+
+  private applySetting(k: keyof Settings, v: boolean): void {
+    this.store.data.settings[k] = v;
+    this.store.save();
+    this.applySettings();
+    this.sfx.click();
+  }
+
+  private applySettings(): void {
+    const s = this.store.data.settings;
+    this.audio.sfxOn = s.sfx;
+    this.audio.musicOn = s.music;
+    this.audio.applyGains();
+    this.haptics.enabled = s.haptics;
+    this.renderer.reducedMotion = s.reducedMotion || this.prefersReduced;
+  }
+
+  /** Fresh session without leaving the current screen. */
+  private resetSession(): void {
+    this.gameOverShown = false;
+    this.session = this.newSession();
+    this.bestAtStart = this.store.data.best;
+    this.renderer.session = this.session;
+    this.renderer.newGame(this.loop.now);
+    this.hud.setScore(0, this.loop.now, true);
+    this.hud.setBest(this.store.data.best);
+    this.syncCombo();
+    this.persist();
   }
 
   private newSession(): Session {
@@ -208,21 +319,21 @@ export class App {
   playAgain(): void {
     this.sfx.click();
     this.results.hide();
-    this.gameOverShown = false;
-    this.session = this.newSession();
-    this.bestAtStart = this.store.data.best;
-    this.renderer.session = this.session;
-    this.renderer.newGame(this.loop.now);
-    this.hud.setScore(0, this.loop.now, true);
-    this.hud.setBest(this.store.data.best);
-    this.syncCombo();
-    this.persist();
+    this.resetSession();
+    this.screen = 'game';
+    this.renderer.mode = 'game';
+    this.hud.setVisible(true);
   }
 
   /** Replaces the session (debug/test). */
   setSession(s: Session): void {
     this.drag.cancel();
     this.results.hide();
+    this.pauseUi.hide();
+    this.menu.hide();
+    this.screen = 'game';
+    this.renderer.mode = 'game';
+    this.hud.setVisible(true);
     this.gameOverShown = false;
     this.session = s;
     this.renderer.session = s;
@@ -283,14 +394,19 @@ export class App {
       if ([' ', 'Spacebar', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown'].includes(e.key)) {
         if (!(e.target instanceof HTMLButtonElement)) e.preventDefault();
       }
-      if (this.results.visible && (e.key === 'Enter' || e.key === ' ')) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        if (e.target instanceof HTMLButtonElement) return;
+        if (this.settingsUi.visible) return;
         e.preventDefault();
-        this.playAgain();
+        if (this.results.visible) this.playAgain();
+        else if (this.pauseUi.visible) this.resumeGame();
+        else if (this.screen === 'menu') this.startPlaying();
       }
     });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         this.drag.cancel();
+        this.pauseGame();
         this.persist();
         this.loop.stop();
         this.audio.suspend();

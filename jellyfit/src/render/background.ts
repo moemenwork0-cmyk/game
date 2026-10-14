@@ -59,10 +59,15 @@ export class Background {
     g.addColorStop(1, P.bgBottom);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, c.width, c.height);
-    // Gentle vignette for depth.
-    const v = ctx.createRadialGradient(c.width / 2, c.height * 0.45, c.height * 0.2, c.width / 2, c.height * 0.45, c.height * 0.85);
+    // Soft light from the top centre, then a gentle vignette for depth.
+    const glow = ctx.createRadialGradient(c.width / 2, c.height * 0.18, 0, c.width / 2, c.height * 0.18, c.height * 0.7);
+    glow.addColorStop(0, 'rgba(120,150,255,0.10)');
+    glow.addColorStop(1, 'rgba(120,150,255,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, c.width, c.height);
+    const v = ctx.createRadialGradient(c.width / 2, c.height * 0.45, c.height * 0.25, c.width / 2, c.height * 0.45, c.height * 0.9);
     v.addColorStop(0, 'rgba(0,0,0,0)');
-    v.addColorStop(1, 'rgba(10,0,30,0.28)');
+    v.addColorStop(1, 'rgba(4,8,24,0.30)');
     ctx.fillStyle = v;
     ctx.fillRect(0, 0, c.width, c.height);
     this.grad = c;

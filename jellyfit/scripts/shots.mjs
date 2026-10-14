@@ -39,9 +39,29 @@ async function main() {
     const step = (ms) => page.evaluate((m) => window.__jf.step(m), ms);
     const shot = (scene) => page.screenshot({ path: `screenshots/${name}-${scene}.png` });
 
+    // 0. Home screen and settings.
+    await step(600);
+    await page.waitForTimeout(1000);
+    await step(16);
+    await shot('menu');
+    await page.click('.menu .icon-btn');
+    await page.waitForTimeout(450);
+    await step(16);
+    await shot('settings');
+    await page.click('.settings .btn-done');
+    await page.waitForTimeout(300);
+
     // 1. Start of a game.
+    await page.click('.btn-play', { force: true });
+    await page.waitForTimeout(300);
     await step(600);
     await shot('start');
+    await page.click('.hud-pause');
+    await page.waitForTimeout(450);
+    await step(16);
+    await shot('pause');
+    await page.click('.pause .b-resume');
+    await page.waitForTimeout(300);
 
     // 2. Board mid-game.
     await page.evaluate((rows) => {

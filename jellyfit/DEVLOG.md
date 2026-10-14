@@ -1,5 +1,13 @@
 # Dev log
 
+## Feedback round 1 (2026-10-14)
+
+- Whole game in Arabic (RTL, Baloo Bhaijaan 2), calm deep-blue palette, new home screen (logo, best score, settings gear, one play button), settings and pause dialogs, home button on results.
+- Touch drag speed-up so pieces reach the top rows easily (smoke test drags to row 0 with real touch events).
+- Tray area now sits in a soft rounded panel.
+- New `npm run single` builds `jellyfit.html`, one file that plays offline.
+- Checks: typecheck, lint, 24 tests, screenshots (incl. menu/settings/pause), smoke test — all pass, no console errors.
+
 ## M1 — Core game with premium feel (2026-10-14)
 
 ### Done

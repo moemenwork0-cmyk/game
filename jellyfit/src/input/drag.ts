@@ -16,9 +16,11 @@ export interface DragState {
   color: number;
   pointerId: number;
   touch: boolean;
-  /** Pointer position. */
+  /** Pointer position, and where the pointer went down. */
   px: number;
   py: number;
+  p0x: number;
+  p0y: number;
   /** Drawn piece centre and cell size. */
   cx: number;
   cy: number;
@@ -97,9 +99,11 @@ export class DragController {
       piece: p.piece,
       color: p.color,
       pointerId: e.pointerId,
-      touch: e.pointerType === 'touch',
+      touch: e.pointerType === 'touch' || e.pointerType === 'pen',
       px: x,
       py: y,
+      p0x: x,
+      p0y: y,
       cx: pose.cx,
       cy: pose.cy,
       cs: pose.cs,
@@ -163,12 +167,31 @@ export class DragController {
     this.host.onReturn(d);
   }
 
-  /** Desired centre of the piece for the current pointer. */
+  /**
+   * Desired centre of the piece for the current pointer.
+   * Touch: the piece floats above the finger and moves faster than it (more upward than sideways),
+   * so a short thumb movement from the tray reaches every row, even the top one.
+   */
   private desired(d: DragState): { x: number; y: number } {
     const L = this.host.layout();
     const p = PIECES[d.piece];
-    if (d.touch) return { x: d.px, y: d.py - D.touchLiftCells * L.cs - (p.h * L.cs) / 2 };
-    return { x: d.px, y: d.py - D.mouseLiftCells * L.cs };
+    const pw = p.w * L.cs;
+    const ph = p.h * L.cs;
+    let x: number;
+    let y: number;
+    if (d.touch) {
+      const dx = d.px - d.p0x;
+      const dy = d.py - d.p0y;
+      x = d.p0x + dx * D.touchGainX;
+      y = d.p0y - D.touchLiftCells * L.cs - ph / 2 + dy * (dy < 0 ? D.touchGainUp : D.touchGainDown);
+    } else {
+      x = d.px;
+      y = d.py - D.mouseLiftCells * L.cs;
+    }
+    // Keep the whole piece on screen.
+    x = clamp(x, pw / 2 + 2, L.w - pw / 2 - 2);
+    y = clamp(y, ph / 2 + 2, L.h - ph / 2 - 2);
+    return { x, y };
   }
 
   /** Finds the snap target and line preview for the current pointer. */

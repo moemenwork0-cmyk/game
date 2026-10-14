@@ -1,5 +1,6 @@
 /** One game of Classic: deals, placements, scoring, game over. Pure logic (no DOM). */
 import { TRAY_SLOTS } from '../config/config';
+import type { WordKey } from '../config/strings';
 import { Rng } from '../core/rng';
 import { Board, type ClearedCell } from './board';
 import { generateDeal, type DealInfo, type GenState } from './generator';
@@ -36,7 +37,7 @@ export interface PlaceResult {
   perfectBonus: number;
   gained: number;
   score: number;
-  word: string | null;
+  word: WordKey | null;
   newDeal: boolean;
   gameOver: boolean;
 }
