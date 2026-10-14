@@ -80,6 +80,18 @@ async function main() {
     await page.goto(`${url}?test=1`);
     await page.waitForFunction(() => !!window.__jf);
     console.log(`${touch ? 'touch' : 'mouse'}: interactive in ${Date.now() - t0} ms`);
+    // Tap Jello on the home screen: he must react (poke dent) and the menu must stay usable.
+    await page.waitForTimeout(700);
+    const jp = await page.evaluate(() => {
+      const j = window.__jf.app.jello;
+      return { x: j.x, y: j.ground - j.H * 0.5 };
+    });
+    if (touch) await page.touchscreen.tap(jp.x, jp.y);
+    else await page.mouse.click(jp.x, jp.y);
+    await page.waitForTimeout(60);
+    const poked = await page.evaluate(() => window.__jf.app.jello.poke.x !== 0);
+    if (!poked) fail('tapping Jello did nothing');
+    else console.log(`${touch ? 'touch' : 'mouse'}: Jello reacts to taps`);
     await page.click('.btn-play', { force: true });
     await page.waitForTimeout(300);
     if (touch) {

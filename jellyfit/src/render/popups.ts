@@ -128,7 +128,8 @@ export class Popups {
   }
 
   /** "Combo ×N" pill straddling the top of the board, with a draining grace ring. */
-  drawCombo(ctx: CanvasRenderingContext2D, now: number, cx: number, cy: number, size: number): void {
+  /** Draws the badge with its left edge at `left` (vertically centred on cy). */
+  drawCombo(ctx: CanvasRenderingContext2D, now: number, left: number, cy: number, size: number): void {
     const showing = this.combo >= 2;
     const tIn = now - this.comboShown;
     const tOut = now - this.comboHidden;
@@ -143,8 +144,6 @@ export class Popups {
     const word = STR.comboWord;
     const num = `×${this.comboLabel}`;
     ctx.save();
-    ctx.translate(cx, cy);
-    ctx.scale(scale, scale);
     ctx.font = `800 ${size}px ${FONT}`;
     const gap = size * 0.3;
     const ww = ctx.measureText(word).width;
@@ -153,6 +152,8 @@ export class Popups {
     const h = size * 1.5;
     const ring = h * 0.78;
     const w = tw + size * 1.2 + ring;
+    ctx.translate(left + w / 2, cy);
+    ctx.scale(scale, scale);
     const x = -w / 2;
     const y = -h / 2;
     const P = THEME.palette;

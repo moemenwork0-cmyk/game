@@ -2,7 +2,7 @@
 import { THEME } from './config/theme';
 import { BALANCE } from './config/balance';
 import { Loop } from './core/loop';
-import { randomSeed } from './core/rng';
+import { Rng, randomSeed } from './core/rng';
 import { Session, type PlaceResult } from './game/session';
 import { PIECES, place as placeMasks } from './game/rules';
 import { graceLeft } from './game/scoring';
@@ -18,6 +18,8 @@ import { SettingsScreen } from './ui/screens/settings';
 import { LocalStorage, SaveStore, type KeyValueStorage, type Settings } from './meta/save';
 import { Haptics } from './platform/haptics';
 import { DebugPanel } from './debug/debugPanel';
+import { Jello } from './jello/jello';
+import { JelloDirector } from './jello/director';
 
 export interface AppOptions {
   debug: boolean;
@@ -42,6 +44,9 @@ export class App {
   /** Which top-level screen is active. */
   screen: 'menu' | 'game' = 'menu';
   private prefersReduced = false;
+  readonly jello: Jello;
+  readonly director: JelloDirector;
+  private pointer: { x: number; y: number; at: number } | null = null;
   readonly loop: Loop;
   session!: Session;
   private debug: DebugPanel | null = null;
@@ -59,6 +64,13 @@ export class App {
         this.sfx.pop(total > 14 ? seq / 2 : seq);
       },
     });
+    const jrng = new Rng(randomSeed());
+    this.jello = new Jello(jrng, {
+      voice: (n, period, pitch) => this.sfx.babble(n, period, pitch),
+      sound: (k) => this.sfx.jello(k),
+    });
+    this.director = new JelloDirector(this.jello, jrng);
+    this.renderer.jello = this.jello;
     this.hud = new Hud(this.root, () => this.pauseGame());
     this.menu = new MenuScreen(
       this.root,
@@ -150,18 +162,36 @@ export class App {
     const s = this.session;
     const resumable = !s.gameOver && s.stats.placements > 0;
     this.menu.show(this.store.data.best, resumable);
+    this.placeMenuJello();
+    this.director.menu(this.store.data.best);
+  }
+
+  /** Jello stands on top of the logo on the home screen. */
+  private placeMenuJello(): void {
+    const logo = this.menu.root.querySelector('.logo-word.w1') as HTMLElement | null;
+    const L = this.renderer.lay;
+    const R = Math.max(40, Math.min(66, Math.min(L.w, L.h) * 0.12));
+    if (!logo) {
+      this.renderer.menuJello = { x: L.w / 2, ground: L.h * 0.3, R };
+      return;
+    }
+    const r = logo.getBoundingClientRect();
+    const fs = parseFloat(getComputedStyle(logo).fontSize) || 100;
+    this.renderer.menuJello = { x: r.left + r.width * 0.38, ground: r.top + fs * 0.2, R };
   }
 
   startPlaying(): void {
     this.audio.unlock();
     this.sfx.click();
     if (this.session.gameOver) this.resetSession();
+    const resumed = this.session.stats.placements > 0;
     this.menu.hide();
     this.screen = 'game';
     this.renderer.mode = 'game';
     this.hud.setVisible(true);
     this.hud.setBest(this.store.data.best);
     this.renderer.dealt(this.loop.now);
+    this.director.gameStart(false, this.bestAtStart, resumed);
   }
 
   pauseGame(): void {
@@ -175,6 +205,7 @@ export class App {
   resumeGame(): void {
     this.sfx.click();
     this.pauseUi.hide();
+    this.director.resume();
   }
 
   goHome(): void {
@@ -203,6 +234,8 @@ export class App {
     this.audio.applyGains();
     this.haptics.enabled = s.haptics;
     this.renderer.reducedMotion = s.reducedMotion || this.prefersReduced;
+    this.jello.reducedMotion = this.renderer.reducedMotion;
+    this.jello.talkEnabled = s.jello;
   }
 
   /** Fresh session without leaving the current screen. */
@@ -232,6 +265,7 @@ export class App {
     this.audio.unlock();
     this.haptics.lastWasTouch = d.touch;
     this.renderer.pickedUp(d.slot);
+    this.director.pick();
     this.sfx.pick();
     this.haptics.tick(8);
   }
@@ -273,6 +307,7 @@ export class App {
       this.hud.setBest(res.score);
     }
     this.syncCombo();
+    this.director.placed(res, this.session.board.fill(), this.store.data.best);
     if (res.newDeal) this.renderer.after(land + 120, now, () => this.renderer.dealt(this.loop.now));
     if (res.gameOver) this.beginGameOver(land + (res.lines > 0 ? 450 : 200));
     this.persist();
@@ -290,7 +325,12 @@ export class App {
     const now = this.loop.now;
     this.drag.cancel();
     this.renderer.startGameOver(now + delay);
-    this.renderer.after(delay, now, () => this.sfx.gameOver());
+    const score = this.session.score;
+    const newBest = score > this.bestAtStart;
+    this.renderer.after(delay, now, () => {
+      this.sfx.gameOver();
+      this.director.gameOver(score, this.store.data.best, newBest);
+    });
     const data = this.store.data;
     data.gamesPlayed++;
     data.current = null;
@@ -323,6 +363,7 @@ export class App {
     this.screen = 'game';
     this.renderer.mode = 'game';
     this.hud.setVisible(true);
+    this.director.gameStart(true, this.bestAtStart);
   }
 
   /** Replaces the session (debug/test). */
@@ -354,12 +395,24 @@ export class App {
     const t0 = performance.now();
     this.drag.update(dt, now);
     this.renderer.update(dt, now);
+    this.updateJello(dt, now);
     if (this.session.combo > 0) this.syncCombo();
     this.renderer.draw(this.drag.drag);
     this.hud.update(now);
     this.results.update(now);
     this.frameMs += (performance.now() - t0 - this.frameMs) * 0.05;
     this.debug?.update(dt, this.frameMs);
+  }
+
+  private updateJello(dt: number, now: number): void {
+    const j = this.jello;
+    const d = this.drag.drag;
+    if (d) j.lookAt(d.cx, d.cy);
+    else if (this.pointer && now - this.pointer.at < 2500) j.lookAt(this.pointer.x, this.pointer.y);
+    else j.lookFree();
+    if (this.screen === 'menu' && this.menu.visible) this.placeMenuJello();
+    j.update(dt, now);
+    this.director.update(!!d);
   }
 
   private safeInsets(): { top: number; right: number; bottom: number; left: number } {
@@ -386,6 +439,21 @@ export class App {
   private bindGlobal(): void {
     window.addEventListener('resize', this.onResize);
     window.addEventListener('orientationchange', this.onResize);
+    this.canvas.addEventListener('pointerdown', (e) => {
+      const rect = this.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      if (this.drag.drag || this.pauseUi.visible || this.settingsUi.visible || this.results.visible) return;
+      if (this.jello.hit(x, y)) {
+        this.audio.unlock();
+        this.director.tap(x, y);
+      }
+    });
+    window.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse') return;
+      const rect = this.canvas.getBoundingClientRect();
+      this.pointer = { x: e.clientX - rect.left, y: e.clientY - rect.top, at: this.loop.now };
+    });
     const unlock = (): void => this.audio.unlock();
     window.addEventListener('pointerdown', unlock, { passive: true });
     window.addEventListener('keydown', (e) => {

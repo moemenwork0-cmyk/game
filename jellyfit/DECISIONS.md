@@ -39,3 +39,10 @@ Measured with `npm run sim -- --games 2000 --seed 1` (greedy bot).
 - **Palette (spec 9.1 changed on request):** background `#2B1660 → #5B2A86 → #B4457F` replaced by a calm deep blue `#1A2547 → #22305A → #2A3B6B`; board `#131C38`, sockets `#1C2749`, panels `rgba(23,33,64,.96)`. Jelly colours slightly softened (e.g. Strawberry `#FF3D6E → #F4517A`). Bokeh alpha 4–8% → 2.5–5%.
 - **Home screen (M3 item pulled forward on request):** logo, best score top-left, settings gear top-right, one big play button («كمّل اللعب» when a game is in progress). Settings (sound, music, haptics, reduced motion) and the pause dialog (M2 items) came along with it.
 - **Touch drag reach:** on touch the piece moves faster than the finger — ×1.6 upward, ×1.2 sideways, ×1.0 downward (`theme.ts` `touchGain*`), and is kept fully on screen. Reaching the top row from the tray now needs ~230 px of finger travel on a 390×844 phone, so the thumb stays in the lower half. Mouse is unchanged.
+
+## Jello (mascot)
+
+- Drawn procedurally on the canvas (no image assets), pink to match the logo's first word and to pop on the blue background.
+- Speaks light Egyptian dialect (he is a character; the UI stays in simple standard Arabic).
+- Talk budget: small talk needs 7 s of quiet, reactions 2.6 s, big moments always speak; at most one line per placement. Plain placements never trigger speech.
+- In game he sits on the board's top edge, left of the pause button column; the combo badge moved to the top-left so the two never overlap.

@@ -17,6 +17,8 @@ import { JellyField } from './jelly';
 import { computeLayout, trayPiecePos, type Insets, type Layout } from './layout';
 import { Particles } from './particles';
 import { FONT, Popups, outlinedText } from './popups';
+import type { Jello } from '../jello/jello';
+import { drawBubble, drawJello } from '../jello/jelloDraw';
 
 const C = THEME.clear;
 
@@ -84,6 +86,9 @@ export class Renderer {
   reducedMotion = false;
   /** 'menu' draws only the background and floating decorative jellies. */
   mode: 'menu' | 'game' = 'menu';
+  jello: Jello | null = null;
+  /** Jello's spot on the home screen (set by the app from the logo position). */
+  menuJello = { x: 0, ground: 0, R: 50 };
   colors: readonly string[] = THEME.jelly;
 
   constructor(
@@ -342,6 +347,14 @@ export class Renderer {
     this.bg.draw(ctx);
     if (this.mode === 'menu') {
       this.drawMenuDecor(now);
+      const j = this.jello;
+      if (j) {
+        const m = this.menuJello;
+        j.place(m.x, m.ground, m.R);
+        drawJello(ctx, j, now);
+        const fs = Math.max(16, Math.min(21, m.R * 0.36));
+        drawBubble(ctx, j, now, 1, 12, L.w - 12, fs);
+      }
       return;
     }
 
@@ -403,6 +416,14 @@ export class Renderer {
 
     this.drawSweeps(now);
     this.particles.draw(ctx, this.sprites.droplets, this.colors);
+
+    // Jello sits on the board's top-right corner.
+    const jl = this.jello;
+    if (jl) {
+      const g = this.gameJello();
+      jl.place(g.x, g.ground, g.R);
+      drawJello(ctx, jl, now);
+    }
 
     // Tray panel: a soft rounded well that anchors the three pieces.
     ctx.fillStyle = 'rgba(8,14,36,0.22)';
@@ -472,7 +493,9 @@ export class Renderer {
     // Popups and words.
     this.popups.drawScores(ctx, now);
     this.popups.drawWord(ctx, now, L.boardX + L.boardSize / 2, L.boardY + L.boardSize * 0.42, Math.max(34, L.cs * 1.15));
-    this.popups.drawCombo(ctx, now, L.boardX + L.boardSize / 2, L.boardY - 2, Math.max(15, Math.min(22, L.cs * 0.36)));
+    this.popups.drawCombo(ctx, now, L.boardX + 4, L.boardY - Math.max(15, Math.min(22, L.cs * 0.36)) * 1.15, Math.max(15, Math.min(22, L.cs * 0.36)));
+
+    if (jl) drawBubble(ctx, jl, now, -1, L.boardX + 2, L.boardX + L.boardSize, Math.max(15, Math.min(19, L.cs * 0.4)));
 
     if (now - this.flashAt < 120) {
       ctx.globalAlpha = 0.6 * (1 - (now - this.flashAt) / 120);
@@ -484,6 +507,14 @@ export class Renderer {
 
     if (this.gameOverAt >= 0 && now >= this.gameOverAt) this.drawGameOverText(now);
     ctx.setTransform(L.dpr, 0, 0, L.dpr, 0, 0);
+  }
+
+  /** Jello's spot in game: sitting on the board frame's top-right corner. */
+  gameJello(): { x: number; ground: number; R: number } {
+    const L = this.lay;
+    const R = Math.max(20, Math.min(40, L.cs * 0.62));
+    // Keep clear of the pause button column (48 px) above the board's right edge.
+    return { x: L.boardX + L.boardSize - 58 - R * 1.2, ground: L.boardY + R * 0.1, R };
   }
 
   /** Home screen: a few big jelly pieces floating around the logo and the play button. */

@@ -71,6 +71,15 @@ async function main() {
     }, MID);
     await step(900);
     await shot('midgame');
+    // Jello reacting to a poke.
+    const jp = await page.evaluate(() => {
+      const j = window.__jf.app.jello;
+      return { x: j.x + j.R * 0.3, y: j.ground - j.H * 0.6 };
+    });
+    await page.mouse.click(jp.x, jp.y);
+    await step(260);
+    await shot('jello-tap');
+    await step(2600);
 
     // 3. Drag with clear preview (real pointer).
     await page.evaluate((rows) => {
@@ -114,6 +123,17 @@ async function main() {
     await step(160);
     await shot('combo');
     await step(1500);
+
+    // 5b. Danger: Jello gets worried.
+    await page.evaluate(() => {
+      window.__jf.setBoard(['11.11111', '1111.111', '111111.1', '.1111111', '11.1111.', '.111.11.', '1.11.1..', '........']);
+      window.__jf.setTray(['h3', '1x1', 'sl1'], [4, 1, 5]);
+    });
+    await step(300);
+    await page.evaluate(() => window.__jf.place(0, 7, 0));
+    await step(700);
+    await shot('jello-worried');
+    await step(2500);
 
     // 6. Game over.
     await page.evaluate(() => {

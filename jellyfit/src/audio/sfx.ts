@@ -136,4 +136,77 @@ export class Sfx {
     [0, 4, 7, 12, 16, 19].forEach((n, k) => this.tone('triangle', [523.25 * Math.pow(2, n / 12)], 0.12, 0.1, 0.004, 0.2, k * 0.07));
     this.noise(0.6, 6000, 0.05, 0.3, 0.7, 12000, 'highpass');
   }
+
+  // ---------------------------------------------------------------------------
+  // Jello's voice
+
+  /** Cute babble: one short vowel-like blip per syllable, pitch wandering around a base. */
+  babble(syllables: number, periodMs: number, pitch = 1): void {
+    const a = this.a;
+    if (!a.ready()) return;
+    const ctx = a.ctx!;
+    const base = 560 * pitch;
+    let prev = 1;
+    for (let k = 0; k < syllables; k++) {
+      const t0 = ctx.currentTime + (k * periodMs) / 1000;
+      // Gentle melody: random walk with a lift on the last syllable.
+      prev = Math.min(1.35, Math.max(0.78, prev * (0.9 + Math.random() * 0.22)));
+      const f = base * prev * (k === syllables - 1 ? 1.12 : 1);
+      const dur = (periodMs / 1000) * 0.72;
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(f * 1.06, t0);
+      osc.frequency.exponentialRampToValueAtTime(f * 0.94, t0 + dur);
+      // Vowel-ish formant.
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 900 + Math.random() * 900;
+      bp.Q.value = 1.2;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      osc.connect(bp).connect(g).connect(a.sfx);
+      const sine = ctx.createOscillator();
+      sine.frequency.setValueAtTime(f, t0);
+      const g2 = ctx.createGain();
+      g2.gain.setValueAtTime(0.0001, t0);
+      g2.gain.exponentialRampToValueAtTime(0.05, t0 + 0.012);
+      g2.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      sine.connect(g2).connect(a.sfx);
+      a.track(osc);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.02);
+      sine.start(t0);
+      sine.stop(t0 + dur + 0.02);
+    }
+  }
+
+  jello(kind: 'squish' | 'giggle' | 'jump' | 'land' | 'aww' | 'snore' | 'pop'): void {
+    if (this.a.playFile(`jello-${kind}`)) return;
+    switch (kind) {
+      case 'squish':
+        this.tone('sine', [320, 560, 240], 0.16, 0.2, 0.004, 0.06);
+        this.noise(0.05, 900, 0.08, 0, 1.4);
+        break;
+      case 'giggle':
+        [0, 1, 2, 3].forEach((k) => this.tone('triangle', [760 + k * 70, 690 + k * 70], 0.05, 0.08, 0.004, 0.04, 0.05 + k * 0.075, 18));
+        break;
+      case 'jump':
+        this.tone('sine', [380, 820], 0.12, 0.08, 0.004, 0.05);
+        break;
+      case 'land':
+        this.tone('sine', [210, 120], 0.08, 0.12, 0.003, 0.05);
+        break;
+      case 'aww':
+        this.tone('triangle', [560, 470, 360], 0.5, 0.1, 0.02, 0.2, 0, 9);
+        break;
+      case 'snore':
+        this.noise(0.6, 380, 0.05, 0, 2, 220, 'lowpass');
+        break;
+      case 'pop':
+        this.tone('sine', [300, 900], 0.09, 0.12, 0.003, 0.08);
+        break;
+    }
+  }
 }

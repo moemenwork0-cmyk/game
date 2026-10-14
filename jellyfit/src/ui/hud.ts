@@ -32,7 +32,8 @@ export class Hud {
     s.width = `${L.boardSize}px`;
     s.top = `${L.hudY}px`;
     s.height = `${L.hudH}px`;
-    s.setProperty('--score-size', `${Math.round(Math.min(58, Math.max(40, L.boardSize * 0.125)))}px`);
+    s.setProperty('--score-size', `${Math.round(Math.min(52, Math.max(36, L.boardSize * 0.115)))}px`);
+    this.fitScore();
   }
 
   setVisible(v: boolean): void {
@@ -52,6 +53,21 @@ export class Hud {
 
   setBest(v: number): void {
     this.bestEl.textContent = fmtNum(v);
+    this.fitScore();
+  }
+
+  /** Shrinks the score so it never runs into the best pill or the pause button. */
+  private fitScore(): void {
+    const el = this.scoreEl;
+    el.style.transform = '';
+    const box = this.root.getBoundingClientRect();
+    if (box.width === 0) return;
+    const best = (this.root.querySelector('.hud-best') as HTMLElement).getBoundingClientRect();
+    const pause = (this.root.querySelector('.hud-pause') as HTMLElement).getBoundingClientRect();
+    const mid = box.left + box.width / 2;
+    const half = Math.min(mid - best.right, pause.left - mid) - 8;
+    const w = el.getBoundingClientRect().width;
+    if (w > 0 && w / 2 > half) el.style.transform = `scale(${Math.max(0.55, (half * 2) / w)})`;
   }
 
   private current(now: number): number {
@@ -64,6 +80,7 @@ export class Hud {
     if (v !== this.shown) {
       this.shown = v;
       this.scoreEl.textContent = fmtNum(v);
+      this.fitScore();
     }
   }
 }

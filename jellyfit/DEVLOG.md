@@ -1,5 +1,14 @@
 # Dev log
 
+## Jello the mascot (2026-10-14)
+
+- `src/jello/`: **jello.ts** (soft-body springs: squash/stretch, wobble modes, poke dents, lean, lagging tuft, arms, jumps with spins, moods, face, blink, eye tracking, speech, fx), **jelloDraw.ts** (procedural glossy jelly body, kawaii face with 7 eye styles and 6 mouths, brows, blush, crown, sweat/tears/Zzz/hearts/sparkles, speech bubble with word-by-word reveal), **director.ts** (game events → reactions with speech cooldowns, one line per move), **lines.ts** (Egyptian-dialect lines in no-repeat bags).
+- Voice: synthesized babble (one blip per syllable, mouth flaps in sync) + squish, giggle, jump, land, aww, snore, pop.
+- He greets on the home screen standing on the logo, sits on the board's top corner in game, follows the dragged piece with his eyes, cheers/spins on clears, dances on combos, sweats in danger, celebrates comebacks, wears a crown on a new best, melts and cries on game over, giggles when tapped, gets dizzy after 5 quick taps, chats when idle and falls asleep after 30 s.
+- Settings: «كلام جيلو» toggles his bubbles and voice.
+- HUD: score moved to the top row (shrinks to fit), combo badge to the board's top-left, Jello on the top-right.
+- Tests: 29 passing (5 new for Jello: no repeated lines, no chatter on plain moves, danger → comeback, dizzy + sleep, talk toggle). Smoke test taps Jello with mouse and touch.
+
 ## Feedback round 1 (2026-10-14)
 
 - Whole game in Arabic (RTL, Baloo Bhaijaan 2), calm deep-blue palette, new home screen (logo, best score, settings gear, one play button), settings and pause dialogs, home button on results.

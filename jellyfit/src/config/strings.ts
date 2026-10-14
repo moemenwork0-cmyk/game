@@ -22,6 +22,7 @@ export const STR = {
   music: 'الموسيقى',
   haptics: 'الاهتزاز',
   reducedMotion: 'تقليل الحركة',
+  jelloTalk: 'كلام جيلو',
   done: 'تم',
   on: 'تشغيل',
   off: 'إيقاف',

@@ -4,6 +4,7 @@ import type { Settings } from '../../meta/save';
 
 const ROWS: { key: keyof Settings; label: string }[] = [
   { key: 'sfx', label: STR.sound },
+  { key: 'jello', label: STR.jelloTalk },
   { key: 'music', label: STR.music },
   { key: 'haptics', label: STR.haptics },
   { key: 'reducedMotion', label: STR.reducedMotion },

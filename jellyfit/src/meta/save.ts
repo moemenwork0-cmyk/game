@@ -61,6 +61,8 @@ export interface Settings {
   music: boolean;
   haptics: boolean;
   reducedMotion: boolean;
+  /** Jello's speech bubbles and voice. */
+  jello: boolean;
 }
 
 export interface SaveData {
@@ -78,7 +80,7 @@ export function defaultSave(): SaveData {
     best: 0,
     gamesPlayed: 0,
     current: null,
-    settings: { sfx: true, music: true, haptics: true, reducedMotion: false },
+    settings: { sfx: true, music: true, haptics: true, reducedMotion: false, jello: true },
   };
 }
 
