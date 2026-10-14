@@ -250,7 +250,12 @@ export function generateDeal(
       if (ties.length) chosen = rng.pick(ties);
     } else if (G.mercyMissPick === 'hardest') {
       let most = -1;
-      for (const c of rng.shuffle(cands.slice())) if (c.cells > most) (most = c.cells), (chosen = c);
+      for (const c of rng.shuffle(cands.slice())) {
+        if (c.cells > most) {
+          most = c.cells;
+          chosen = c;
+        }
+      }
     } else {
       chosen = rng.pick(cands);
     }

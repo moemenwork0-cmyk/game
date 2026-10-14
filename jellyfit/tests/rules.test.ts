@@ -15,7 +15,11 @@ const toGrid = (lo: number, hi: number): Grid => {
 const fromGrid = (g: Grid): [number, number] => {
   let lo = 0;
   let hi = 0;
-  for (let i = 0; i < 64; i++) if (g[i >> 3][i & 7]) i < 32 ? (lo |= cellBit(i)) : (hi |= cellBit(i));
+  for (let i = 0; i < 64; i++) {
+    if (!g[i >> 3][i & 7]) continue;
+    if (i < 32) lo |= cellBit(i);
+    else hi |= cellBit(i);
+  }
   return [lo | 0, hi | 0];
 };
 function naiveCanPlace(g: Grid, piece: number, r: number, c: number): boolean {

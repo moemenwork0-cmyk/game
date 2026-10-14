@@ -89,7 +89,7 @@ export const THEME = {
     dropletsMin: 6,
     dropletsMax: 9,
     dropletLifeMs: 450,
-    ringLifeMs: 380,
+    ringLifeMs: 300,
     sweepMs: 260,
     shake: [0, 0, 0, 3, 5, 8] as readonly number[],
     shakeMs: 250,

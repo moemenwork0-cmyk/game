@@ -30,7 +30,7 @@ sim/ — Node bot that drives game/session.ts headless to tune the generator.
 
 ## Milestones
 
-- [ ] **M1 — Core game with premium feel**: rules + bitboard, drag & drop feel, smart generator + bot sim, scoring/combo/words, jelly blocks + jelly physics, board/background visuals, core SFX, game over + instant play again, in-progress resume.
+- [x] **M1 — Core game with premium feel** (done, awaiting playtest feedback; see DEVLOG.md): rules + bitboard, drag & drop feel, smart generator + bot sim, scoring/combo/words, jelly blocks + jelly physics, board/background visuals, core SFX, game over + instant play again, in-progress resume.
 - [ ] **M2 — Specials, Rush, full juice**: Star/Bomb jellies + cascades, Jelly Rush, perfect clear celebration, new-best moment, remaining SFX, optional music, settings, pause menu.
 - [ ] **M3 — Meta and retention**: full save, coins, missions → multiplier (30+ sets + procedural), skins shop (6), daily puzzle + streak + calendar, records, achievements, main menu, next-goal line, desktop side panels, second chance.
 - [ ] **M4 — Onboarding**: scripted first game, contextual intros, first-3-games mercy guarantee verified with the playtest logger.
