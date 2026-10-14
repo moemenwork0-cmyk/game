@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#04131F" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12' fill='%23F4F1FF'/%3E%3C/svg%3E"
+    />
+    <title>Glowtide</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #04131f;
+        overflow: hidden;
+      }
+      /* ---------------------------------------------------------------- boot */
+
+      #boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: radial-gradient(circle at center, #0a2c40, #04131f);
+        z-index: 50;
+        transition: opacity 0.35s ease;
+      }
+
+      #boot.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      #boot .title {
+        font-weight: 700;
+        font-size: 40px;
+        letter-spacing: 0.02em;
+      }
+
+      #boot .bar {
+        width: 160px;
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(156, 199, 217, 0.2);
+        overflow: hidden;
+      }
+
+      #boot .bar > div {
+        height: 100%;
+        width: 30%;
+        background: #f4f1ff;
+        border-radius: 2px;
+        animation: boot-load 0.9s ease-in-out infinite alternate;
+      }
+
+      @keyframes boot-load {
+        from {
+          transform: translateX(-40%);
+        }
+        to {
+          transform: translateX(260%);
+        }
+      }
+      #boot {
+        color: #eaf7ff;
+        font-family: 'Fredoka', system-ui, sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game" tabindex="0"></canvas>
+      <div id="ui"></div>
+    </div>
+    <div id="boot">
+      <div class="title">Glowtide</div>
+      <div class="bar"><div></div></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

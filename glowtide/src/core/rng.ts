@@ -64,6 +64,10 @@ export class Rng {
     return weights.length - 1;
   }
 
+  reseed(seed: number): void {
+    this.state = seed >>> 0;
+  }
+
   getState(): number {
     return this.state;
   }

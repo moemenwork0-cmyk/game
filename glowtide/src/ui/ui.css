@@ -1,0 +1,304 @@
+:root {
+  --surface: rgba(15, 59, 82, 0.88);
+  --border: #2a6b85;
+  --text: #eaf7ff;
+  --text-dim: #9cc7d9;
+  --primary: #f4f1ff;
+  --primary-text: #0a2c40;
+  --focus-glow: #b388ff;
+  --danger: #ff6b6b;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #04131f;
+  color: var(--text);
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-weight: 500;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+#game {
+  position: absolute;
+  inset: 0;
+  display: block;
+  touch-action: none;
+  outline: none;
+}
+
+#ui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+#ui .interactive,
+#ui button {
+  pointer-events: auto;
+}
+
+/* ---------------------------------------------------------------- HUD */
+
+.hud {
+  position: absolute;
+  inset: 0;
+  padding: calc(10px + var(--safe-top)) calc(12px + var(--safe-right)) 0
+    calc(14px + var(--safe-left));
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  text-shadow: 0 1px 6px rgba(4, 19, 31, 0.9);
+}
+
+.hud-left,
+.hud-right {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.hud-block {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.hud-big {
+  font-weight: 700;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-small {
+  font-size: 14px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-right .hud-block {
+  align-items: flex-end;
+}
+
+.icon-button {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.icon-button:hover,
+.icon-button:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-glow);
+  outline: none;
+}
+
+.icon-button svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+/* ---------------------------------------------------------------- panels */
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(16px + var(--safe-top)) calc(16px + var(--safe-right))
+    calc(16px + var(--safe-bottom)) calc(16px + var(--safe-left));
+  background: rgba(4, 19, 31, 0.55);
+  pointer-events: auto;
+  animation: fade-in 0.2s ease;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.panel {
+  width: min(380px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  animation: panel-in 0.28s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+
+@keyframes panel-in {
+  from {
+    transform: translateY(12px) scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.panel h2 {
+  margin: 0;
+  font-weight: 700;
+  font-size: 26px;
+}
+
+.panel p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 15px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.stat {
+  background: rgba(4, 19, 31, 0.35);
+  border-radius: 12px;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat .value {
+  font-weight: 700;
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat .label {
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.btn {
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 18px;
+  min-height: 48px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(4, 19, 31, 0.35);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.15s ease;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn:hover,
+.btn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--focus-glow),
+    0 0 18px rgba(179, 136, 255, 0.45);
+}
+
+.btn.primary {
+  background: var(--primary);
+  color: var(--primary-text);
+  border-color: var(--primary);
+}
+
+.btn.danger {
+  border-color: var(--danger);
+  color: #ffd3d3;
+}
+
+/* ---------------------------------------------------------------- debug */
+
+.debug {
+  position: absolute;
+  left: calc(8px + var(--safe-left));
+  bottom: calc(8px + var(--safe-bottom));
+  font:
+    12px/1.35 ui-monospace,
+    monospace;
+  background: rgba(0, 0, 0, 0.55);
+  color: #b8f5c8;
+  padding: 6px 8px;
+  border-radius: 6px;
+  white-space: pre;
+  pointer-events: auto;
+}
+
+.debug button {
+  margin-top: 4px;
+  font: inherit;
+}
+
+/* ---------------------------------------------------------------- fatal */
+
+.fatal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #04131f;
+  color: var(--text);
+  font-size: 18px;
+  z-index: 100;
+  padding: 24px;
+  text-align: center;
+}

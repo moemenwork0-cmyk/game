@@ -103,6 +103,10 @@ export const BALANCE = {
   prototype: {
     secondsPerTide: 25,
     colors: 3,
+    /** Opening trio of one color, side by side, so a first chain is possible within seconds. */
+    openingDelay: 0.3,
+    openingCount: 3,
+    openingSpacing: 60,
   },
 
   feel: {

@@ -21,6 +21,7 @@ export class TimeScale {
 
   update(realDt: number): void {
     if (this.value === this.target) return;
-    this.value = this.rate === Infinity ? this.target : approach(this.value, this.target, this.rate * realDt);
+    this.value =
+      this.rate === Infinity ? this.target : approach(this.value, this.target, this.rate * realDt);
   }
 }
