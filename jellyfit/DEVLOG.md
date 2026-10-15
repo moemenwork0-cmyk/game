@@ -1,5 +1,13 @@
 # Dev log
 
+## UI redesign + Jello 2.0 (2026-10-15)
+
+- **UI, candy style:** 3D buttons (dark outline, glossy band, coloured lip, press-down), outlined text for scores and titles, panels with pink title ribbons, candy toggles, crown badge pills, rotating "new record" burst, moving shine on the main buttons.
+- **Canvas:** brighter calm royal-blue background with a slowly drifting jelly pattern and a soft light behind the board; rotating light rays on the home screen; the board is now a chunky raised tray with a dark outline and a recessed well.
+- **Jello 2.0:** sparkly kawaii eyes with lashes, ω cat mouth, gradient blush, drifting bubbles inside his body, rim light, feet; soaks up the colour of cleared jelly; sunglasses at combo 5 (off when the combo breaks); hands over his eyes when the board is nearly full; pull him to stretch and let go for a boing (big pulls flip him); rub him to pet him (hearts + purr); idle repertoire (wink, look around, head tilt, wiggle, bounce, blow a bubble, hum with notes, wave, yawn, tuft flick), calmer in game; eyes widen when a piece passes close by; new sounds (boing, purr, bubble, hum, yawn, sunglasses).
+- `scripts/jello-shots.mjs` captures close-ups of all his states (`screenshots/jello/`).
+- Tests: 31 passing (new: pull/pet, sunglasses).
+
 ## Jello the mascot (2026-10-14)
 
 - `src/jello/`: **jello.ts** (soft-body springs: squash/stretch, wobble modes, poke dents, lean, lagging tuft, arms, jumps with spins, moods, face, blink, eye tracking, speech, fx), **jelloDraw.ts** (procedural glossy jelly body, kawaii face with 7 eye styles and 6 mouths, brows, blush, crown, sweat/tears/Zzz/hearts/sparkles, speech bubble with word-by-word reveal), **director.ts** (game events → reactions with speech cooldowns, one line per move), **lines.ts** (Egyptian-dialect lines in no-repeat bags).

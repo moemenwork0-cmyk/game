@@ -182,7 +182,7 @@ export class Sfx {
     }
   }
 
-  jello(kind: 'squish' | 'giggle' | 'jump' | 'land' | 'aww' | 'snore' | 'pop'): void {
+  jello(kind: 'squish' | 'giggle' | 'jump' | 'land' | 'aww' | 'snore' | 'pop' | 'boing' | 'purr' | 'bubble' | 'hum' | 'yawn' | 'glasses'): void {
     if (this.a.playFile(`jello-${kind}`)) return;
     switch (kind) {
       case 'squish':
@@ -206,6 +206,27 @@ export class Sfx {
         break;
       case 'pop':
         this.tone('sine', [300, 900], 0.09, 0.12, 0.003, 0.08);
+        break;
+      case 'boing':
+        this.tone('sine', [180, 520, 260, 420, 300], 0.42, 0.18, 0.004, 0.12, 0, 22);
+        this.tone('triangle', [360, 900], 0.12, 0.06, 0.004, 0.08);
+        break;
+      case 'purr':
+        this.tone('sine', [140, 150, 138, 152], 0.7, 0.09, 0.05, 0.2, 0, 14);
+        this.noise(0.7, 260, 0.05, 0, 3, 200, 'lowpass');
+        break;
+      case 'bubble':
+        this.tone('sine', [500, 1200], 0.18, 0.07, 0.01, 0.08, 0, 30);
+        break;
+      case 'hum':
+        [0, 4, 7, 4, 9].forEach((n, k) => this.tone('sine', [523.25 * Math.pow(2, n / 12)], 0.2, 0.055, 0.02, 0.12, k * 0.24, 6));
+        break;
+      case 'yawn':
+        this.tone('triangle', [420, 640, 300], 0.9, 0.08, 0.08, 0.3, 0, 7);
+        break;
+      case 'glasses':
+        this.tone('sine', [1400, 1900], 0.06, 0.08, 0.002, 0.08);
+        this.tone('sine', [2100], 0.12, 0.06, 0.002, 0.2, 0.08);
         break;
     }
   }

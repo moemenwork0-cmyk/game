@@ -346,6 +346,8 @@ export class Renderer {
     ctx.globalCompositeOperation = 'source-over';
     this.bg.draw(ctx);
     if (this.mode === 'menu') {
+      const mj = this.menuJello;
+      this.bg.drawRays(ctx, mj.x, mj.ground - mj.R * 0.4, Math.max(L.w, L.h) * 0.75);
       this.drawMenuDecor(now);
       const j = this.jello;
       if (j) {
@@ -425,14 +427,6 @@ export class Renderer {
       drawJello(ctx, jl, now);
     }
 
-    // Tray panel: a soft rounded well that anchors the three pieces.
-    ctx.fillStyle = 'rgba(8,14,36,0.22)';
-    roundRectPath(ctx, L.trayX, L.trayY + 2, L.trayW, L.trayH - 4, 22);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
     // Tray.
     for (let slot = 0; slot < 3; slot++) {
       const t = s.tray[slot];
@@ -500,7 +494,7 @@ export class Renderer {
     if (now - this.flashAt < 120) {
       ctx.globalAlpha = 0.6 * (1 - (now - this.flashAt) / 120);
       ctx.fillStyle = '#fff';
-      roundRectPath(ctx, L.boardX, L.boardY, L.boardSize, L.boardSize, THEME.layout.frameRadius);
+      roundRectPath(ctx, L.boardX, L.boardY, L.boardSize, L.boardSize, Math.max(18, L.boardSize * 0.06));
       ctx.fill();
       ctx.globalAlpha = 1;
     }
@@ -610,7 +604,7 @@ export class Renderer {
     ctx.save();
     ctx.globalAlpha = 0.55 * t;
     ctx.fillStyle = '#070C20';
-    roundRectPath(ctx, L.boardX, L.boardY, L.boardSize, L.boardSize, THEME.layout.frameRadius);
+    roundRectPath(ctx, L.boardX, L.boardY, L.boardSize, L.boardSize, Math.max(18, L.boardSize * 0.06));
     ctx.fill();
     ctx.globalAlpha = t;
     ctx.translate(L.boardX + L.boardSize / 2, L.boardY + L.boardSize / 2);

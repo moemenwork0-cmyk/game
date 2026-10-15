@@ -2,6 +2,7 @@
 import { STR, fmtNum } from '../../config/strings';
 import { clamp01, easeOutCubic } from '../../core/tween';
 import { ICON } from '../icons';
+import { button, setStroked, stroked } from '../dom';
 
 export interface ResultsData {
   score: number;
@@ -17,7 +18,6 @@ export class ResultsScreen {
   private scoreEl: HTMLElement;
   private bestEl: HTMLElement;
   private statsEl: HTMLElement;
-  private ribbon: HTMLElement;
   private btn: HTMLButtonElement;
   private data: ResultsData | null = null;
   private t0 = 0;
@@ -29,19 +29,21 @@ export class ResultsScreen {
     this.root.setAttribute('aria-hidden', 'true');
     this.root.innerHTML = `
       <div class="panel">
-        <div class="ribbon">${STR.newBest}</div>
+        <div class="ribbon">${stroked(STR.gameOverTitle)}</div>
+        <div class="best-burst"><div class="rays"></div><div class="burst-core">${stroked(STR.newBestShort)}</div></div>
         <div class="panel-label">${STR.score}</div>
-        <div class="panel-score">0</div>
-        <div class="panel-best">${ICON.crown}<span>${STR.best}</span> <b>0</b></div>
+        ${stroked('0', 'panel-score')}
+        <div><div class="panel-best"><span class="crown-badge">${ICON.crown}</span><span>${STR.best}</span><b>0</b></div></div>
         <div class="panel-stats"></div>
-        <button class="btn btn-primary b-again" type="button">${ICON.replay}<span>${STR.playAgain}</span></button>
-        <button class="btn btn-ghost b-home" type="button">${ICON.home}<span>${STR.home}</span></button>
+        <div class="btn-col">
+          ${button('btn-gold btn-wide b-again', STR.playAgain, ICON.replay, '<span class="shine"></span>')}
+          ${button('btn-blue btn-mid b-home', STR.home, ICON.home)}
+        </div>
       </div>`;
     parent.appendChild(this.root);
     this.scoreEl = this.root.querySelector('.panel-score')!;
     this.bestEl = this.root.querySelector('.panel-best b')!;
     this.statsEl = this.root.querySelector('.panel-stats')!;
-    this.ribbon = this.root.querySelector('.ribbon')!;
     this.btn = this.root.querySelector('.b-again')!;
     this.btn.addEventListener('click', () => this.visible && onAgain());
     this.root.querySelector('.b-home')!.addEventListener('click', () => this.visible && onHome());
@@ -55,8 +57,8 @@ export class ResultsScreen {
     this.statsEl.innerHTML =
       `<div class="stat"><b>${fmtNum(d.lines)}</b><span>${STR.lines}</span></div>` +
       `<div class="stat"><b>${d.maxCombo > 1 ? '×' + d.maxCombo : '–'}</b><span>${STR.bestCombo}</span></div>`;
-    this.ribbon.style.display = d.newBest ? '' : 'none';
-    this.scoreEl.textContent = '0';
+    this.root.classList.toggle('newbest', d.newBest);
+    setStroked(this.scoreEl, '0');
     this.root.classList.add('show');
     this.root.setAttribute('aria-hidden', 'false');
     setTimeout(() => this.btn.focus({ preventScroll: true }), 50);
@@ -72,6 +74,6 @@ export class ResultsScreen {
   update(now: number): void {
     if (!this.data) return;
     const t = clamp01((now - this.t0 - 250) / 700);
-    this.scoreEl.textContent = fmtNum(this.data.score * easeOutCubic(t));
+    setStroked(this.scoreEl, fmtNum(this.data.score * easeOutCubic(t)));
   }
 }

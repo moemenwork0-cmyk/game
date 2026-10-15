@@ -1,6 +1,7 @@
 /** Pause dialog: resume, settings, home. */
 import { STR } from '../../config/strings';
 import { ICON } from '../icons';
+import { button, stroked } from '../dom';
 
 export class PauseScreen {
   readonly root: HTMLElement;
@@ -11,11 +12,13 @@ export class PauseScreen {
     this.root.className = 'overlay dialog pause';
     this.root.innerHTML = `
       <div class="panel" role="dialog" aria-label="${STR.paused}">
-        <h2 class="panel-title">${STR.paused}</h2>
-        <button class="btn btn-primary b-resume" type="button">${ICON.play}<span>${STR.resume}</span></button>
-        <div class="btn-row">
-          <button class="btn btn-secondary b-settings" type="button">${ICON.gear}<span>${STR.settings}</span></button>
-          <button class="btn btn-secondary b-home" type="button">${ICON.home}<span>${STR.home}</span></button>
+        <div class="ribbon">${stroked(STR.paused)}</div>
+        <div class="btn-col">
+          ${button('btn-gold btn-wide b-resume', STR.resume, ICON.play)}
+          <div class="btn-row">
+            ${button('btn-blue btn-mid b-settings', STR.settings, ICON.gear)}
+            ${button('btn-blue btn-mid b-home', STR.home, ICON.home)}
+          </div>
         </div>
       </div>`;
     parent.appendChild(this.root);

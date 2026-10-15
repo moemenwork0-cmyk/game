@@ -3,6 +3,7 @@ import { STR, fmtNum } from '../config/strings';
 import { clamp01, easeOutCubic } from '../core/tween';
 import type { Layout } from '../render/layout';
 import { ICON } from './icons';
+import { setStroked, stroked } from './dom';
 
 export class Hud {
   readonly root: HTMLElement;
@@ -17,9 +18,9 @@ export class Hud {
     this.root = document.createElement('div');
     this.root.className = 'hud';
     this.root.innerHTML = `
-      <div class="pill best-pill hud-best" aria-label="${STR.best}">${ICON.crown}<span class="hud-best-v">0</span></div>
-      <button class="icon-btn hud-pause" type="button" aria-label="${STR.pause}">${ICON.pause}</button>
-      <div class="hud-score"><span class="hud-score-v">0</span></div>`;
+      <div class="pill hud-best" aria-label="${STR.best}"><span class="crown-badge">${ICON.crown}</span>${stroked('0', 'hud-best-v')}</div>
+      <button class="btn3d btn-blue icon-btn hud-pause" type="button" aria-label="${STR.pause}"><span class="btn-label">${ICON.pause}</span></button>
+      <div class="hud-score">${stroked('0', 'hud-score-v')}</div>`;
     parent.appendChild(this.root);
     this.scoreEl = this.root.querySelector('.hud-score-v')!;
     this.bestEl = this.root.querySelector('.hud-best-v')!;
@@ -52,7 +53,7 @@ export class Hud {
   }
 
   setBest(v: number): void {
-    this.bestEl.textContent = fmtNum(v);
+    setStroked(this.bestEl, fmtNum(v));
     this.fitScore();
   }
 
@@ -79,7 +80,7 @@ export class Hud {
     const v = Math.round(this.current(now));
     if (v !== this.shown) {
       this.shown = v;
-      this.scoreEl.textContent = fmtNum(v);
+      setStroked(this.scoreEl, fmtNum(v));
       this.fitScore();
     }
   }

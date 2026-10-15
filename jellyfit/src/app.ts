@@ -69,7 +69,7 @@ export class App {
       voice: (n, period, pitch) => this.sfx.babble(n, period, pitch),
       sound: (k) => this.sfx.jello(k),
     });
-    this.director = new JelloDirector(this.jello, jrng);
+    this.director = new JelloDirector(this.jello, jrng, THEME.jelly);
     this.renderer.jello = this.jello;
     this.hud = new Hud(this.root, () => this.pauseGame());
     this.menu = new MenuScreen(
@@ -407,7 +407,10 @@ export class App {
   private updateJello(dt: number, now: number): void {
     const j = this.jello;
     const d = this.drag.drag;
-    if (d) j.lookAt(d.cx, d.cy);
+    if (d) {
+      j.lookAt(d.cx, d.cy);
+      if (Math.hypot(d.cx - j.x, d.cy - (j.ground - j.H * 0.5)) < j.R * 2.2) this.director.nearPiece();
+    }
     else if (this.pointer && now - this.pointer.at < 2500) j.lookAt(this.pointer.x, this.pointer.y);
     else j.lookFree();
     if (this.screen === 'menu' && this.menu.visible) this.placeMenuJello();
@@ -439,16 +442,33 @@ export class App {
   private bindGlobal(): void {
     window.addEventListener('resize', this.onResize);
     window.addEventListener('orientationchange', this.onResize);
-    this.canvas.addEventListener('pointerdown', (e) => {
+    // Jello: tap, pull (stretch + boing) and pet (rub side to side).
+    let jelloPtr: { id: number; x0: number; y0: number } | null = null;
+    const local = (e: PointerEvent): { x: number; y: number } => {
       const rect = this.canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      if (this.drag.drag || this.pauseUi.visible || this.settingsUi.visible || this.results.visible) return;
-      if (this.jello.hit(x, y)) {
-        this.audio.unlock();
-        this.director.tap(x, y);
-      }
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    };
+    this.canvas.addEventListener('pointerdown', (e) => {
+      if (jelloPtr || this.drag.drag || this.pauseUi.visible || this.settingsUi.visible || this.results.visible) return;
+      const p = local(e);
+      if (!this.jello.hit(p.x, p.y)) return;
+      this.audio.unlock();
+      jelloPtr = { id: e.pointerId, x0: p.x, y0: p.y };
+      this.director.grab(p.x);
     });
+    window.addEventListener('pointermove', (e) => {
+      if (!jelloPtr || e.pointerId !== jelloPtr.id) return;
+      const p = local(e);
+      this.director.drag(p.x, p.x - jelloPtr.x0, p.y - jelloPtr.y0);
+    });
+    const endJello = (e: PointerEvent): void => {
+      if (!jelloPtr || e.pointerId !== jelloPtr.id) return;
+      const p = local(e);
+      jelloPtr = null;
+      this.director.release(p.x, p.y);
+    };
+    window.addEventListener('pointerup', endJello);
+    window.addEventListener('pointercancel', endJello);
     window.addEventListener('pointermove', (e) => {
       if (e.pointerType !== 'mouse') return;
       const rect = this.canvas.getBoundingClientRect();

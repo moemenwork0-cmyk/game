@@ -9,6 +9,8 @@ export const STR = {
   best: 'أفضل نتيجة',
   score: 'النقاط',
   newBest: 'رقم قياسي جديد!',
+  newBestShort: 'رقم قياسي!',
+  gameOverTitle: 'انتهى الدور',
   playAgain: 'العب مرة أخرى',
   home: 'الرئيسية',
   lines: 'صفوف',

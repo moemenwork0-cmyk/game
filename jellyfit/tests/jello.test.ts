@@ -21,7 +21,7 @@ function setup() {
 }
 
 const res = (o: Partial<PlaceResult>): PlaceResult =>
-  ({ lines: 0, combo: 0, perfect: false, score: 100, gameOver: false, ...o }) as PlaceResult;
+  ({ lines: 0, combo: 0, perfect: false, score: 100, gameOver: false, cleared: [{ i: 0, color: 2, special: 0 }], ...o }) as PlaceResult;
 
 describe('jello', () => {
   it('line bags never repeat back to back', () => {
@@ -86,5 +86,43 @@ describe('jello', () => {
     tick(1000);
     expect(said.length).toBe(0);
     expect(j.speech).toBeNull();
+  });
+});
+
+describe('jello interactions', () => {
+  it('pulling and letting go is a boing, rubbing is petting', () => {
+    const { j, d, tick } = setup();
+    d.gameStart(false, 0);
+    tick(1000);
+    d.grab(j.x);
+    for (let k = 1; k <= 10; k++) {
+      d.drag(j.x, 0, -k * j.R * 0.3);
+      tick(16);
+    }
+    expect(j.pulling).toBe(true);
+    expect(j.sy.x).toBeGreaterThan(1.05);
+    d.release(j.x, j.ground - j.R * 3);
+    expect(j.pulling).toBe(false);
+    tick(2000);
+    d.grab(j.x);
+    for (let k = 0; k < 12; k++) {
+      d.drag(j.x + (k % 2 ? 1 : -1) * j.R * 0.5, (k % 2 ? 1 : -1) * j.R * 0.5, 0);
+      tick(16);
+    }
+    expect(j.face().eyes).toBe('happy');
+    d.release(j.x, j.ground - 20);
+    tick(100);
+    expect(j.mood).toBe('love');
+  });
+
+  it('puts on sunglasses at combo 5 and takes them off when the combo breaks', () => {
+    const { j, d, tick } = setup();
+    d.gameStart(false, 0);
+    tick(1000);
+    d.placed(res({ lines: 1, combo: 5 }), 0.3, 0);
+    expect(j.glasses).toBe(true);
+    tick(500);
+    d.placed(res({ lines: 0, combo: 0 }), 0.3, 0);
+    expect(j.glasses).toBe(false);
   });
 });

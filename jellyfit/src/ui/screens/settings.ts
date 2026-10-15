@@ -1,6 +1,7 @@
 /** Settings dialog: sound, music, haptics, reduced motion. Changes apply and save immediately. */
 import { STR } from '../../config/strings';
 import type { Settings } from '../../meta/save';
+import { button, stroked } from '../dom';
 
 const ROWS: { key: keyof Settings; label: string }[] = [
   { key: 'sfx', label: STR.sound },
@@ -24,8 +25,8 @@ export class SettingsScreen {
     this.root.className = 'overlay dialog settings';
     this.root.innerHTML = `
       <div class="panel" role="dialog" aria-label="${STR.settings}">
-        <h2 class="panel-title">${STR.settings}</h2>
-        <div class="rows">
+        <div class="ribbon">${stroked(STR.settings)}</div>
+        <div class="well rows">
           ${ROWS.map(
             (r) => `
             <button class="row" type="button" data-k="${r.key}" role="switch">
@@ -34,7 +35,7 @@ export class SettingsScreen {
             </button>`,
           ).join('')}
         </div>
-        <button class="btn btn-primary btn-done" type="button">${STR.done}</button>
+        <div class="btn-col">${button('btn-gold btn-wide btn-done', STR.done)}</div>
       </div>`;
     parent.appendChild(this.root);
     this.root.querySelectorAll<HTMLButtonElement>('.row').forEach((b) =>

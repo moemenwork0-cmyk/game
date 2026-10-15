@@ -42,7 +42,8 @@ export function computeLayout(w: number, h: number, dprRaw: number, safe: Insets
   const landscape = w / h > L.landscapeAspect;
   const availH = h - safe.top - safe.bottom;
   const hudH = landscape ? L.topBarLandscape : L.topBarPortrait;
-  const fixed = hudH + L.gapBoardTray + L.bottomPad;
+  const topPad = 12;
+  const fixed = topPad + hudH + L.gapBoardTray + L.bottomPad;
   const byHeight = (availH - fixed) / (1 + L.trayOfBoard);
 
   let boardSize: number;
@@ -60,10 +61,10 @@ export function computeLayout(w: number, h: number, dprRaw: number, safe: Insets
   const cs = Math.floor(((boardSize - 2 * pad) * dpr) / 8) / dpr;
   const trayH = Math.round(boardSize * L.trayOfBoard);
   const total = hudH + boardSize + L.gapBoardTray + trayH;
-  const extra = Math.max(0, availH - L.bottomPad - total);
+  const extra = Math.max(0, availH - L.bottomPad - topPad - total);
 
   const colX = (w - colW) / 2;
-  const hudY = safe.top + extra * 0.32;
+  const hudY = safe.top + topPad + extra * 0.32;
   const boardX = Math.round((w - boardSize) / 2);
   const boardY = Math.round(hudY + hudH + extra * 0.14);
   const gridX = boardX + (boardSize - 8 * cs) / 2;

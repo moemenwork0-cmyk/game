@@ -5,7 +5,7 @@
 import type { Rng } from '../core/rng';
 import type { PlaceResult } from '../game/session';
 import { fmtNum } from '../config/strings';
-import { Jello } from './jello';
+import { Jello, type RGB } from './jello';
 import { LineBag, type LineKey } from './lines';
 
 /** 0 = small talk (needs a quiet gap), 1 = reaction, 2 = big moment (always speaks). */
@@ -28,11 +28,15 @@ export class JelloDirector {
   private screen: 'menu' | 'game' = 'menu';
   private greeted = false;
 
+  private colors: RGB[];
+
   constructor(
     readonly jello: Jello,
     private readonly rng: Rng,
+    jellyHex: readonly string[] = [],
   ) {
     this.bag = new LineBag(rng);
+    this.colors = jellyHex.map((h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)] as RGB);
   }
 
   private get now(): number {
@@ -65,6 +69,7 @@ export class JelloDirector {
 
   menu(best: number): void {
     this.screen = 'menu';
+    this.jello.idleStyle = 'lively';
     this.inDanger = false;
     this.asleep = false;
     const j = this.jello;
@@ -83,6 +88,7 @@ export class JelloDirector {
 
   gameStart(again: boolean, best: number, resumed = false): void {
     this.screen = 'game';
+    this.jello.idleStyle = 'calm';
     this.bestAtStart = best;
     this.inDanger = false;
     this.crownedThisGame = false;
@@ -153,6 +159,22 @@ export class JelloDirector {
       j.squash(0.12);
     }
 
+    // Jello soaks up the colour of what was cleared.
+    if (res.lines > 0 && res.cleared.length) {
+      const c = this.colors[res.cleared[(res.cleared.length / 2) | 0].color];
+      if (c) j.absorb(c, 1000 + res.lines * 150);
+    }
+
+    // Sunglasses while the combo is hot.
+    if (res.combo >= 5 && !j.glasses) {
+      j.setGlasses(true);
+      j.setBaseMood('cool');
+      consider('cool', 1);
+    } else if (res.combo === 0 && j.glasses) {
+      j.setGlasses(false);
+      if (j.base === 'cool') j.setBaseMood(this.inDanger ? 'worried' : 'neutral');
+    }
+
     // Combo hype.
     if (res.lines > 0 && res.combo >= 3) {
       if (j.action === 'none') j.act('dance', 1300);
@@ -167,6 +189,10 @@ export class JelloDirector {
       j.setBaseMood('worried');
       j.act('shake', 700);
       consider('danger', 1);
+    } else if (this.inDanger && fill >= 0.8 && res.lines === 0 && !res.gameOver && j.action === 'none') {
+      // Too scary to watch: hands over the eyes.
+      j.act('peek', 1700);
+      consider('peek', 0);
     } else if (this.inDanger && fill <= COMEBACK_FILL) {
       this.inDanger = false;
       j.setBaseMood('neutral');
@@ -196,6 +222,7 @@ export class JelloDirector {
   gameOver(score: number, best: number, newBest: boolean): void {
     const j = this.jello;
     this.inDanger = false;
+    j.setGlasses(false);
     if (newBest && score > 0) {
       j.setBaseMood('proud');
       j.crown(true);
@@ -237,6 +264,44 @@ export class JelloDirector {
     j.hooksSound('giggle');
     // Talk on taps, but not every single one.
     if (!j.speech && this.rng.chance(0.75)) this.say('tap', 1);
+  }
+
+  /** Finger pressed on Jello. */
+  grab(x: number): void {
+    this.touch();
+    this.jello.grab(x);
+  }
+
+  drag(x: number, dx: number, dy: number): void {
+    this.lastInput = this.now;
+    this.jello.drag(x, dx, dy);
+  }
+
+  /** Finger released: a tap, a stretchy boing, or a pet. */
+  release(x: number, y: number): void {
+    const j = this.jello;
+    const kind = j.release();
+    if (kind === 'tap') {
+      this.tap(x, y);
+    } else if (kind === 'boing') {
+      j.feel('happy', 1400);
+      j.express({ eyes: 'happy', mouth: 'grin' }, 900);
+      j.hooksSound('giggle');
+      this.say('boing', 1);
+    } else {
+      j.feel('love', 1800);
+      j.burst('heart', 6);
+      this.say('pet', 1);
+    }
+  }
+
+  /** A dragged piece passes close to Jello. */
+  nearPiece(): void {
+    const j = this.jello;
+    if (j.action === 'none' && !j.airborne) {
+      j.express({ eyes: 'wide', mouth: 'o' }, 350);
+      j.sy.target = 0.94;
+    }
   }
 
   /** Per-frame: idle chatter and falling asleep. */

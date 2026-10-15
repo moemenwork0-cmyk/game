@@ -46,3 +46,10 @@ Measured with `npm run sim -- --games 2000 --seed 1` (greedy bot).
 - Speaks light Egyptian dialect (he is a character; the UI stays in simple standard Arabic).
 - Talk budget: small talk needs 7 s of quiet, reactions 2.6 s, big moments always speak; at most one line per placement. Plain placements never trigger speech.
 - In game he sits on the board's top edge, left of the pause button column; the combo badge moved to the top-left so the two never overlap.
+
+## UI redesign (player feedback round 2)
+
+- Visual language changed from flat "web" panels to a candy game style (see DEVLOG). Palette: background `#26408F → #3253B0 → #4468C6` (brighter but still calm blue), outline ink `#0F1A44`, gold primary, blue secondary, pink ribbons.
+- The board frame is thicker (`framePad` 0.028 → 0.042) so the raised tray reads clearly.
+- The tray panel was removed (pieces sit directly on the background, like the genre's best).
+- Outlined text uses a `::before` copy with `-webkit-text-stroke` (works on all target browsers, unlike `paint-order` on HTML text).
