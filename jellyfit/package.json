@@ -14,9 +14,12 @@
     "single": "node scripts/singlefile.mjs",
     "shots": "node scripts/shots.mjs",
     "sim": "tsx sim/simulate.ts",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "apk": "npm run build && npx cap sync android && python3 scripts/android_setup.py && cd android && ./gradlew assembleRelease"
   },
   "devDependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
     "@playwright/test": "^1.56.1",
     "@types/node": "^22.20.5",
     "eslint": "^9.39.5",
@@ -28,6 +31,7 @@
     "vitest": "^3.2.7"
   },
   "dependencies": {
+    "@capacitor/core": "^7.4.3",
     "@fontsource/baloo-bhaijaan-2": "^5.2.5"
   }
 }

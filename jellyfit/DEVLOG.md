@@ -1,5 +1,12 @@
 # Dev log
 
+## Jello holds a piece + Android APK (2026-10-15)
+
+- **Hold via Jello:** drag a tray piece onto Jello → his stretchy arm catches it and he holds it (bobs, tosses it, swaps when given another). Drag it from his hand onto the board when needed; an invalid drop returns it to his hand. The held piece counts for game over (only-held-fits makes him wave it) and is saved with the game. Session API: `hold(slot)`, `place(HOLD, r, c)`.
+- **First-time tip:** at the first moment a piece doesn't fit (or after 9 placements), the screen dims with spotlights on the piece and Jello, a caption card says «اسحب أي قطعة وإديهالي، أشيلهالك!», and a cartoon finger carries a ghost copy into his hand in a loop. Shown at most 3 games; never again once the player has used it.
+- **Android:** Capacitor 7 (`android/`), portrait, immersive full screen, vibration, the user's icon (adaptive + round + legacy + splash), release-signed APK. Rebuild with `npm run apk` (needs `ANDROID_HOME` and `android/keystore.properties`). `scripts/android_setup.py` re-applies the customisation after `cap sync`.
+- Tests: 35 passing (hold logic incl. swap, new deal, game over, save/restore).
+
 ## UI redesign + Jello 2.0 (2026-10-15)
 
 - **UI, candy style:** 3D buttons (dark outline, glossy band, coloured lip, press-down), outlined text for scores and titles, panels with pink title ribbons, candy toggles, crown badge pills, rotating "new record" burst, moving shine on the main buttons.
