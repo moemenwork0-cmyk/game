@@ -37,6 +37,8 @@ export interface DragState {
   target: { r: number; c: number } | null;
   previewRows: number;
   previewCols: number;
+  /** The piece is over Jello: dropping hands it to him. */
+  toJello: boolean;
 }
 
 export interface DragHost {
@@ -52,6 +54,11 @@ export interface DragHost {
   onPick(d: DragState): void;
   onDrop(d: DragState, r: number, c: number): void;
   onReturn(d: DragState): void;
+  /** Slot index of the held piece if (x, y) is on it, else -1. */
+  heldAt(x: number, y: number): number;
+  /** True if a dragged tray piece at (cx, cy) / pointer (px, py) is over Jello. */
+  overJello(d: DragState): boolean;
+  onGiveJello(d: DragState): void;
 }
 
 export class DragController {
@@ -71,6 +78,8 @@ export class DragController {
 
   /** Slot under a point, or -1. The whole slot (and a margin below) is the hit area. */
   slotAt(x: number, y: number): number {
+    const held = this.host.heldAt(x, y);
+    if (held >= 0) return held;
     const L = this.host.layout();
     if (y < L.trayY - 8 || y > L.trayY + L.trayH + 40) return -1;
     if (x < L.trayX - 12 || x > L.trayX + L.trayW + 12) return -1;
@@ -118,6 +127,7 @@ export class DragController {
       target: null,
       previewRows: 0,
       previewCols: 0,
+      toJello: false,
     };
     this.host.onPick(this.drag);
     this.evaluate();
@@ -155,7 +165,8 @@ export class DragController {
     const d = this.drag;
     if (!d) return;
     this.drag = null;
-    if (d.target) this.host.onDrop(d, d.target.r, d.target.c);
+    if (d.toJello) this.host.onGiveJello(d);
+    else if (d.target) this.host.onDrop(d, d.target.r, d.target.c);
     else this.host.onReturn(d);
   }
 
@@ -198,6 +209,12 @@ export class DragController {
   evaluate(): void {
     const d = this.drag;
     if (!d) return;
+    d.toJello = this.host.overJello(d);
+    if (d.toJello) {
+      d.target = null;
+      d.previewRows = d.previewCols = 0;
+      return;
+    }
     const L = this.host.layout();
     const p = PIECES[d.piece];
     const want = this.desired(d);
@@ -257,5 +274,10 @@ export class DragController {
     }
     d.tilt.step(dt);
     d.stretch.step(dt);
+    d.toJello = this.host.overJello(d);
+    if (d.toJello) {
+      d.target = null;
+      d.previewRows = d.previewCols = 0;
+    }
   }
 }

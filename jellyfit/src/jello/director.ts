@@ -295,6 +295,46 @@ export class JelloDirector {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Holding pieces
+
+  gave(swapped: boolean, first: boolean): void {
+    this.touch();
+    const j = this.jello;
+    j.feel('happy', 1400);
+    j.express({ eyes: 'happy', mouth: 'grin' }, 700);
+    j.burst('sparkle', 4);
+    if (first) this.say('holdLearned', 2);
+    else this.say(swapped ? 'holdSwap' : 'holdGot', 1);
+  }
+
+  takenBack(): void {
+    this.touch();
+    this.jello.squash(0.15);
+    this.say('holdGive', 0);
+  }
+
+  heldBack(): void {
+    this.say('holdBack', 0);
+  }
+
+  /** Only the piece in Jello's hand fits: he waves it around. */
+  onlyHeldFits(): void {
+    this.jello.toss();
+    this.say('holdOnlyFits', 1);
+  }
+
+  /** First-time tip: drag a piece to Jello. Keeps the bubble up for a while. */
+  holdTip(): string {
+    const j = this.jello;
+    const text = this.bag.pick('holdTip');
+    j.feel('happy', 4500);
+    j.act('wave', 1400);
+    j.say(text, undefined, 1, 5200);
+    this.lastSpeech = this.now;
+    return text;
+  }
+
   /** A dragged piece passes close to Jello. */
   nearPiece(): void {
     const j = this.jello;

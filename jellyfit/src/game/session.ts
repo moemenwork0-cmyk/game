@@ -9,6 +9,9 @@ import { feedbackWord, scorePlacement, stepCombo } from './scoring';
 
 const JELLY_COLORS = 7;
 
+/** Slot index for the piece Jello is holding. */
+export const HOLD = 3;
+
 export interface TrayItem {
   piece: number;
   color: number;
@@ -56,6 +59,7 @@ export interface SessionSnapshot {
   rng: number;
   board: { lo: number; hi: number; color: number[]; special: number[] };
   tray: (TrayItem | null)[];
+  held?: TrayItem | null;
   score: number;
   combo: number;
   sinceClear: number;
@@ -75,6 +79,9 @@ export class Session {
   readonly rng: Rng;
   readonly board = new Board();
   tray: (TrayItem | null)[] = [null, null, null];
+  /** Piece Jello is holding for later (one at a time). */
+  held: TrayItem | null = null;
+  heldFits = false;
   score = 0;
   combo = 0;
   sinceClear = 0;
@@ -122,19 +129,49 @@ export class Session {
       const t = this.tray[s];
       this.fits[s] = t ? anyFit(lo, hi, t.piece) : false;
     }
-    this.gameOver = this.tray.some((t) => t) && !this.fits.some((f) => f);
+    this.heldFits = this.held ? anyFit(lo, hi, this.held.piece) : false;
+    const any = this.tray.some((t) => t) || !!this.held;
+    this.gameOver = any && !this.fits.some((f) => f) && !this.heldFits;
+  }
+
+  /** Tray piece or (slot HOLD) the held piece. */
+  item(slot: number): TrayItem | null {
+    return slot === HOLD ? this.held : (this.tray[slot] ?? null);
   }
 
   canPlace(slot: number, r: number, c: number): boolean {
-    const t = this.tray[slot];
+    const t = this.item(slot);
     return !!t && !this.gameOver && canPlace(this.board.lo, this.board.hi, t.piece, r, c);
+  }
+
+  /**
+   * Gives a tray piece to Jello to hold. If he already holds one, they swap (the old one goes
+   * back into that tray slot). Returns null if the move is not possible.
+   */
+  hold(slot: number): { swapped: TrayItem | null; newDeal: boolean } | null {
+    if (this.gameOver || slot < 0 || slot >= TRAY_SLOTS) return null;
+    const t = this.tray[slot];
+    if (!t) return null;
+    const old = this.held;
+    this.held = t;
+    this.tray[slot] = old;
+    let newDeal = false;
+    if (this.tray.every((x) => x === null)) {
+      this.gen.dealsWithoutClear = this.dealCleared ? 0 : this.gen.dealsWithoutClear + 1;
+      this.deal();
+      newDeal = true;
+    } else {
+      this.refresh();
+    }
+    return { swapped: old, newDeal };
   }
 
   place(slot: number, r: number, c: number): PlaceResult | null {
     if (!this.canPlace(slot, r, c)) return null;
-    const t = this.tray[slot]!;
+    const t = this.item(slot)!;
     const res = this.board.place(t.piece, r, c, t.color, t.specialCell, t.special);
-    this.tray[slot] = null;
+    if (slot === HOLD) this.held = null;
+    else this.tray[slot] = null;
 
     const comboBefore = this.combo;
     const cs = stepCombo({ combo: this.combo, sinceClear: this.sinceClear }, res.lines);
@@ -200,6 +237,7 @@ export class Session {
         special: Array.from(this.board.special),
       },
       tray: this.tray.map((t) => (t ? { ...t } : null)),
+      held: this.held ? { ...this.held } : null,
       score: this.score,
       combo: this.combo,
       sinceClear: this.sinceClear,
@@ -218,6 +256,8 @@ export class Session {
     s.board.color.set(snap.board.color);
     s.board.special.set(snap.board.special);
     s.tray = snap.tray.map((t) => (t && t.piece >= 0 && t.piece < PIECES.length ? { ...t } : null));
+    const h = snap.held;
+    s.held = h && h.piece >= 0 && h.piece < PIECES.length ? { ...h } : null;
     s.score = snap.score;
     s.combo = snap.combo;
     s.sinceClear = snap.sinceClear;

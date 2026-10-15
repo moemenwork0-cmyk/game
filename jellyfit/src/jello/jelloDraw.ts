@@ -503,10 +503,51 @@ function drawFx(ctx: CanvasRenderingContext2D, fx: readonly Fx[]): void {
   ctx.globalAlpha = 1;
 }
 
-export function drawJello(ctx: CanvasRenderingContext2D, j: Jello, now: number): void {
+/** Round mitten hand that grips the held piece (world space). */
+export function drawMitten(ctx: CanvasRenderingContext2D, j: Jello, x: number, y: number, front: boolean): void {
+  const P = palette(j);
+  const R = j.R;
+  const g = j.grip.x;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(1 / g, g);
+  const r = R * 0.2;
+  if (!front) {
+    // Palm behind the piece.
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 1.25, r, 0, 0, Math.PI * 2);
+    ctx.fillStyle = P.mid;
+    ctx.fill();
+    ctx.lineWidth = Math.max(1.4, R * 0.05);
+    ctx.strokeStyle = P.edge;
+    ctx.stroke();
+  } else {
+    // Fingers wrapped over the front edge of the piece.
+    for (const dx of [-0.75, 0, 0.75]) {
+      ctx.beginPath();
+      ctx.ellipse(dx * r, -r * 0.25, r * 0.42, r * 0.5, 0, 0, Math.PI * 2);
+      ctx.fillStyle = P.mid;
+      ctx.fill();
+      ctx.lineWidth = Math.max(1.2, R * 0.04);
+      ctx.strokeStyle = P.edge;
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.85, -r * 0.45, r * 0.12, r * 0.18, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/**
+ * @param hand world point Jello's (left) hand stretches to while holding or reaching, or null.
+ */
+export function drawJello(ctx: CanvasRenderingContext2D, j: Jello, now: number, hand: { x: number; y: number } | null = null): void {
   if (!j.visible || j.appear <= 0.001) return;
   const R = j.R;
   const P = palette(j);
+  const base = ctx.getTransform();
   const x0 = j.x + j.shakeX + j.offX.x;
 
   // Ground shadow.
@@ -550,8 +591,35 @@ export function drawJello(ctx: CanvasRenderingContext2D, j: Jello, now: number):
 
   // Behind the body: tuft and arms.
   drawTuft(ctx, P, R, topY, j.tuft.x);
+  const out = hand ? clamp01(j.handOut.x) : 0;
   if (!peek) {
-    drawArm(ctx, P, R, -R * 0.88, shoulderY, j.armL.x, R * 0.5);
+    if (out > 0.04 && hand) {
+      // Stretchy jelly arm reaching to the hand point (world → local).
+      const lp = ctx.getTransform().inverse().transformPoint(base.transformPoint(new DOMPoint(hand.x, hand.y)));
+      const sx = -R * 0.88;
+      const sy = shoulderY;
+      const ex = sx + (lp.x - sx) * out;
+      const ey = sy + (lp.y - sy) * out;
+      const mx = (sx + ex) / 2;
+      const my = (sy + ey) / 2 + R * 0.35 * out;
+      const th = R * 0.32;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.quadraticCurveTo(mx, my, ex, ey);
+      ctx.strokeStyle = P.edge;
+      ctx.lineWidth = th + Math.max(2.8, R * 0.1);
+      ctx.stroke();
+      ctx.strokeStyle = P.mid;
+      ctx.lineWidth = th;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(sx, sy - th * 0.18);
+      ctx.quadraticCurveTo(mx, my - th * 0.22, ex, ey - th * 0.18);
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = th * 0.22;
+      ctx.stroke();
+    } else drawArm(ctx, P, R, -R * 0.88, shoulderY, j.armL.x, R * 0.5);
     drawArm(ctx, P, R, R * 0.88, shoulderY, -j.armR.x, R * 0.5);
   }
 

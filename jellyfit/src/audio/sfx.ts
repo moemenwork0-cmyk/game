@@ -182,7 +182,7 @@ export class Sfx {
     }
   }
 
-  jello(kind: 'squish' | 'giggle' | 'jump' | 'land' | 'aww' | 'snore' | 'pop' | 'boing' | 'purr' | 'bubble' | 'hum' | 'yawn' | 'glasses'): void {
+  jello(kind: 'squish' | 'giggle' | 'jump' | 'land' | 'aww' | 'snore' | 'pop' | 'boing' | 'purr' | 'bubble' | 'hum' | 'yawn' | 'glasses' | 'catch' | 'stretch'): void {
     if (this.a.playFile(`jello-${kind}`)) return;
     switch (kind) {
       case 'squish':
@@ -223,6 +223,13 @@ export class Sfx {
         break;
       case 'yawn':
         this.tone('triangle', [420, 640, 300], 0.9, 0.08, 0.08, 0.3, 0, 7);
+        break;
+      case 'catch':
+        this.tone('sine', [260, 640], 0.1, 0.16, 0.003, 0.06);
+        this.tone('triangle', [900, 1300], 0.07, 0.07, 0.003, 0.08, 0.06);
+        break;
+      case 'stretch':
+        this.tone('sine', [300, 700], 0.22, 0.09, 0.01, 0.08, 0, 12);
         break;
       case 'glasses':
         this.tone('sine', [1400, 1900], 0.06, 0.08, 0.002, 0.08);

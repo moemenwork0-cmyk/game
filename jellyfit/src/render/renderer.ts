@@ -7,7 +7,7 @@ import { STR } from '../config/strings';
 import { Rng } from '../core/rng';
 import { clamp01, easeOutBack, easeOutCubic, easeOutQuad, lerp } from '../core/tween';
 import { PIECES } from '../game/rules';
-import type { Session, PlaceResult } from '../game/session';
+import { HOLD, type Session, type PlaceResult } from '../game/session';
 import type { DragState } from '../input/drag';
 import { Background } from './background';
 import { renderBoardBase, type BoardBase } from './board';
@@ -18,7 +18,8 @@ import { computeLayout, trayPiecePos, type Insets, type Layout } from './layout'
 import { Particles } from './particles';
 import { FONT, Popups, outlinedText } from './popups';
 import type { Jello } from '../jello/jello';
-import { drawBubble, drawJello } from '../jello/jelloDraw';
+import { drawBubble, drawJello, drawMitten } from '../jello/jelloDraw';
+import type { HoldTutorial, TutorialScene } from './holdTutorial';
 
 const C = THEME.clear;
 
@@ -87,6 +88,7 @@ export class Renderer {
   /** 'menu' draws only the background and floating decorative jellies. */
   mode: 'menu' | 'game' = 'menu';
   jello: Jello | null = null;
+  tutorial: HoldTutorial | null = null;
   /** Jello's spot on the home screen (set by the app from the logo position). */
   menuJello = { x: 0, ground: 0, R: 50 };
   colors: readonly string[] = THEME.jelly;
@@ -151,8 +153,87 @@ export class Renderer {
       const pose = this.flyerPose(f, now);
       return { cx: pose.x + (p.w * pose.cs) / 2, cy: pose.y + (p.h * pose.cs) / 2, cs: pose.cs };
     }
+    if (slot === HOLD) {
+      const h = this.holdPose(piece);
+      return { cx: h.cx, cy: h.cy, cs: h.cs };
+    }
     const tp = trayPiecePos(this.lay, slot, p.w, p.h);
     return { cx: tp.x + (p.w * tp.cs) / 2, cy: tp.y + (p.h * tp.cs) / 2, cs: tp.cs };
+  }
+
+  /** Where Jello holds a piece: in his hand, to his left, gently bobbing (or tossed up). */
+  holdPose(piece: number): { cx: number; cy: number; cs: number; handX: number; handY: number; left: number } {
+    const L = this.lay;
+    const g = this.gameJello();
+    const R = g.R;
+    const p = PIECES[piece];
+    const boxW = R * 2.7;
+    const boxH = R * 1.9;
+    const cs = Math.min(L.cs * 0.58, boxW / p.w, boxH / p.h);
+    const cx = Math.max(L.boardX + boxW / 2 + 4, g.x - R * 1.5 - boxW / 2);
+    const j = this.jello;
+    const bob = j && !this.reducedMotion ? Math.sin(this.now / 520) * R * 0.04 : 0;
+    const bottom = g.ground - R * 0.5 + bob - (j ? j.tossH : 0);
+    return { cx, cy: bottom - (p.h * cs) / 2, cs, handX: cx, handY: bottom + R * 0.04, left: cx - boxW / 2 };
+  }
+
+  /** Positions for the hold tip animation. */
+  tutorialScene(piece: number, slot: number): TutorialScene | null {
+    const j = this.jello;
+    if (!j || !this.lay) return null;
+    const from = this.trayPose(slot, piece, this.now);
+    const h = this.holdPose(piece);
+    return {
+      from,
+      to: { cx: h.cx, cy: h.cy, cs: h.cs },
+      jello: { x: j.x, y: j.ground - j.H * 0.5, R: j.R },
+      w: this.lay.w,
+      h: this.lay.h,
+      board: { x: this.lay.boardX, y: this.lay.boardY, size: this.lay.boardSize },
+    };
+  }
+
+  /** A piece flies into Jello's hand. */
+  flyToHold(piece: number, color: number, fromCx: number, fromCy: number, fromCs: number, tilt: number, now: number): void {
+    const p = PIECES[piece];
+    const h = this.holdPose(piece);
+    this.flyers.push({
+      piece,
+      color,
+      slot: HOLD,
+      kind: 'return',
+      fx: fromCx - (p.w * fromCs) / 2,
+      fy: fromCy - (p.h * fromCs) / 2,
+      fcs: fromCs,
+      tx: h.cx - (p.w * h.cs) / 2,
+      ty: h.cy - (p.h * h.cs) / 2,
+      tcs: h.cs,
+      ftilt: tilt,
+      start: now,
+      dur: 240,
+    });
+  }
+
+  /** The piece Jello was holding flies back into a tray slot (swap). */
+  flyHoldToSlot(piece: number, color: number, slot: number, now: number): void {
+    const p = PIECES[piece];
+    const h = this.holdPose(piece);
+    const tp = trayPiecePos(this.lay, slot, p.w, p.h);
+    this.flyers.push({
+      piece,
+      color,
+      slot,
+      kind: 'return',
+      fx: h.cx - (p.w * h.cs) / 2,
+      fy: h.cy - (p.h * h.cs) / 2,
+      fcs: h.cs,
+      tx: tp.x,
+      ty: tp.y,
+      tcs: tp.cs,
+      ftilt: 0.3,
+      start: now,
+      dur: 300,
+    });
   }
 
   pickedUp(slot: number): void {
@@ -161,6 +242,10 @@ export class Renderer {
 
   returnPiece(d: DragState, now: number): void {
     const p = PIECES[d.piece];
+    if (d.slot === HOLD) {
+      this.flyToHold(d.piece, d.color, d.cx, d.cy, d.cs, d.tilt.x, now);
+      return;
+    }
     const tp = trayPiecePos(this.lay, d.slot, p.w, p.h);
     this.flyers.push({
       piece: d.piece,
@@ -421,10 +506,27 @@ export class Renderer {
 
     // Jello sits on the board's top-right corner.
     const jl = this.jello;
+    let bubbleMax = L.boardX + L.boardSize;
     if (jl) {
       const g = this.gameJello();
       jl.place(g.x, g.ground, g.R);
-      drawJello(ctx, jl, now);
+      const held = s.held;
+      const heldVisible = !!held && jl.holding !== null && !(drag && drag.slot === HOLD) && !this.flyers.some((f) => f.slot === HOLD);
+      const hp = held ? this.holdPose(held.piece) : null;
+      const hand = hp && jl.holding ? { x: hp.handX, y: hp.handY } : jl.reach;
+      drawJello(ctx, jl, now, hand);
+      if (held && hp && heldVisible) {
+        const p = PIECES[held.piece];
+        drawMitten(ctx, jl, hp.handX, hp.handY, false);
+        ctx.save();
+        ctx.translate(hp.cx, hp.cy);
+        ctx.rotate(this.reducedMotion ? 0 : Math.sin(now / 700) * 0.05 + (jl.tossH > 0 ? jl.tossH / (jl.R * 6) : 0));
+        ctx.globalAlpha = s.heldFits ? 1 : THEME.tray.unfitAlpha;
+        this.piece(held.piece, held.color, (-p.w * hp.cs) / 2, (-p.h * hp.cs) / 2, hp.cs, !s.heldFits);
+        ctx.restore();
+        if (jl.tossH < jl.R * 0.2) drawMitten(ctx, jl, hp.handX, hp.handY, true);
+      }
+      if (held && hp) bubbleMax = hp.left - 4;
     }
 
     // Tray.
@@ -489,7 +591,19 @@ export class Renderer {
     this.popups.drawWord(ctx, now, L.boardX + L.boardSize / 2, L.boardY + L.boardSize * 0.42, Math.max(34, L.cs * 1.15));
     this.popups.drawCombo(ctx, now, L.boardX + 4, L.boardY - Math.max(15, Math.min(22, L.cs * 0.36)) * 1.15, Math.max(15, Math.min(22, L.cs * 0.36)));
 
-    if (jl) drawBubble(ctx, jl, now, -1, L.boardX + 2, L.boardX + L.boardSize, Math.max(15, Math.min(19, L.cs * 0.4)));
+    // First-time tip: dim + spotlight + ghost piece under the bubble, finger on top.
+    const tut = this.tutorial;
+    const tutItem = tut && !tut.done(now) ? s.tray[tut.slot] : null;
+    const tutScene = tutItem ? this.tutorialScene(tutItem.piece, tut!.slot) : null;
+    if (tut && tutItem && tutScene) {
+      ctx.setTransform(L.dpr, 0, 0, L.dpr, 0, 0);
+      tut.drawUnder(ctx, tutScene, tutItem.piece, (x, y, cs) => this.piece(tutItem.piece, tutItem.color, x, y, cs), now);
+    }
+
+    if (tut && tutItem && tutScene) {
+      tut.drawCaption(ctx, tutScene, FONT, now);
+      tut.drawOver(ctx, tutScene, now);
+    } else if (jl) drawBubble(ctx, jl, now, -1, L.boardX + 2, bubbleMax, Math.max(15, Math.min(19, L.cs * 0.4)));
 
     if (now - this.flashAt < 120) {
       ctx.globalAlpha = 0.6 * (1 - (now - this.flashAt) / 120);

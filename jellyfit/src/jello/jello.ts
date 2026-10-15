@@ -73,7 +73,22 @@ export type Action =
   | 'blow'
   | 'look';
 
-export type SoundKind = 'squish' | 'giggle' | 'jump' | 'land' | 'aww' | 'snore' | 'pop' | 'boing' | 'purr' | 'bubble' | 'hum' | 'yawn' | 'glasses';
+export type SoundKind =
+  | 'squish'
+  | 'giggle'
+  | 'jump'
+  | 'land'
+  | 'aww'
+  | 'snore'
+  | 'pop'
+  | 'boing'
+  | 'purr'
+  | 'bubble'
+  | 'hum'
+  | 'yawn'
+  | 'glasses'
+  | 'catch'
+  | 'stretch';
 
 export interface JelloHooks {
   /** Babble voice for a line: n syllables spaced `periodMs`, pitch multiplier by mood. */
@@ -146,6 +161,18 @@ export class Jello {
   tintAmount = 0;
   private tintStart = 0;
   private tintDur = 0;
+
+  // Holding a piece for the player.
+  holding: { piece: number; color: number } | null = null;
+  /** 0 = arm tucked, 1 = arm out holding the piece. */
+  readonly handOut = new Spring(0, 200, 13);
+  /** World point the hand reaches for while a piece hovers nearby (null = none). */
+  reach: { x: number; y: number } | null = null;
+  /** Height of a playful toss of the held piece (px), and its velocity. */
+  tossH = 0;
+  tossV = 0;
+  /** Squash of the hand when catching. */
+  readonly grip = new Spring(1, 300, 14);
 
   // Pull / pet interaction.
   pulling = false;
@@ -250,6 +277,38 @@ export class Jello {
       f.mouth = 'o';
     }
     return f;
+  }
+
+  /** Takes a piece into his hand (arm shoots out with an overshoot). */
+  take(piece: number, color: number): void {
+    this.holding = { piece, color };
+    this.handOut.target = 1;
+    this.handOut.v += 6;
+    this.grip.x = 0.7;
+    this.squash(0.3);
+    this.hooks.sound('catch');
+  }
+
+  /** Shows a held piece with no fanfare (resumed game). */
+  holdQuietly(piece: number, color: number): void {
+    this.holding = { piece, color };
+    this.handOut.x = 1;
+    this.handOut.target = 1;
+  }
+
+  /** Lets go of the held piece (the player took it). */
+  give(): void {
+    this.holding = null;
+    this.handOut.target = 0;
+    this.tossH = 0;
+    this.tossV = 0;
+  }
+
+  toss(): void {
+    if (!this.holding || this.tossH > 0) return;
+    this.tossV = this.R * 9;
+    this.tossH = 0.01;
+    this.hooks.sound('jump');
   }
 
   /** Body briefly takes on another jelly colour, then returns to pink. */
@@ -406,7 +465,7 @@ export class Jello {
   // ---------------------------------------------------------------------------
   // Speech
 
-  say(text: string, mood?: Mood, pitch = 1): void {
+  say(text: string, mood?: Mood, pitch = 1, minMs = 0): void {
     if (mood) this.feel(mood, 2400);
     if (!this.talkEnabled) return;
     const words = text.split(/\s+/).filter(Boolean);
@@ -422,7 +481,7 @@ export class Jello {
       wordMs,
       syllables,
       period,
-      end: this.now + speakMs + Math.max(1300, words.length * 260),
+      end: this.now + Math.max(minMs, speakMs + Math.max(1300, words.length * 260)),
     };
     const moodPitch = this.mood === 'sad' ? 0.82 : this.mood === 'excited' || this.mood === 'proud' ? 1.12 : 1;
     this.hooks.voice(syllables, period, pitch * moodPitch);
@@ -520,6 +579,18 @@ export class Jello {
       }
     }
 
+    if (this.tossH > 0) {
+      this.tossV -= this.R * 40 * dt;
+      this.tossH += this.tossV * dt;
+      if (this.tossH <= 0) {
+        this.tossH = 0;
+        this.tossV = 0;
+        this.grip.x = 0.72;
+        this.hooks.sound('land');
+      }
+    }
+    this.handOut.target = this.holding ? 1 : this.reach ? 0.85 : 0;
+
     this.runAction(now);
     this.idle(now);
 
@@ -604,7 +675,7 @@ export class Jello {
 
     // Tuft lags behind lean and rotation (secondary motion).
     this.tuft.target = -this.lean.x * 1.4 - this.rot.v * 0.02;
-    for (const s of [this.sx, this.sy, this.lean, this.rot, this.m2, this.m3, this.tuft, this.armL, this.armR, this.lookX, this.lookY, this.mouthOpen, this.smile, this.brows, this.poke, this.glassesY, this.offX]) {
+    for (const s of [this.sx, this.sy, this.lean, this.rot, this.m2, this.m3, this.tuft, this.armL, this.armR, this.lookX, this.lookY, this.mouthOpen, this.smile, this.brows, this.poke, this.glassesY, this.offX, this.handOut, this.grip]) {
       s.step(dt);
     }
   }
@@ -765,6 +836,11 @@ export class Jello {
     }
     const calm = this.idleStyle === 'calm';
     this.nextIdle = now + (calm ? this.rng.range(7000, 13000) : this.rng.range(3200, 6500));
+    if (this.holding && this.rng.chance(0.55)) {
+      if (this.rng.chance(0.6)) this.toss();
+      else this.express({ eyes: 'happy', mouth: 'cat' }, 900);
+      return;
+    }
     const pool: [string, number][] = calm
       ? [
           ['wink', 3],
@@ -854,5 +930,10 @@ export class Jello {
     this.petting = false;
     this.setGlasses(false);
     this.glassesY.x = -1;
+    this.holding = null;
+    this.handOut.x = 0;
+    this.handOut.target = 0;
+    this.reach = null;
+    this.tossH = 0;
   }
 }

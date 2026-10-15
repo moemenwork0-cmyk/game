@@ -3,7 +3,7 @@ import { THEME } from './config/theme';
 import { BALANCE } from './config/balance';
 import { Loop } from './core/loop';
 import { Rng, randomSeed } from './core/rng';
-import { Session, type PlaceResult } from './game/session';
+import { HOLD, Session, type PlaceResult } from './game/session';
 import { PIECES, place as placeMasks } from './game/rules';
 import { graceLeft } from './game/scoring';
 import { AudioEngine } from './audio/audio';
@@ -19,6 +19,7 @@ import { LocalStorage, SaveStore, type KeyValueStorage, type Settings } from './
 import { Haptics } from './platform/haptics';
 import { DebugPanel } from './debug/debugPanel';
 import { Jello } from './jello/jello';
+import { HoldTutorial } from './render/holdTutorial';
 import { JelloDirector } from './jello/director';
 
 export interface AppOptions {
@@ -46,6 +47,9 @@ export class App {
   private prefersReduced = false;
   readonly jello: Jello;
   readonly director: JelloDirector;
+  readonly tutorial = new HoldTutorial();
+  private tipShownThisGame = false;
+  private lastFrameNow = 0;
   private pointer: { x: number; y: number; at: number } | null = null;
   readonly loop: Loop;
   session!: Session;
@@ -71,6 +75,7 @@ export class App {
     });
     this.director = new JelloDirector(this.jello, jrng, THEME.jelly);
     this.renderer.jello = this.jello;
+    this.renderer.tutorial = this.tutorial;
     this.hud = new Hud(this.root, () => this.pauseGame());
     this.menu = new MenuScreen(
       this.root,
@@ -99,19 +104,22 @@ export class App {
       now: () => this.loop.now,
       pickable: (slot) => {
         if (this.session.gameOver || !this.inputOpen()) return null;
-        const t = this.session.tray[slot];
+        const t = this.session.item(slot);
         return t ? { piece: t.piece, color: t.color } : null;
       },
-      trayPose: (slot) => this.renderer.trayPose(slot, this.session.tray[slot]!.piece, this.loop.now),
+      trayPose: (slot) => this.renderer.trayPose(slot, this.session.item(slot)!.piece, this.loop.now),
       canPlace: (slot, r, c) => this.session.canPlace(slot, r, c),
       previewLines: (slot, r, c) => {
         const b = this.session.board;
-        const out = placeMasks(b.lo, b.hi, this.session.tray[slot]!.piece, r, c);
+        const out = placeMasks(b.lo, b.hi, this.session.item(slot)!.piece, r, c);
         return { rows: out.rows, cols: out.cols };
       },
       onPick: (d) => this.onPick(d),
       onDrop: (d, r, c) => this.onDrop(d, r, c),
       onReturn: (d) => this.onReturn(d),
+      heldAt: (x, y) => this.heldAt(x, y),
+      overJello: (d) => this.overJello(d),
+      onGiveJello: (d) => this.onGiveJello(d),
     });
 
     this.prefersReduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -154,6 +162,7 @@ export class App {
 
   showMenu(): void {
     this.drag.cancel();
+    this.tutorial.stop(this.loop.now);
     this.screen = 'menu';
     this.renderer.mode = 'menu';
     this.hud.setVisible(false);
@@ -192,10 +201,12 @@ export class App {
     this.hud.setBest(this.store.data.best);
     this.renderer.dealt(this.loop.now);
     this.director.gameStart(false, this.bestAtStart, resumed);
+    this.syncHeld();
   }
 
   pauseGame(): void {
     if (this.screen !== 'game' || this.results.visible || this.session.gameOver) return;
+    this.tutorial.stop(this.loop.now);
     this.sfx.click();
     this.drag.cancel();
     this.persist();
@@ -241,6 +252,8 @@ export class App {
   /** Fresh session without leaving the current screen. */
   private resetSession(): void {
     this.gameOverShown = false;
+    this.tipShownThisGame = false;
+    this.tutorial.stop(this.loop.now);
     this.session = this.newSession();
     this.bestAtStart = this.store.data.best;
     this.renderer.session = this.session;
@@ -265,7 +278,10 @@ export class App {
     this.audio.unlock();
     this.haptics.lastWasTouch = d.touch;
     this.renderer.pickedUp(d.slot);
-    this.director.pick();
+    if (d.slot === HOLD) {
+      this.jello.give();
+      this.director.takenBack();
+    } else this.director.pick();
     this.sfx.pick();
     this.haptics.tick(8);
   }
@@ -273,6 +289,92 @@ export class App {
   private onReturn(d: DragState): void {
     this.renderer.returnPiece(d, this.loop.now);
     this.sfx.boing();
+    if (d.slot === HOLD) {
+      // Back into Jello's hand when the flight lands.
+      const held = this.session.held;
+      this.renderer.after(240, this.loop.now, () => {
+        if (held && this.session.held === held) this.jello.take(held.piece, held.color);
+      });
+      this.director.heldBack();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Jello holds a piece
+
+  /** HOLD if (x, y) is on the piece in Jello's hand. */
+  private heldAt(x: number, y: number): number {
+    const held = this.session.held;
+    if (!held || !this.jello.holding || this.screen !== 'game') return -1;
+    const p = PIECES[held.piece];
+    const h = this.renderer.holdPose(held.piece);
+    const hw = Math.max((p.w * h.cs) / 2, 26) + 10;
+    const hh = Math.max((p.h * h.cs) / 2, 26) + 10;
+    return Math.abs(x - h.cx) <= hw && Math.abs(y - h.cy) <= hh ? HOLD : -1;
+  }
+
+  /** A tray piece is over Jello (or his hand): dropping gives it to him. */
+  private overJello(d: DragState): boolean {
+    if (d.slot === HOLD || this.screen !== 'game') return false;
+    const j = this.jello;
+    const jx = j.x;
+    const jy = j.ground - j.H * 0.5;
+    if (Math.hypot(d.cx - jx, d.cy - jy) < j.R * 1.9) return true;
+    if (j.hit(d.px, d.py)) return true;
+    const held = this.session.held;
+    if (held) {
+      const h = this.renderer.holdPose(held.piece);
+      if (Math.hypot(d.cx - h.cx, d.cy - h.cy) < j.R * 1.4) return true;
+    }
+    return false;
+  }
+
+  private onGiveJello(d: DragState): void {
+    const now = this.loop.now;
+    const res = this.session.hold(d.slot);
+    if (!res) {
+      this.onReturn(d);
+      return;
+    }
+    const held = this.session.held!;
+    if (res.swapped) this.renderer.flyHoldToSlot(res.swapped.piece, res.swapped.color, d.slot, now);
+    this.renderer.flyToHold(held.piece, held.color, d.cx, d.cy, d.cs, d.tilt.x, now);
+    this.jello.take(held.piece, held.color);
+    this.haptics.tick(14);
+    const first = !this.store.data.tips.hold;
+    this.store.data.tips.hold = true;
+    this.tutorial.stop(now);
+    this.director.gave(!!res.swapped, first);
+    if (res.newDeal) this.renderer.after(160, now, () => this.renderer.dealt(this.loop.now));
+    this.persist();
+  }
+
+  /** Shows the "give me a piece" tip at a good moment for players who never used it. */
+  private maybeHoldTip(now: number): void {
+    const s = this.session;
+    const tips = this.store.data.tips;
+    if (tips.hold || tips.holdShown >= 3 || this.tipShownThisGame || s.gameOver || s.held) return;
+    if (this.screen !== 'game' || s.stats.placements < 3) return;
+    const stuck = s.tray.some((t, i) => t && !s.fits[i]);
+    if (!stuck && s.stats.placements < 9) return;
+    let slot = s.tray.findIndex((t, i) => t && !s.fits[i]);
+    if (slot < 0) slot = s.tray.findIndex((t) => t);
+    if (slot < 0) return;
+    this.tipShownThisGame = true;
+    tips.holdShown++;
+    this.store.save();
+    // Let the placement animation finish first.
+    this.renderer.after(650, now, () => {
+      if (this.session !== s || s.gameOver || s.held || !s.tray[slot] || this.screen !== 'game') return;
+      this.tutorial.begin(slot, this.loop.now, this.director.holdTip());
+    });
+  }
+
+  /** Makes Jello's hand match the session (resumed game, new game). */
+  private syncHeld(): void {
+    const h = this.session.held;
+    if (h) this.jello.holdQuietly(h.piece, h.color);
+    else this.jello.give();
   }
 
   private onDrop(d: DragState, r: number, c: number): void {
@@ -308,6 +410,10 @@ export class App {
     }
     this.syncCombo();
     this.director.placed(res, this.session.board.fill(), this.store.data.best);
+    if (this.tutorial.active) this.tutorial.stop(now);
+    const s = this.session;
+    if (!res.gameOver && s.held && s.heldFits && !s.fits.some((f) => f)) this.director.onlyHeldFits();
+    this.maybeHoldTip(now);
     if (res.newDeal) this.renderer.after(land + 120, now, () => this.renderer.dealt(this.loop.now));
     if (res.gameOver) this.beginGameOver(land + (res.lines > 0 ? 450 : 200));
     this.persist();
@@ -364,6 +470,7 @@ export class App {
     this.renderer.mode = 'game';
     this.hud.setVisible(true);
     this.director.gameStart(true, this.bestAtStart);
+    this.syncHeld();
   }
 
   /** Replaces the session (debug/test). */
@@ -407,12 +514,37 @@ export class App {
   private updateJello(dt: number, now: number): void {
     const j = this.jello;
     const d = this.drag.drag;
+    j.reach = null;
     if (d) {
       j.lookAt(d.cx, d.cy);
-      if (Math.hypot(d.cx - j.x, d.cy - (j.ground - j.H * 0.5)) < j.R * 2.2) this.director.nearPiece();
+      if (d.toJello) {
+        // Hand stretches out to catch it.
+        j.reach = { x: d.cx, y: d.cy + (PIECES[d.piece].h * d.cs) / 2 };
+        j.express({ eyes: 'wide', mouth: 'grin' }, 120);
+      } else if (Math.hypot(d.cx - j.x, d.cy - (j.ground - j.H * 0.5)) < j.R * 2.2) this.director.nearPiece();
     }
     else if (this.pointer && now - this.pointer.at < 2500) j.lookAt(this.pointer.x, this.pointer.y);
     else j.lookFree();
+    if (this.tutorial.active) {
+      const t = this.tutorial;
+      const item = this.session.tray[t.slot];
+      if (!item || this.session.gameOver) t.stop(now);
+      const scene = item ? this.renderer.tutorialScene(item.piece, t.slot) : null;
+      if (scene) {
+        const rp = t.reachPoint(scene, now);
+        if (rp && !d) {
+          j.reach = rp;
+          j.lookAt(rp.x, rp.y);
+        }
+        if (t.landed(this.lastFrameNow, now)) {
+          j.grip.x = 0.75;
+          j.squash(0.2);
+          j.express({ eyes: 'happy', mouth: 'grin' }, 500);
+        }
+      }
+      if (t.done(now)) t.active = false;
+    }
+    this.lastFrameNow = now;
     if (this.screen === 'menu' && this.menu.visible) this.placeMenuJello();
     j.update(dt, now);
     this.director.update(!!d);

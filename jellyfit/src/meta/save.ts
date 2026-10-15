@@ -72,6 +72,8 @@ export interface SaveData {
   /** In-progress Classic game, if any. */
   current: SessionSnapshot | null;
   settings: Settings;
+  /** One-time tips: `hold` = the player has given Jello a piece; `holdShown` = times the tip was shown. */
+  tips: { hold: boolean; holdShown: number };
 }
 
 export function defaultSave(): SaveData {
@@ -81,6 +83,7 @@ export function defaultSave(): SaveData {
     gamesPlayed: 0,
     current: null,
     settings: { sfx: true, music: true, haptics: true, reducedMotion: false, jello: true },
+    tips: { hold: false, holdShown: 0 },
   };
 }
 
@@ -91,6 +94,9 @@ export function migrate(raw: Record<string, unknown>): SaveData {
   d.best = num(raw.best, 0);
   d.gamesPlayed = num(raw.gamesPlayed, 0);
   d.current = isValidSnapshot(raw.current) ? raw.current : null;
+  const tips = (raw.tips ?? {}) as Partial<SaveData['tips']>;
+  d.tips.hold = tips.hold === true;
+  d.tips.holdShown = num(tips.holdShown, 0);
   const s = (raw.settings ?? {}) as Partial<Settings>;
   for (const k of Object.keys(d.settings) as (keyof Settings)[]) {
     if (typeof s[k] === 'boolean') d.settings[k] = s[k]!;
