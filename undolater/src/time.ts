@@ -9,7 +9,7 @@ function at(base: Date, days: number, hour: number, minute = 0): Date {
   return d;
 }
 
-export type Preset = { key: string; label: string; date: Date };
+export type Preset = { key: string; label: string; date: Date; icon: 'clock' | 'moon' | 'sunrise' | 'coffee' | 'calendar' };
 
 /** Quick reminder choices, computed relative to `now`. */
 export function reminderPresets(now = new Date()): Preset[] {
@@ -23,11 +23,11 @@ export function reminderPresets(now = new Date()): Preset[] {
   const toMonday = (1 - now.getDay() + 7) % 7 || 7;
   const nextWeek = at(now, toMonday, 9);
 
-  const presets: Preset[] = [{ key: '1h', label: 'In 1 hour', date: hour }];
-  if (tonight) presets.push({ key: 'tonight', label: 'Tonight', date: tonight });
-  presets.push({ key: 'tomorrow', label: 'Tomorrow', date: tomorrow });
-  if (toSaturday > 1 && toSaturday < 7) presets.push({ key: 'weekend', label: 'Weekend', date: weekend });
-  presets.push({ key: 'week', label: 'Next week', date: nextWeek });
+  const presets: Preset[] = [{ key: '1h', label: 'In 1 hour', date: hour, icon: 'clock' }];
+  if (tonight) presets.push({ key: 'tonight', label: 'Tonight', date: tonight, icon: 'moon' });
+  presets.push({ key: 'tomorrow', label: 'Tomorrow morning', date: tomorrow, icon: 'sunrise' });
+  if (toSaturday > 1 && toSaturday < 7) presets.push({ key: 'weekend', label: 'This weekend', date: weekend, icon: 'coffee' });
+  presets.push({ key: 'week', label: 'Next week', date: nextWeek, icon: 'calendar' });
   return presets;
 }
 
@@ -58,12 +58,37 @@ export function formatWhen(ts: number, now = new Date()): string {
   return `${date}, ${time}`;
 }
 
-/** Due time with a relative hint only when it's close, e.g. "Today, 7:00 PM · in 2h". */
-export function formatDue(ts: number, now = Date.now()): string {
-  const when = formatWhen(ts, new Date(now));
-  return Math.abs(ts - now) < DAY ? `${when} · ${relative(ts, now)}` : when;
+
+/** Short label for a chip: "7:00 PM", "Tomorrow 9:00 AM", "Sat 10:00 AM". */
+export function shortWhen(ts: number, now = new Date()): string {
+  const d = new Date(ts);
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const dayDiff = Math.round((at(d, 0, 0).getTime() - at(now, 0, 0).getTime()) / DAY);
+  if (dayDiff === 0) return time;
+  if (dayDiff === 1) return `Tomorrow ${time}`;
+  if (dayDiff > 1 && dayDiff < 7) return `${d.toLocaleDateString(undefined, { weekday: 'short' })} ${time}`;
+  return `${d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} ${time}`;
 }
 
-export function todayLabel(now = new Date()): string {
-  return now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+export function greeting(now = new Date()): string {
+  const h = now.getHours();
+  if (h < 5) return 'Good night';
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
+/** History grouping label. */
+export function dayBucket(ts: number, now = new Date()): string {
+  const dayDiff = Math.round((at(now, 0, 0).getTime() - at(new Date(ts), 0, 0).getTime()) / DAY);
+  if (dayDiff <= 0) return 'Today';
+  if (dayDiff === 1) return 'Yesterday';
+  if (dayDiff < 7) return 'This week';
+  return 'Earlier';
+}
+
+/** Compact due label for list rows: "5:24 PM · in 2h" when close, else "Tomorrow 1:12 PM". */
+export function dueLabel(ts: number, now = Date.now()): string {
+  const near = ts - now < 12 * HOUR;
+  return near ? `${shortWhen(ts, new Date(now))} · ${relative(ts, now)}` : shortWhen(ts, new Date(now));
 }

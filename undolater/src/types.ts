@@ -9,7 +9,9 @@ export type UndoItem = {
   createdAt: number;
   /** When to be reminded (ms since epoch). */
   remindAt?: number;
-  /** Id of the scheduled local notification, so it can be cancelled. */
+  /** Ids of the scheduled reminder and follow-up notifications, so they can be cancelled. */
+  notificationIds?: string[];
+  /** Pre-1.1 single notification id. */
   notificationId?: string;
   /** Set once the change has been undone; the item then lives in History. */
   restoredAt?: number;

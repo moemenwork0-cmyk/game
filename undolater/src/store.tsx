@@ -2,8 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
-import { cancelReminder, scheduleReminder } from './notifications';
+import { cancelReminders, clearDelivered, resyncReminders, scheduleReminders } from './notifications';
 import { deletePhoto } from './photos';
+import { useSettings } from './settings';
 import type { Draft, UndoItem } from './types';
 
 const KEY = 'undolater/items/v1';
@@ -12,7 +13,7 @@ type Store = {
   items: UndoItem[];
   loaded: boolean;
   add: (draft: Draft) => Promise<UndoItem>;
-  update: (id: string, draft: Draft) => Promise<void>;
+  update: (id: string, change: Partial<Draft>) => Promise<void>;
   restore: (id: string) => Promise<void>;
   reopen: (id: string) => Promise<void>;
   snooze: (id: string, ms: number) => Promise<void>;
@@ -25,9 +26,11 @@ const StoreContext = createContext<Store | null>(null);
 const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const { settings, loaded: settingsLoaded } = useSettings();
   const [items, setItems] = useState<UndoItem[]>([]);
   const [loaded, setLoaded] = useState(false);
   const ref = useRef(items);
+  const settingsRef = useRef(settings);
 
   useEffect(() => {
     AsyncStorage.getItem(KEY)
@@ -52,67 +55,90 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [commit],
   );
 
-  const find = (id: string) => ref.current.find((it) => it.id === id);
+  // Rebuild all scheduled notifications on launch and whenever notification settings change.
+  useEffect(() => {
+    if (!loaded || !settingsLoaded) return;
+    settingsRef.current = settings;
+    resyncReminders(ref.current, settings)
+      .then((byId) =>
+        commit(
+          ref.current.map((it) =>
+            it.restoredAt || !it.remindAt ? it : { ...it, notificationId: undefined, notificationIds: byId[it.id] ?? [] },
+          ),
+        ),
+      )
+      .catch(() => {});
+  }, [loaded, settingsLoaded, settings, commit]);
+
+  const find = useCallback((id: string) => ref.current.find((it) => it.id === id), []);
+
+  const schedule = useCallback(
+    async (item: UndoItem) => {
+      const notificationIds = await scheduleReminders(item, settingsRef.current);
+      patch(item.id, { notificationIds, notificationId: undefined });
+    },
+    [patch],
+  );
 
   const add = useCallback(
     async (draft: Draft) => {
       const item: UndoItem = { id: newId(), createdAt: Date.now(), ...draft };
       commit([item, ...ref.current]);
-      const notificationId = await scheduleReminder(item);
-      if (notificationId) patch(item.id, { notificationId });
+      await schedule(item);
       return item;
     },
-    [commit, patch],
+    [commit, schedule],
   );
 
   const update = useCallback(
-    async (id: string, draft: Draft) => {
+    async (id: string, change: Partial<Draft>) => {
       const old = find(id);
       if (!old) return;
-      if (old.photoUri && old.photoUri !== draft.photoUri) deletePhoto(old.photoUri);
-      await cancelReminder(old.notificationId);
-      const next: UndoItem = { ...old, ...draft, notificationId: undefined };
-      patch(id, next);
-      if (!next.restoredAt) {
-        const notificationId = await scheduleReminder(next);
-        if (notificationId) patch(id, { notificationId });
+      if ('photoUri' in change && old.photoUri && old.photoUri !== change.photoUri) deletePhoto(old.photoUri);
+      const next: UndoItem = { ...old, ...change };
+      patch(id, change);
+      // Only reminder-relevant edits touch the schedule.
+      if (!old.restoredAt && ('remindAt' in change || 'title' in change || 'note' in change)) {
+        await cancelReminders(old);
+        await schedule(next);
       }
     },
-    [patch],
+    [find, patch, schedule],
   );
 
   const restore = useCallback(
     async (id: string) => {
       const old = find(id);
       if (!old || old.restoredAt) return;
-      patch(id, { restoredAt: Date.now(), notificationId: undefined });
-      await cancelReminder(old.notificationId);
+      patch(id, { restoredAt: Date.now(), notificationIds: [], notificationId: undefined });
+      await cancelReminders(old);
+      await clearDelivered(id);
     },
-    [patch],
+    [find, patch],
   );
 
   const reopen = useCallback(
     async (id: string) => {
       const old = find(id);
       if (!old) return;
+      const next = { ...old, restoredAt: undefined };
       patch(id, { restoredAt: undefined });
-      const notificationId = await scheduleReminder(old);
-      if (notificationId) patch(id, { notificationId });
+      await schedule(next);
     },
-    [patch],
+    [find, patch, schedule],
   );
 
   const snooze = useCallback(
     async (id: string, ms: number) => {
       const old = find(id);
       if (!old) return;
-      await cancelReminder(old.notificationId);
-      const remindAt = Date.now() + ms;
-      patch(id, { remindAt, restoredAt: undefined, notificationId: undefined });
-      const notificationId = await scheduleReminder({ ...old, remindAt });
-      if (notificationId) patch(id, { notificationId });
+      await cancelReminders(old);
+      await clearDelivered(id);
+      const next = { ...old, remindAt: Date.now() + ms, restoredAt: undefined };
+      patch(id, { remindAt: next.remindAt, restoredAt: undefined });
+      await schedule(next);
     },
-    [patch],
+    [find, patch, schedule],
   );
 
   const remove = useCallback(
@@ -121,9 +147,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!old) return;
       commit(ref.current.filter((it) => it.id !== id));
       deletePhoto(old.photoUri);
-      await cancelReminder(old.notificationId);
+      await cancelReminders(old);
+      await clearDelivered(id);
     },
-    [commit],
+    [commit, find],
   );
 
   const clearHistory = useCallback(async () => {
