@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "UndoLater",
+    "slug": "undolater",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#F7F7F5",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.undolater.app"
+    },
+    "android": {
+      "package": "com.undolater.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#5B4CFF",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 120,
+          "resizeMode": "contain",
+          "backgroundColor": "#F7F7F5",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#0B0B0E"
+          }
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "color": "#5B4CFF"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "UndoLater uses your photos so you can attach a 'before' picture of what you changed.",
+          "cameraPermission": "UndoLater uses the camera so you can snap a 'before' picture of what you changed.",
+          "microphonePermission": false
+        }
+      ]
+    ]
+  }
+}
