@@ -14,6 +14,7 @@
     "zip": "node scripts/zip.mjs",
     "zip:crazygames": "npm run build:crazygames && node scripts/zip.mjs dist-crazygames jellyfit-crazygames.zip",
     "covers": "node scripts/covers.mjs",
+    "trailer": "node scripts/trailer.mjs",
     "single": "node scripts/singlefile.mjs",
     "shots": "node scripts/shots.mjs",
     "sim": "tsx sim/simulate.ts",
