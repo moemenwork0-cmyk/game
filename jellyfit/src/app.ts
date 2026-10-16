@@ -17,7 +17,11 @@ import { PauseScreen } from './ui/screens/pause';
 import { SettingsScreen } from './ui/screens/settings';
 import { LocalStorage, SaveStore, type KeyValueStorage, type Settings } from './meta/save';
 import { Haptics } from './platform/haptics';
+import type { Platform } from './platform/platform';
+import { NonePlatform } from './platform/none';
+import { saveLang } from './meta/lang';
 import { DebugPanel } from './debug/debugPanel';
+import { fitPanels } from './ui/dom';
 import { Jello } from './jello/jello';
 import { HoldTutorial } from './render/holdTutorial';
 import { JelloDirector } from './jello/director';
@@ -26,6 +30,8 @@ export interface AppOptions {
   debug: boolean;
   test: boolean;
   storage?: KeyValueStorage;
+  /** Portal SDK (CrazyGames); defaults to none. */
+  platform?: Platform;
 }
 
 export class App {
@@ -42,6 +48,9 @@ export class App {
   readonly pauseUi: PauseScreen;
   readonly settingsUi: SettingsScreen;
   readonly store: SaveStore;
+  readonly platform: Platform;
+  /** Portal "happy time" already sent for beating the record this game. */
+  private recordCheered = false;
   /** Which top-level screen is active. */
   screen: 'menu' | 'game' = 'menu';
   private prefersReduced = false;
@@ -61,7 +70,10 @@ export class App {
   constructor(opts: AppOptions) {
     this.root = document.getElementById('app')!;
     this.canvas = document.getElementById('game') as HTMLCanvasElement;
+    this.platform = opts.platform ?? new NonePlatform();
     this.store = new SaveStore(opts.storage ?? new LocalStorage());
+    // The portal's mute wins over the in-game sound toggles.
+    this.platform.onMuteChange((m) => this.audio.setMuted(m));
     this.renderer = new Renderer(this.canvas, {
       onCellPop: (seq, total) => {
         if (total > 14 && seq % 2 === 1) return;
@@ -97,6 +109,12 @@ export class App {
       this.root,
       () => this.store.data.settings,
       (k, v) => this.applySetting(k, v),
+      (l) => {
+        // Every screen is rebuilt in the new language: save everything and reload.
+        saveLang(l);
+        this.persist();
+        location.reload();
+      },
     );
     this.loop = new Loop((dt, now) => this.frame(dt, now));
     this.drag = new DragController(this.canvas, {
@@ -161,6 +179,7 @@ export class App {
   }
 
   showMenu(): void {
+    this.platform.gameplayStop();
     this.drag.cancel();
     this.tutorial.stop(this.loop.now);
     this.screen = 'menu';
@@ -202,10 +221,13 @@ export class App {
     this.renderer.dealt(this.loop.now);
     this.director.gameStart(false, this.bestAtStart, resumed);
     this.syncHeld();
+    this.platform.gameplayStart();
   }
 
-  pauseGame(): void {
+  /** `notify` is false when the tab was hidden: the portal tracks focus itself. */
+  pauseGame(notify = true): void {
     if (this.screen !== 'game' || this.results.visible || this.session.gameOver) return;
+    if (notify) this.platform.gameplayStop();
     this.tutorial.stop(this.loop.now);
     this.sfx.click();
     this.drag.cancel();
@@ -217,6 +239,7 @@ export class App {
     this.sfx.click();
     this.pauseUi.hide();
     this.director.resume();
+    this.platform.gameplayStart();
   }
 
   goHome(): void {
@@ -240,6 +263,7 @@ export class App {
 
   private applySettings(): void {
     const s = this.store.data.settings;
+    this.audio.setMuted(this.platform.isMuted());
     this.audio.sfxOn = s.sfx;
     this.audio.musicOn = s.music;
     this.audio.applyGains();
@@ -252,6 +276,7 @@ export class App {
   /** Fresh session without leaving the current screen. */
   private resetSession(): void {
     this.gameOverShown = false;
+    this.recordCheered = false;
     this.tipShownThisGame = false;
     this.tutorial.stop(this.loop.now);
     this.session = this.newSession();
@@ -404,6 +429,11 @@ export class App {
       });
     }
     this.hud.setScore(res.score, now);
+    if (res.perfect) this.platform.happytime();
+    if (!this.recordCheered && this.bestAtStart > 0 && res.score > this.bestAtStart) {
+      this.recordCheered = true;
+      this.platform.happytime();
+    }
     if (res.score > this.store.data.best) {
       this.store.data.best = res.score;
       this.hud.setBest(res.score);
@@ -429,6 +459,7 @@ export class App {
 
   private beginGameOver(delay: number): void {
     const now = this.loop.now;
+    this.platform.gameplayStop();
     this.drag.cancel();
     this.renderer.startGameOver(now + delay);
     const score = this.session.score;
@@ -460,6 +491,7 @@ export class App {
       },
       this.loop.now,
     );
+    fitPanels(this.root);
   }
 
   playAgain(): void {
@@ -471,6 +503,7 @@ export class App {
     this.hud.setVisible(true);
     this.director.gameStart(true, this.bestAtStart);
     this.syncHeld();
+    this.platform.gameplayStart();
   }
 
   /** Replaces the session (debug/test). */
@@ -488,6 +521,7 @@ export class App {
     this.renderer.newGame(this.loop.now);
     this.hud.setScore(s.score, this.loop.now, true);
     this.syncCombo();
+    this.platform.gameplayStart();
   }
 
   persist(): void {
@@ -568,6 +602,8 @@ export class App {
     const h = window.innerHeight;
     this.renderer.resize(w, h, window.devicePixelRatio || 1, this.safeInsets());
     this.hud.layout(this.renderer.lay);
+    fitPanels(this.root);
+    if (this.screen === 'menu' && this.menu.visible) this.placeMenuJello();
     if (this.loop.manual && this.session) this.loop.step(0.001);
   };
 
@@ -626,11 +662,13 @@ export class App {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         this.drag.cancel();
-        this.pauseGame();
+        this.pauseGame(false);
         this.persist();
         this.loop.stop();
         this.audio.suspend();
       } else {
+        // Back to a paused game: that is a break in play.
+        if (this.pauseUi.visible) this.platform.gameplayStop();
         this.audio.resume();
         if (!this.loop.manual) this.loop.start();
       }

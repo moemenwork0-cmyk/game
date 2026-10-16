@@ -6,15 +6,19 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:crazygames": "tsc --noEmit && vite build --mode crazygames",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint src sim tests scripts",
     "zip": "node scripts/zip.mjs",
+    "zip:crazygames": "npm run build:crazygames && node scripts/zip.mjs dist-crazygames jellyfit-crazygames.zip",
+    "covers": "node scripts/covers.mjs",
     "single": "node scripts/singlefile.mjs",
     "shots": "node scripts/shots.mjs",
     "sim": "tsx sim/simulate.ts",
     "smoke": "node scripts/smoke.mjs",
+    "smoke:crazygames": "node scripts/cg-smoke.mjs",
     "apk": "npm run build && npx cap sync android && python3 scripts/android_setup.py && cd android && ./gradlew assembleRelease"
   },
   "devDependencies": {

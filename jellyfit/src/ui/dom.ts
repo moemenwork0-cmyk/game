@@ -21,3 +21,22 @@ export function escapeHtml(s: string): string {
 export function button(cls: string, label: string, icon = '', extra = ''): string {
   return `<button class="btn3d ${cls}" type="button">${extra}<span class="btn-label">${icon}${label ? `<span>${label}</span>` : ''}</span></button>`;
 }
+
+/**
+ * Scales every dialog panel down (CSS zoom) so it fits short screens such as a 900×500 iframe.
+ * Panels stay in the DOM while hidden, so this can run at any time (on resize and when shown).
+ */
+export function fitPanels(root: HTMLElement): void {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  root.querySelectorAll<HTMLElement>('.overlay .panel').forEach((p) => {
+    p.style.removeProperty('zoom');
+    const h = p.offsetHeight;
+    const w = p.offsetWidth;
+    if (!h || !w) return;
+    // Room for the title ribbon (and the results' record burst) above the panel, and the shadow below.
+    const above = p.querySelector('.best-burst') ? 72 : 40;
+    const z = Math.min(1, (vh - above - 20) / (h + 10), (vw - 16) / w);
+    if (z < 0.999) p.style.setProperty('zoom', z.toFixed(3));
+  });
+}

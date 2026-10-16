@@ -1,4 +1,7 @@
-/** HTML HUD: pause (right), score with count-up (centre), best score (left). */
+/**
+ * HTML HUD: pause (right), score with count-up (centre), best score (left).
+ * Wide layout: best and score stacked in the column left of the board, pause in the screen corner.
+ */
 import { STR, fmtNum } from '../config/strings';
 import { clamp01, easeOutCubic } from '../core/tween';
 import type { Layout } from '../render/layout';
@@ -27,10 +30,17 @@ export class Hud {
     this.root.querySelector('.hud-pause')!.addEventListener('click', onPause);
   }
 
+  private wide = false;
+
   layout(L: Layout): void {
     const s = this.root.style;
-    s.left = `${L.boardX}px`;
-    s.width = `${L.boardSize}px`;
+    this.wide = L.wide;
+    this.root.classList.toggle('wide', L.wide);
+    s.left = `${L.hudX}px`;
+    s.width = `${L.hudW}px`;
+    // Wide: the pause button sits in the screen's top-right corner (relative to the HUD box).
+    s.setProperty('--pause-x', `${L.w - 12 - 50 - L.hudX}px`);
+    s.setProperty('--pause-y', `${12 - L.hudY}px`);
     s.top = `${L.hudY}px`;
     s.height = `${L.hudH}px`;
     s.setProperty('--score-size', `${Math.round(Math.min(52, Math.max(36, L.boardSize * 0.115)))}px`);
@@ -66,7 +76,7 @@ export class Hud {
     const best = (this.root.querySelector('.hud-best') as HTMLElement).getBoundingClientRect();
     const pause = (this.root.querySelector('.hud-pause') as HTMLElement).getBoundingClientRect();
     const mid = box.left + box.width / 2;
-    const half = Math.min(mid - best.right, pause.left - mid) - 8;
+    const half = this.wide ? box.width / 2 - 4 : Math.min(mid - best.right, pause.left - mid) - 8;
     const w = el.getBoundingClientRect().width;
     if (w > 0 && w / 2 > half) el.style.transform = `scale(${Math.max(0.55, (half * 2) / w)})`;
   }

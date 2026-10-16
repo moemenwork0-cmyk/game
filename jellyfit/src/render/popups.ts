@@ -2,7 +2,7 @@
 import { THEME } from '../config/theme';
 import { clamp01, easeOutBack, easeOutCubic, easeInCubic } from '../core/tween';
 import { roundRectPath } from './blockSprites';
-import { STR } from '../config/strings';
+import { LANG, STR } from '../config/strings';
 
 export const FONT = '"Baloo Bhaijaan 2", "Segoe UI", Tahoma, system-ui, sans-serif';
 
@@ -176,14 +176,25 @@ export class Popups {
     ctx.fillStyle = P.goldText;
     ctx.textBaseline = 'middle';
     // Word and number drawn separately so the number never flips around the Arabic word.
-    ctx.direction = 'rtl';
-    ctx.textAlign = 'right';
-    ctx.fillText(word, x + w - size * 0.6, size * 0.06);
-    ctx.direction = 'ltr';
-    ctx.textAlign = 'right';
-    ctx.fillText(num, x + w - size * 0.6 - ww - gap, size * 0.06);
-    // Grace ring (reading order is right to left, so it sits at the left end).
-    const rx = x + size * 0.45 + ring / 2;
+    // Reading order: Arabic «كومبو ×4» right to left with the grace ring at the left end,
+    // English "Combo ×4" left to right with the ring at the right end.
+    const rtl = LANG === 'ar';
+    let rx: number;
+    if (rtl) {
+      ctx.direction = 'rtl';
+      ctx.textAlign = 'right';
+      ctx.fillText(word, x + w - size * 0.6, size * 0.06);
+      ctx.direction = 'ltr';
+      ctx.textAlign = 'right';
+      ctx.fillText(num, x + w - size * 0.6 - ww - gap, size * 0.06);
+      rx = x + size * 0.45 + ring / 2;
+    } else {
+      ctx.direction = 'ltr';
+      ctx.textAlign = 'left';
+      ctx.fillText(word, x + size * 0.6, size * 0.06);
+      ctx.fillText(num, x + size * 0.6 + ww + gap, size * 0.06);
+      rx = x + w - size * 0.45 - ring / 2;
+    }
     ctx.lineWidth = ring * 0.22;
     ctx.strokeStyle = 'rgba(74,42,0,0.22)';
     ctx.beginPath();

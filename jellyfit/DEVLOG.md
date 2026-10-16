@@ -1,5 +1,14 @@
 # Dev log
 
+## CrazyGames version + mouse reach + English (2026-10-16)
+
+- **Mouse drag reach:** mouse/trackpad drags now work like touch: the piece floats just above the cursor and moves faster than it (×1.75 towards the board, ×1.12 sideways, 1:1 back), relative to where the drag started. Reaching the top row takes about half the mouse travel (1366×768: 226 px instead of ~450 px). Hand cursor over pieces, closed hand while dragging. The smoke test drags to the top row from every slot at 11 desktop/iframe sizes; `__jf.pointerFor()` inverts the mapping for tests.
+- **Platform layer** (`src/platform/`): `Platform` interface, `none.ts` (default, Android, itch) and `crazygames.ts` (SDK v3). `npm run zip:crazygames` builds `dist-crazygames/` with the SDK script and zips it (8 files, ~195 KB). Init capped at 3 s; gameplay start/stop de-duplicated; happy time on new record and perfect clear (≤ 1/min); portal mute wins over in-game toggles; saves through the Data module + localStorage; ads off. `npm run smoke:crazygames` checks all of this with a fake SDK, a blocked SDK, a hanging SDK and the real SDK (local mode).
+- **English:** CrazyGames requires English. All UI text and all of Jello's lines now exist in English; the language follows the player's locale on CrazyGames (Arabic for `ar-*`, else English), stays Arabic by default elsewhere, and can be switched in Settings (bilingual «اللغة · Language» row). Canvas text, the combo badge and toggles follow the reading direction.
+- **Short landscape screens** (CrazyGames' embedded iframe 821×462 … 1216×684, phones sideways): a wide layout — score column | board | tray column — when the stacked board would be under 400 px; the board roughly doubles in area (821×462: 380 px instead of 210 px). Compact home screen; dialogs scale to fit. Phone, tablet and 1366×768+ layouts unchanged.
+- **Covers:** `npm run covers` renders the three CrazyGames covers from the app icon art + logo style into `covers/`.
+- Submission notes: `SUBMISSION.md`. Tests: 37 passing.
+
 ## Jello holds a piece + Android APK (2026-10-15)
 
 - **Hold via Jello:** drag a tray piece onto Jello → his stretchy arm catches it and he holds it (bobs, tosses it, swaps when given another). Drag it from his hand onto the board when needed; an invalid drop returns it to his hand. The held piece counts for game over (only-held-fits makes him wave it) and is saved with the game. Session API: `hold(slot)`, `place(HOLD, r, c)`.

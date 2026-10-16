@@ -6,6 +6,7 @@ import { THEME } from '../config/theme';
 import { Spring } from '../core/spring';
 import { clamp, easeOutBack, smoothing, clamp01, lerp } from '../core/tween';
 import { PIECES } from '../game/rules';
+import { HOLD } from '../game/session';
 import type { Layout } from '../render/layout';
 
 const D = THEME.drag;
@@ -81,6 +82,11 @@ export class DragController {
     const held = this.host.heldAt(x, y);
     if (held >= 0) return held;
     const L = this.host.layout();
+    if (L.wide) {
+      if (x < L.trayX - 8 || x > L.trayX + L.trayW + 40) return -1;
+      if (y < L.trayY - 12 || y > L.trayY + L.trayH + 12) return -1;
+      return clamp(Math.floor((y - L.trayY) / L.slotH), 0, 2);
+    }
     if (y < L.trayY - 8 || y > L.trayY + L.trayH + 40) return -1;
     if (x < L.trayX - 12 || x > L.trayX + L.trayW + 12) return -1;
     return clamp(Math.floor((x - L.trayX) / L.slotW), 0, 2);
@@ -103,6 +109,7 @@ export class DragController {
       /* capture is best-effort */
     }
     const pose = this.host.trayPose(slot);
+    if (e.pointerType === 'mouse') this.setCursor('grabbing');
     this.drag = {
       slot,
       piece: p.piece,
@@ -133,9 +140,25 @@ export class DragController {
     this.evaluate();
   };
 
+  /** Mouse cursor: a hand over pieces that can be picked up, a closed hand while dragging. */
+  private setCursor(c: string): void {
+    if (this.el.style.cursor !== c) this.el.style.cursor = c;
+  }
+
+  private hover(e: PointerEvent): void {
+    if (e.pointerType !== 'mouse') return;
+    const rect = this.el.getBoundingClientRect();
+    const slot = this.enabled ? this.slotAt(e.clientX - rect.left, e.clientY - rect.top) : -1;
+    this.setCursor(slot >= 0 && this.host.pickable(slot) ? 'grab' : '');
+  }
+
   private move = (e: PointerEvent): void => {
     const d = this.drag;
-    if (!d || e.pointerId !== d.pointerId) return;
+    if (!d) {
+      if (e.target === this.el) this.hover(e);
+      return;
+    }
+    if (e.pointerId !== d.pointerId) return;
     e.preventDefault();
     const rect = this.el.getBoundingClientRect();
     d.px = e.clientX - rect.left;
@@ -165,6 +188,7 @@ export class DragController {
     const d = this.drag;
     if (!d) return;
     this.drag = null;
+    this.setCursor('');
     if (d.toJello) this.host.onGiveJello(d);
     else if (d.target) this.host.onDrop(d, d.target.r, d.target.c);
     else this.host.onReturn(d);
@@ -175,34 +199,61 @@ export class DragController {
     const d = this.drag;
     if (!d) return;
     this.drag = null;
+    this.setCursor('');
     this.host.onReturn(d);
   }
 
   /**
    * Desired centre of the piece for the current pointer.
-   * Touch: the piece floats above the finger and moves faster than it (more upward than sideways),
-   * so a short thumb movement from the tray reaches every row, even the top one.
+   * The piece floats above the pointer and moves faster than it (more upward than sideways), relative
+   * to where the drag started, so a short movement from the tray reaches every row, even the top one.
+   * Touch uses a bigger lift (the finger hides the piece); mouse/trackpad a smaller one.
    */
   private desired(d: DragState): { x: number; y: number } {
     const L = this.host.layout();
     const p = PIECES[d.piece];
     const pw = p.w * L.cs;
     const ph = p.h * L.cs;
+    const t = d.touch;
+    const dx = d.px - d.p0x;
+    const dy = d.py - d.p0y;
+    const lift = (t ? D.touchLiftCells : D.mouseLiftCells) * L.cs + ph / 2;
+    const toward = t ? D.touchGainUp : D.mouseGainUp;
+    const back = t ? D.touchGainDown : D.mouseGainDown;
+    const side = t ? D.touchGainX : D.mouseGainX;
     let x: number;
     let y: number;
-    if (d.touch) {
-      const dx = d.px - d.p0x;
-      const dy = d.py - d.p0y;
-      x = d.p0x + dx * D.touchGainX;
-      y = d.p0y - D.touchLiftCells * L.cs - ph / 2 + dy * (dy < 0 ? D.touchGainUp : D.touchGainDown);
+    if (L.wide && d.slot !== HOLD) {
+      // Wide layout: the board is to the left of the tray, so the speed-up points left.
+      x = d.p0x + dx * (dx < 0 ? toward : back);
+      y = d.p0y - lift + dy * side;
     } else {
-      x = d.px;
-      y = d.py - D.mouseLiftCells * L.cs;
+      x = d.p0x + dx * side;
+      y = d.p0y - lift + dy * (dy < 0 ? toward : back);
     }
     // Keep the whole piece on screen.
     x = clamp(x, pw / 2 + 2, L.w - pw / 2 - 2);
     y = clamp(y, ph / 2 + 2, L.h - ph / 2 - 2);
     return { x, y };
+  }
+
+  /**
+   * Inverse of desired(): the pointer position that puts the piece's top-left cell on (r, c) for a
+   * drag that started at (p0x, p0y). Used by the automated tests (screen clamping ignored).
+   */
+  pointerFor(slot: number, piece: number, p0x: number, p0y: number, r: number, c: number, touch: boolean): { x: number; y: number } {
+    const L = this.host.layout();
+    const p = PIECES[piece];
+    const wx = L.gridX + (c + p.w / 2) * L.cs;
+    const wy = L.gridY + (r + p.h / 2) * L.cs;
+    const lift = (touch ? D.touchLiftCells : D.mouseLiftCells) * L.cs + (p.h * L.cs) / 2;
+    const toward = touch ? D.touchGainUp : D.mouseGainUp;
+    const back = touch ? D.touchGainDown : D.mouseGainDown;
+    const side = touch ? D.touchGainX : D.mouseGainX;
+    const ex = wx - p0x;
+    const ey = wy - (p0y - lift);
+    if (L.wide && slot !== HOLD) return { x: p0x + ex / (ex < 0 ? toward : back), y: p0y + ey / side };
+    return { x: p0x + ex / side, y: p0y + ey / (ey < 0 ? toward : back) };
   }
 
   /** Finds the snap target and line preview for the current pointer. */

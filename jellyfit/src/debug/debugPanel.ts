@@ -6,6 +6,7 @@ import type { App } from '../app';
 import { Session } from '../game/session';
 import { pieceIndex, PIECES } from '../game/rules';
 import { randomSeed } from '../core/rng';
+import { slotCenter } from '../render/layout';
 
 export interface TestApi {
   app: App;
@@ -21,6 +22,8 @@ export interface TestApi {
   slotCenter(slot: number): { x: number; y: number };
   cellCenter(r: number, c: number): { x: number; y: number };
   layout(): unknown;
+  /** Pointer position that drops the piece picked at the slot centre with its top-left on (r, c). */
+  pointerFor(slot: number, r: number, c: number, touch?: boolean): { x: number; y: number };
   pieceDims(piece: number): { w: number; h: number };
   state(): unknown;
 }
@@ -118,14 +121,17 @@ export class DebugPanel {
         return !!res;
       },
       slotCenter: (slot) => {
-        const L = app.renderer.lay;
-        return { x: L.trayX + L.slotW * (slot + 0.5), y: L.trayY + L.trayH / 2 };
+        return slotCenter(app.renderer.lay, slot);
       },
       cellCenter: (r, c) => {
         const L = app.renderer.lay;
         return { x: L.gridX + (c + 0.5) * L.cs, y: L.gridY + (r + 0.5) * L.cs };
       },
       layout: () => app.renderer.lay,
+      pointerFor: (slot, r, c, touch = false) => {
+        const p0 = slotCenter(app.renderer.lay, slot);
+        return app.drag.pointerFor(slot, app.session.item(slot)!.piece, p0.x, p0.y, r, c, touch);
+      },
       pieceDims: (piece) => ({ w: PIECES[piece].w, h: PIECES[piece].h }),
       state: () => ({
         score: app.session.score,

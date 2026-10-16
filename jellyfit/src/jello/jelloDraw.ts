@@ -6,6 +6,7 @@
 import { clamp01, easeOutBack } from '../core/tween';
 import { roundRectPath } from '../render/blockSprites';
 import { FONT } from '../render/popups';
+import { textDir } from '../config/strings';
 import type { EyeStyle, Fx, Jello, RGB } from './jello';
 
 const INK = '#1B1538';
@@ -761,7 +762,7 @@ export function drawBubble(ctx: CanvasRenderingContext2D, j: Jello, now: number,
 
   ctx.save();
   ctx.font = `800 ${fontSize}px ${FONT}`;
-  ctx.direction = 'rtl';
+  ctx.direction = textDir();
   const full = ctx.measureText(s.text).width;
   const padX = fontSize * 0.8;
   const w = Math.min(full + padX * 2, maxX - minX);
@@ -815,8 +816,10 @@ export function drawBubble(ctx: CanvasRenderingContext2D, j: Jello, now: number,
 
   const words = s.words.slice(0, shown).join(' ');
   ctx.fillStyle = '#1C2350';
-  ctx.textAlign = 'right';
+  // Words appear in reading order: from the right in Arabic, from the left in English.
+  const rtl = ctx.direction === 'rtl';
+  ctx.textAlign = rtl ? 'right' : 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(words, x + w - padX, headY + fontSize * 0.06, w - padX * 2);
+  ctx.fillText(words, rtl ? x + w - padX : x + padX, headY + fontSize * 0.06, w - padX * 2);
   ctx.restore();
 }

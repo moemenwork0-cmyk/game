@@ -11,7 +11,12 @@ npm run build      # production build into dist/
 npm run shots      # screenshots into screenshots/ (after build)
 npm run smoke      # live smoke test in Chromium (after build)
 npm run zip        # dist/ → jellyfit.zip
+npm run zip:crazygames   # CrazyGames build (SDK v3) → jellyfit-crazygames.zip
+npm run smoke:crazygames # SDK integration check (after zip:crazygames)
+npm run covers     # CrazyGames cover images → covers/
 ```
+
+- CrazyGames upload and form: [SUBMISSION.md](SUBMISSION.md)
 
 - Spec: [JELLYFIT_GAME_SPEC.md](JELLYFIT_GAME_SPEC.md)
 - Plan and milestones: [PLAN.md](PLAN.md)

@@ -18,17 +18,32 @@ function audioManifest(): Plugin {
   };
 }
 
-export default defineConfig({
+/** CrazyGames build only: their SDK v3 script, before the game bundle (spec 16.2). Never blocks. */
+function crazyGamesSdk(): Plugin {
+  return {
+    name: 'crazygames-sdk',
+    transformIndexHtml: {
+      order: 'pre',
+      handler: (html) =>
+        html.replace(
+          '</title>',
+          '</title>\n    <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js" async onerror="window.__cgSdkFailed=true"></script>',
+        ),
+    },
+  };
+}
+
+export default defineConfig(({ mode }) => ({
   base: './',
-  plugins: [audioManifest()],
+  plugins: [audioManifest(), ...(mode === 'crazygames' ? [crazyGamesSdk()] : [])],
   build: {
     target: 'es2019',
     sourcemap: false,
-    outDir: 'dist',
+    outDir: mode === 'crazygames' ? 'dist-crazygames' : 'dist',
     assetsInlineLimit: 0,
   },
   test: {
     include: ['tests/**/*.test.ts'],
     environment: 'node',
   },
-});
+}));

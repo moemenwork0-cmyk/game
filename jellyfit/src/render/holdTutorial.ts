@@ -6,6 +6,7 @@
 import { clamp01, easeInOutSine, easeOutBack, easeOutCubic, lerp } from '../core/tween';
 import { PIECES } from '../game/rules';
 import { roundRectPath } from './blockSprites';
+import { textDir } from '../config/strings';
 
 const PERIOD = 2700;
 const INK = '#0F1A44';
@@ -158,7 +159,7 @@ export class HoldTutorial {
     ctx.save();
     ctx.globalAlpha = a;
     ctx.font = `800 ${fs}px ${font}`;
-    ctx.direction = 'rtl';
+    ctx.direction = textDir();
     const maxW = Math.min(board.size - 28, 340);
     const lines = wrap(ctx, this.text, maxW - fs * 1.6);
     const w = Math.min(maxW, Math.max(...lines.map((l) => ctx.measureText(l).width)) + fs * 1.6);

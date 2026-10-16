@@ -3,8 +3,10 @@ import ar600 from '@fontsource/baloo-bhaijaan-2/files/baloo-bhaijaan-2-arabic-60
 import ar800 from '@fontsource/baloo-bhaijaan-2/files/baloo-bhaijaan-2-arabic-800-normal.woff2?url';
 import la600 from '@fontsource/baloo-bhaijaan-2/files/baloo-bhaijaan-2-latin-600-normal.woff2?url';
 import la800 from '@fontsource/baloo-bhaijaan-2/files/baloo-bhaijaan-2-latin-800-normal.woff2?url';
-import { STR } from './config/strings';
+import { STR, setLang } from './config/strings';
+import { pickLang, savedLang } from './meta/lang';
 import { App } from './app';
+import { createPlatform } from './platform/platform';
 
 function fatal(): void {
   if (document.querySelector('.fatal')) return;
@@ -39,11 +41,21 @@ async function loadFonts(): Promise<void> {
 }
 
 async function boot(): Promise<void> {
-  document.title = STR.title;
   const params = new URLSearchParams(location.search);
-  await loadFonts();
-  const app = new App({ debug: params.get('debug') === '1', test: params.get('test') === '1' });
+  const platform = createPlatform();
+  // Fonts and the portal SDK load side by side; neither can hold the game for more than ~3 s.
+  await Promise.all([loadFonts(), platform.init()]);
+  platform.loadingStart();
+  // CrazyGames needs English as the default; the app and other builds default to Arabic.
+  setLang(pickLang(params.get('lang') ?? savedLang(), platform.locale(), platform.name === 'crazygames' ? 'en' : 'ar'));
+  const app = new App({
+    debug: params.get('debug') === '1',
+    test: params.get('test') === '1',
+    platform,
+    storage: platform.storage() ?? undefined,
+  });
   app.start();
+  requestAnimationFrame(() => platform.loadingStop());
 }
 
 let booted = false;

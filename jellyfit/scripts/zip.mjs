@@ -1,11 +1,16 @@
-/** Zips dist/ into jellyfit.zip for upload (no external binaries). */
+/**
+ * Zips a build folder for upload (no external binaries).
+ *   node scripts/zip.mjs                                   dist/ → jellyfit.zip
+ *   node scripts/zip.mjs dist-crazygames jellyfit-crazygames.zip
+ */
 import { readdirSync, readFileSync, statSync, writeFileSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { deflateRawSync, crc32 } from 'node:zlib';
 
-const root = 'dist';
+const root = process.argv[2] || 'dist';
+const outName = process.argv[3] || 'jellyfit.zip';
 if (!existsSync(join(root, 'index.html'))) {
-  console.error('Run npm run build first');
+  console.error(`Run the build first (${root}/index.html is missing)`);
   process.exit(1);
 }
 
@@ -60,5 +65,5 @@ end.writeUInt16LE(files.length, 10);
 end.writeUInt32LE(cenSize, 12);
 end.writeUInt32LE(offset, 16);
 const out = Buffer.concat([...local, ...central, end]);
-writeFileSync('jellyfit.zip', out);
-console.log(`jellyfit.zip: ${files.length} files, ${(out.length / 1024).toFixed(1)} KB`);
+writeFileSync(outName, out);
+console.log(`${outName}: ${files.length} files, ${(out.length / 1024).toFixed(1)} KB`);

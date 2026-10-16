@@ -28,20 +28,14 @@ async function dragPiece(page, slot, touch, forceRow = -1) {
   }, { slot, forceRow });
   if (!plan) return false;
   const { L } = plan;
-  const sx = L.trayX + L.slotW * (slot + 0.5);
-  const sy = L.trayY + L.trayH / 2;
-  // Target centre of the piece's top-left cell, adjusted for the input offset.
-  const info = await page.evaluate(({ slot, r, c }) => {
-    const app = window.__jf.app;
-    const L = app.renderer.lay;
-    const t = app.session.tray[slot];
-    const P = window.__jf.pieceDims(t.piece);
-    return { x: L.gridX + (c + P.w / 2) * L.cs, y: L.gridY + (r + P.h / 2) * L.cs, cs: L.cs, h: P.h };
-  }, plan);
-  // Touch: the piece floats 1.4 cells above the finger and moves faster than it (theme.ts drag gains).
-  const lift = 1.4 * info.cs + (info.h * info.cs) / 2;
-  const tx = touch ? sx + (info.x - sx) / 1.2 : info.x;
-  const ty = touch ? sy + Math.min(0, info.y - (sy - lift)) / 1.6 + Math.max(0, info.y - (sy - lift)) : info.y + 0.25 * info.cs;
+  const start = await page.evaluate((slot) => window.__jf.slotCenter(slot), slot);
+  const sx = start.x;
+  const sy = start.y;
+  // The piece runs ahead of the pointer (theme.ts drag gains): ask the game where the pointer must go.
+  const t = await page.evaluate(({ slot, r, c, touch }) => window.__jf.pointerFor(slot, r, c, touch), { ...plan, touch });
+  const tx = t.x;
+  const ty = t.y;
+  const target = await page.evaluate(({ r, c }) => window.__jf.cellCenter(r, c), plan);
   const cdp = touch ? await page.context().newCDPSession(page) : null;
   const tp = async (type, x, y) =>
     cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 1 }] });
@@ -59,8 +53,13 @@ async function dragPiece(page, slot, touch, forceRow = -1) {
   }
   await page.waitForTimeout(150);
   if (touch) await tp('touchEnd', tx, ty);
-  if (touch && forceRow === 0) console.log(`touch: reached the top row with ${Math.round(sy - ty)} px of finger travel (board is ${Math.round(L.boardSize)} px)`);
   else await page.mouse.up();
+  if (forceRow === 0) {
+    const vp = page.viewportSize();
+    const travel = Math.hypot(tx - sx, ty - sy);
+    const piece = Math.hypot(target.x - sx, target.y - sy);
+    console.log(`${touch ? 'touch' : 'mouse'} ${vp.width}×${vp.height}${L.wide ? ' (wide)' : ''}: top row needs ${Math.round(travel)} px of ${touch ? 'finger' : 'mouse'} travel (the piece covers ~${Math.round(piece)} px)`);
+  }
   await page.waitForTimeout(250);
   return true;
 }
@@ -120,6 +119,48 @@ async function main() {
     const again = await page.evaluate(() => window.__jf.state());
     if (JSON.stringify(snap.board) !== JSON.stringify(again.board) || snap.score !== again.score) fail('resume after reload');
     else console.log('resume after reload: ok');
+    await ctx.close();
+  }
+
+  // Mouse on laptop/desktop screens: the top row must be reachable with a short movement,
+  // from every tray slot, and the far columns too.
+  for (const [w, h] of [[1366, 768], [1280, 720], [1440, 900], [1920, 1080], [907, 510], [821, 462], [1216, 684]]) {
+    const ctx = await browser.newContext({ viewport: { width: w, height: h } });
+    const page = await ctx.newPage();
+    page.on('pageerror', (e) => errors.push(`${w}×${h}: ` + e.message));
+    await page.goto(`${url}?test=1`);
+    await page.waitForFunction(() => !!window.__jf);
+    await page.click('.btn-play', { force: true });
+    await page.waitForTimeout(300);
+    for (const [slot, ids] of [[0, ['sq2', 'h3', 'v3']], [1, ['h3', 'sq2', 'v3']], [2, ['h3', 'v3', 'sq2']]]) {
+      await page.evaluate(() => window.__jf.setBoard(['........', '........', '........', '........', '........', '........', '........', '........']));
+      await page.evaluate((ids) => window.__jf.setTray(ids), ids);
+      await page.waitForTimeout(350);
+      await dragPiece(page, slot, false, 0);
+      const row0 = await page.evaluate(() => window.__jf.app.session.board.toRows()[0]);
+      if (row0 === '........') fail(`mouse ${w}×${h}: slot ${slot} could not reach the top row`);
+    }
+    await ctx.close();
+  }
+
+  // Language switch: Arabic by default, Settings → Language reloads in English and remembers it.
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+    const page = await ctx.newPage();
+    page.on('pageerror', (e) => errors.push('lang: ' + e.message));
+    await page.goto(`${url}?test=1`);
+    await page.waitForFunction(() => !!window.__jf);
+    const before = await page.evaluate(() => document.documentElement.lang);
+    await page.click('.b-gear', { force: true });
+    await page.waitForTimeout(300);
+    await Promise.all([page.waitForEvent('load'), page.click('.row-lang', { force: true })]);
+    await page.waitForFunction(() => !!window.__jf);
+    const after = await page.evaluate(() => ({ lang: document.documentElement.lang, dir: document.documentElement.dir, play: document.querySelector('.play-label')?.textContent }));
+    await page.reload();
+    await page.waitForFunction(() => !!window.__jf);
+    const kept = await page.evaluate(() => document.documentElement.lang);
+    if (before !== 'ar' || after.lang !== 'en' || after.dir !== 'ltr' || kept !== 'en') fail(`language switch: ${before} → ${JSON.stringify(after)} → ${kept}`);
+    else console.log(`language switch: ar → en («${after.play}»), remembered after reload`);
     await ctx.close();
   }
 

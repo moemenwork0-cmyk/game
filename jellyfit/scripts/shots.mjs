@@ -1,7 +1,8 @@
 /**
  * Visual self-review (spec rule 8): builds nothing, serves dist/ with `vite preview` and takes
  * screenshots of key scenes at phone, tablet and desktop sizes into /screenshots.
- *   npm run build && npm run shots [-- --only phone,desktop]
+ *   npm run build && npm run shots [-- --only phone,desktop] [--lang en]
+ * The cg-* sizes are the CrazyGames iframe sizes their QA checks readability at.
  */
 import { preview } from 'vite';
 import { chromium } from '@playwright/test';
@@ -11,9 +12,16 @@ const SIZES = {
   phone: { width: 390, height: 844, deviceScaleFactor: 3 },
   tablet: { width: 820, height: 1180, deviceScaleFactor: 2 },
   desktop: { width: 1440, height: 900, deviceScaleFactor: 1 },
+  laptop: { width: 1366, height: 768, deviceScaleFactor: 1 },
+  'cg-907': { width: 907, height: 510, deviceScaleFactor: 1 },
+  'cg-821': { width: 821, height: 462, deviceScaleFactor: 1 },
+  'cg-mobile': { width: 800, height: 450, deviceScaleFactor: 2 },
 };
+const DEFAULT_SIZES = ['phone', 'tablet', 'desktop'];
 const onlyArg = process.argv.indexOf('--only');
-const only = onlyArg > 0 ? process.argv[onlyArg + 1].split(',') : Object.keys(SIZES);
+const only = onlyArg > 0 ? process.argv[onlyArg + 1].split(',') : DEFAULT_SIZES;
+const langArg = process.argv.indexOf('--lang');
+const lang = langArg > 0 ? process.argv[langArg + 1] : '';
 
 const MID = ['1.....04', '11...004', '6....334', '66....3.', '5...2...', '55..22..', '0...2...', '00......'];
 const PREVIEW = ['3333333.', '4444444.', '2.......', '1.......', '.....5..', '0...55..', '0..666..', '06666...'];
@@ -33,11 +41,11 @@ async function main() {
     const page = await ctx.newPage();
     page.on('console', (m) => m.type() === 'error' && errors.push(`${name}: ${m.text()}`));
     page.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
-    await page.goto(`${url}?test=1`);
+    await page.goto(`${url}?test=1${lang ? '&lang=' + lang : ''}`);
     await page.waitForFunction(() => !!window.__jf);
     await page.evaluate(() => window.__jf.manual(true));
     const step = (ms) => page.evaluate((m) => window.__jf.step(m), ms);
-    const shot = (scene) => page.screenshot({ path: `screenshots/${name}-${scene}.png` });
+    const shot = (scene) => page.screenshot({ path: `screenshots/${lang ? lang + '-' : ''}${name}-${scene}.png` });
 
     // 0. Home screen and settings.
     await step(600);
@@ -89,14 +97,15 @@ async function main() {
     }, PREVIEW);
     await step(600);
     const from = await page.evaluate(() => window.__jf.slotCenter(0));
-    const to = await page.evaluate(() => window.__jf.cellCenter(0.5, 7));
+    // Where the pointer must go so the piece (which runs ahead of it) lands with its top-left on (0, 7),
+    // nudged a little off-centre to show the snapping.
+    const to = await page.evaluate(() => window.__jf.pointerFor(0, 0, 7));
+    const cs = await page.evaluate(() => window.__jf.layout().cs);
     await page.mouse.move(from.x, from.y);
     await page.mouse.down();
     await step(150);
-    // Mouse: piece centre sits 0.25 cells above the cursor.
-    const cs = await page.evaluate(() => window.__jf.layout().cs);
     for (let k = 1; k <= 8; k++) {
-      await page.mouse.move(from.x + ((to.x - cs * 0.3 - from.x) * k) / 8, from.y + ((to.y + cs * 0.55 - from.y) * k) / 8);
+      await page.mouse.move(from.x + ((to.x - cs * 0.15 - from.x) * k) / 8, from.y + ((to.y + cs * 0.12 - from.y) * k) / 8);
       await step(30);
     }
     await step(300);

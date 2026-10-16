@@ -34,6 +34,16 @@ export const THEME = {
     /** Aspect (w/h) above which the desktop/landscape layout is used. */
     landscapeAspect: 1.1,
     landscapeBoardOfHeight: 0.62,
+    /**
+     * Short landscape screens (CrazyGames' embedded iframe, phones held sideways): when the stacked
+     * layout's board would be smaller than this, use the wide layout instead — score column | board |
+     * tray column — which roughly doubles the board on a 900×500 iframe.
+     */
+    wideBelowBoard: 400,
+    wideHeadroom: 0.15,
+    wideTrayOfBoard: 0.4,
+    wideScoreOfBoard: 0.36,
+    wideGap: 16,
     boardMax: 620,
     trayOfBoard: 0.42,
     topBarPortrait: 132,
@@ -56,7 +66,14 @@ export const THEME = {
     touchGainX: 1.2,
     touchGainUp: 1.6,
     touchGainDown: 1.0,
-    mouseLiftCells: 0.25,
+    /**
+     * Mouse/trackpad: same idea as touch but gentler. The piece floats just above the cursor and moves
+     * faster than it upwards, so the top rows are reached with ~half the mouse travel.
+     */
+    mouseLiftCells: 0.35,
+    mouseGainX: 1.12,
+    mouseGainUp: 1.75,
+    mouseGainDown: 1.0,
     shadowOffset: 8,
     shadowAlpha: 0.35,
     follow: 0.55,
