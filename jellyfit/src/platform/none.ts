@@ -1,4 +1,4 @@
-/** Local dev, the Android app and any other host: no portal, every call is a no-op. */
+/** Local dev, the Android app and any other host: no portal; calls are no-ops, the language is the device's. */
 import type { Platform } from './platform';
 import type { KeyValueStorage } from '../meta/save';
 
@@ -21,8 +21,9 @@ export class NonePlatform implements Platform {
   adsEnabled(): boolean {
     return false;
   }
+  /** The device language (the phone's language in the Android app). */
   locale(): string | null {
-    return null;
+    return typeof navigator !== 'undefined' ? navigator.language || null : null;
   }
   storage(): KeyValueStorage | null {
     return null;

@@ -6,7 +6,7 @@ import { STR, fmtNum } from '../config/strings';
 import { clamp01, easeOutCubic } from '../core/tween';
 import type { Layout } from '../render/layout';
 import { ICON } from './icons';
-import { setStroked, stroked } from './dom';
+import { button, setStroked, stroked } from './dom';
 
 export class Hud {
   readonly root: HTMLElement;
@@ -21,8 +21,8 @@ export class Hud {
     this.root = document.createElement('div');
     this.root.className = 'hud';
     this.root.innerHTML = `
-      <div class="pill hud-best" aria-label="${STR.best}"><span class="crown-badge">${ICON.crown}</span>${stroked('0', 'hud-best-v')}</div>
-      <button class="btn3d btn-blue icon-btn hud-pause" type="button" aria-label="${STR.pause}"><span class="btn-label">${ICON.pause}</span></button>
+      <div class="chip chip-best hud-best" aria-label="${STR.best}"><span class="chip-ico">${ICON.crown}</span>${stroked('0', 'hud-best-v')}</div>
+      ${button('btn-glass btn-icon hud-pause', '', ICON.pause).replace('<button ', `<button aria-label="${STR.pause}" `)}
       <div class="hud-score">${stroked('0', 'hud-score-v')}</div>`;
     parent.appendChild(this.root);
     this.scoreEl = this.root.querySelector('.hud-score-v')!;

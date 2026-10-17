@@ -53,3 +53,12 @@ Measured with `npm run sim -- --games 2000 --seed 1` (greedy bot).
 - The board frame is thicker (`framePad` 0.028 → 0.042) so the raised tray reads clearly.
 - The tray panel was removed (pieces sit directly on the background, like the genre's best).
 - Outlined text uses a `::before` copy with `-webkit-text-stroke` (works on all target browsers, unlike `paint-order` on HTML text).
+
+## Drag mapping v3 (2026-10-17)
+
+Player feedback: pieces felt floaty and "slipped out of the hand", and some drops flew back. Causes:
+follow smoothing (lag), an asymmetric speed-up (×1.6 up, ×1.0 down, ×1.2 sideways) that changed the
+finger–piece gap while correcting, and re-evaluating the target from the release point. Now: no
+smoothing, one symmetric gain on the tray→board axis (touch 1.35, mouse 1.6), 1:1 sideways, sticky
+target (0.75 cells), release keeps the last shown target. Touch reach to the top row on a 390×844
+phone: 264 px of thumb travel (was 225 px with the asymmetric gain; ~340 px at 1:1).

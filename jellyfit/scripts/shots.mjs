@@ -41,7 +41,7 @@ async function main() {
     const page = await ctx.newPage();
     page.on('console', (m) => m.type() === 'error' && errors.push(`${name}: ${m.text()}`));
     page.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
-    await page.goto(`${url}?test=1${lang ? '&lang=' + lang : ''}`);
+    await page.goto(`${url}?test=1&lang=${lang || 'ar'}`);
     await page.waitForFunction(() => !!window.__jf);
     await page.evaluate(() => window.__jf.manual(true));
     const step = (ms) => page.evaluate((m) => window.__jf.step(m), ms);
@@ -52,7 +52,7 @@ async function main() {
     await page.waitForTimeout(1000);
     await step(16);
     await shot('menu');
-    await page.click('.menu .icon-btn');
+    await page.click('.menu .b-gear');
     await page.waitForTimeout(450);
     await step(16);
     await shot('settings');

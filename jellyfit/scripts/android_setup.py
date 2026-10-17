@@ -1,16 +1,19 @@
 """
-Customises the Capacitor Android project: icon (from assets/icon.png), splash, portrait,
-immersive full screen, vibration permission, release signing.
+Customises the Capacitor Android project: app name, icon (from assets/icon.png), splash (Jello from
+assets/brand/jello.png, made by scripts/brand.mjs), portrait, immersive full screen, vibration,
+release signing.
 Run after `npx cap add android` / `npx cap sync android`:  python3 scripts/android_setup.py
 """
 import os, re, sys
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AND = os.path.join(ROOT, 'android', 'app', 'src', 'main')
 RES = os.path.join(AND, 'res')
 SRC = os.path.join(ROOT, 'assets', 'icon.png')
-BG = '#2C4596'
+BG = '#1B1554'
+APP_NAME = 'Jelly Fit'
+JELLO = os.path.join(ROOT, 'assets', 'brand', 'jello.png')
 
 if not os.path.exists(SRC):
     sys.exit('assets/icon.png is missing (the app icon from the user)')
@@ -32,19 +35,65 @@ def masked(img, size, shape):
     out.paste(im, (0, 0), m)
     return out
 
+def feathered(img, size, feather):
+    """img resized to size×size with its outer edge fading out over `feather` (0..0.5 of the size)."""
+    im = img.resize((size, size), Image.LANCZOS)
+    m = Image.new('L', (size, size), 0)
+    d = ImageDraw.Draw(m)
+    f = int(size * feather)
+    steps = max(1, f)
+    for i in range(steps):
+        a = int(255 * (i + 1) / steps)
+        d.rounded_rectangle((i, i, size - 1 - i, size - 1 - i), radius=max(0, int(size * 0.2) - i), fill=a)
+    out = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    out.paste(im, (0, 0), m)
+    return out
+
 dens = {'mdpi': 1, 'hdpi': 1.5, 'xhdpi': 2, 'xxhdpi': 3, 'xxxhdpi': 4}
 for d, k in dens.items():
     folder = os.path.join(RES, f'mipmap-{d}')
     os.makedirs(folder, exist_ok=True)
     masked(icon, int(48 * k), 'rounded').save(os.path.join(folder, 'ic_launcher.png'))
     masked(icon, int(48 * k), 'circle').save(os.path.join(folder, 'ic_launcher_round.png'))
-    # Adaptive icon: the artwork fills the whole 108dp layer; the launcher mask crops the edges.
-    icon.resize((int(108 * k), int(108 * k)), Image.LANCZOS).save(os.path.join(folder, 'ic_launcher_foreground.png'))
+    # Adaptive icon: launchers show only the middle 72dp of the 108dp layers and may mask it to a
+    # circle. The artwork goes in at 70dp (Jello's head and crown stay inside every mask) with a
+    # soft edge, over a blurred, zoomed copy of itself, so no seam or empty border ever shows.
+    L = int(108 * k)
+    fg = Image.new('RGBA', (L, L), (0, 0, 0, 0))
+    art = feathered(icon, int(70 * k), 0.05)
+    fg.paste(art, ((L - art.width) // 2, (L - art.height) // 2), art)
+    fg.save(os.path.join(folder, 'ic_launcher_foreground.png'))
+    # Background: a soft radial blue taken from the artwork's own rays.
+    bgimg = Image.new('RGBA', (L, L))
+    px = bgimg.load()
+    c0 = (24, 92, 250)
+    c1 = (6, 40, 190)
+    for y in range(L):
+        for x in range(L):
+            t = min(1.0, (((x - L / 2) ** 2 + (y - L / 2) ** 2) ** 0.5) / (L * 0.62))
+            px[x, y] = tuple(int(c0[i] + (c1[i] - c0[i]) * t) for i in range(3)) + (255,)
+    bgimg.save(os.path.join(folder, 'ic_launcher_bg.png'))
+
+for name in ('ic_launcher.xml', 'ic_launcher_round.xml'):
+    with open(os.path.join(RES, 'mipmap-anydpi-v26', name), 'w') as f:
+        f.write('''<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_bg"/>
+    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+</adaptive-icon>
+''')
 
 with open(os.path.join(RES, 'values', 'ic_launcher_background.xml'), 'w') as f:
     f.write(f'<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">{BG}</color>\n</resources>\n')
 
-# Splash: brand blue with the icon in the middle (replaces the Capacitor placeholder images).
+# App name under the icon: English.
+sp = os.path.join(RES, 'values', 'strings.xml')
+st = open(sp, encoding='utf-8').read()
+st = re.sub(r'<string name="app_name">[^<]*</string>', f'<string name="app_name">{APP_NAME}</string>', st)
+st = re.sub(r'<string name="title_activity_main">[^<]*</string>', f'<string name="title_activity_main">{APP_NAME}</string>', st)
+open(sp, 'w', encoding='utf-8').write(st)
+
+# Splash: the night colour with Jello, big and crisp (no small square icon).
 for name in os.listdir(RES):
     if name.startswith('drawable-port') or name.startswith('drawable-land'):
         p = os.path.join(RES, name, 'splash.png')
@@ -54,15 +103,30 @@ for name in os.listdir(RES):
             os.rmdir(os.path.join(RES, name))
         except OSError:
             pass
-old = os.path.join(RES, 'drawable', 'splash.png')
-if os.path.exists(old):
-    os.remove(old)
-masked(icon, 288, 'rounded').save(os.path.join(RES, 'drawable', 'splash_icon.png'))
+for old in ('splash.png', 'splash_icon.png'):
+    p = os.path.join(RES, 'drawable', old)
+    if os.path.exists(p):
+        os.remove(p)
+if not os.path.exists(JELLO):
+    sys.exit('assets/brand/jello.png is missing: run node scripts/brand.mjs')
+jello = Image.open(JELLO).convert('RGBA')
+for d, k in dens.items():
+    folder = os.path.join(RES, f'drawable-{d}')
+    os.makedirs(folder, exist_ok=True)
+    # Android 12+ splash icon: 288dp canvas, shown through a 192dp circle; Jello fills it nicely.
+    S = int(288 * k)
+    canvas = Image.new('RGBA', (S, S), (0, 0, 0, 0))
+    j = jello.resize((int(S * 0.62), int(S * 0.62)), Image.LANCZOS)
+    canvas.paste(j, ((S - j.width) // 2, (S - j.height) // 2), j)
+    canvas.save(os.path.join(folder, 'splash_jello.png'))
+    # Older Android: the same Jello at 170dp on the launch window.
+    jj = jello.resize((int(170 * k), int(170 * k)), Image.LANCZOS)
+    jj.save(os.path.join(folder, 'splash_jello_small.png'))
 with open(os.path.join(RES, 'drawable', 'splash.xml'), 'w') as f:
     f.write(f'''<?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item><color android:color="{BG}"/></item>
-    <item android:width="144dp" android:height="144dp" android:gravity="center" android:drawable="@drawable/splash_icon"/>
+    <item android:gravity="center"><bitmap android:src="@drawable/splash_jello_small" android:gravity="center"/></item>
 </layer-list>
 ''')
 
@@ -88,7 +152,7 @@ styles = f'''<?xml version="1.0" encoding="utf-8"?>
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
         <item name="windowSplashScreenBackground">@color/ic_launcher_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_jello</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

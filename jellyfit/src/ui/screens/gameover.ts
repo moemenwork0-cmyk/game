@@ -1,4 +1,4 @@
-/** Results panel (spec 11.3, 11.5): score count-up, best, play again, home. */
+/** Results sheet (spec 11.3, 11.5): score count-up, new-best badge, best, stats, play again, home. */
 import { STR, fmtNum } from '../../config/strings';
 import { clamp01, easeOutCubic } from '../../core/tween';
 import { ICON } from '../icons';
@@ -29,16 +29,16 @@ export class ResultsScreen {
     this.root.setAttribute('aria-hidden', 'true');
     this.root.innerHTML = `
       <div class="panel">
-        <div class="ribbon">${stroked(STR.gameOverTitle)}</div>
-        <div class="best-burst"><div class="rays"></div><div class="burst-core">${stroked(STR.newBestShort)}</div></div>
-        <div class="panel-label">${STR.score}</div>
-        ${stroked('0', 'panel-score')}
-        <div><div class="panel-best"><span class="crown-badge">${ICON.crown}</span><span>${STR.best}</span><b>0</b></div></div>
-        <div class="panel-stats"></div>
-        <div class="btn-col">
-          ${button('btn-gold btn-wide b-again', STR.playAgain, ICON.replay, '<span class="shine"></span>')}
-          ${button('btn-blue btn-mid b-home', STR.home, ICON.home)}
+        <div class="best-burst"><span class="burst-ico">${ICON.crown}</span><span>${STR.newBestShort}</span></div>
+        <div class="panel-head"><h2 class="panel-title">${STR.gameOverTitle}</h2></div>
+        <div class="score-card">
+          <div class="panel-label">${STR.score}</div>
+          ${stroked('0', 'panel-score')}
+          <div class="panel-best"><span class="chip-ico">${ICON.crown}</span><span>${STR.best}</span><b>0</b></div>
         </div>
+        <div class="panel-stats"></div>
+        ${button('btn-primary btn-lg btn-block b-again', STR.playAgain, ICON.replay)}
+        ${button('btn-glass btn-block b-home', STR.home, ICON.home)}
       </div>`;
     parent.appendChild(this.root);
     this.scoreEl = this.root.querySelector('.panel-score')!;

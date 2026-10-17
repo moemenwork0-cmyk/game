@@ -52,7 +52,11 @@ async function dragPiece(page, slot, touch, forceRow = -1) {
     await page.waitForTimeout(16);
   }
   await page.waitForTimeout(150);
-  if (touch) await tp('touchEnd', tx, ty);
+  // A finger lifting off (or a hand settling) wobbles a few pixels: the drop must still land.
+  if (touch) await tp('touchMove', tx + 9, ty + 6);
+  else await page.mouse.move(tx + 9, ty + 6);
+  await page.waitForTimeout(16);
+  if (touch) await tp('touchEnd', tx + 9, ty + 6);
   else await page.mouse.up();
   if (forceRow === 0) {
     const vp = page.viewportSize();
@@ -143,7 +147,7 @@ async function main() {
     await ctx.close();
   }
 
-  // Language switch: Arabic by default, Settings → Language reloads in English and remembers it.
+  // Language: the device's (English in this browser); Settings → Language reloads in Arabic and remembers it.
   {
     const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
     const page = await ctx.newPage();
@@ -151,6 +155,7 @@ async function main() {
     await page.goto(`${url}?test=1`);
     await page.waitForFunction(() => !!window.__jf);
     const before = await page.evaluate(() => document.documentElement.lang);
+    await page.waitForTimeout(900); // loading screen
     await page.click('.b-gear', { force: true });
     await page.waitForTimeout(300);
     await Promise.all([page.waitForEvent('load'), page.click('.row-lang', { force: true })]);
@@ -159,8 +164,17 @@ async function main() {
     await page.reload();
     await page.waitForFunction(() => !!window.__jf);
     const kept = await page.evaluate(() => document.documentElement.lang);
-    if (before !== 'ar' || after.lang !== 'en' || after.dir !== 'ltr' || kept !== 'en') fail(`language switch: ${before} → ${JSON.stringify(after)} → ${kept}`);
-    else console.log(`language switch: ar → en («${after.play}»), remembered after reload`);
+    if (before !== 'en' || after.lang !== 'ar' || after.dir !== 'rtl' || kept !== 'ar') fail(`language switch: ${before} → ${JSON.stringify(after)} → ${kept}`);
+    else console.log(`language switch: en → ar («${after.play}»), remembered after reload`);
+    // An Arabic phone starts in Arabic.
+    const ctxAr = await browser.newContext({ locale: 'ar-EG' });
+    const pa = await ctxAr.newPage();
+    await pa.goto(`${url}?test=1`);
+    await pa.waitForFunction(() => !!window.__jf);
+    const arLang = await pa.evaluate(() => document.documentElement.lang);
+    if (arLang !== 'ar') fail('Arabic device did not start in Arabic: ' + arLang);
+    else console.log('device language: ar-EG → Arabic, en-US → English');
+    await ctxAr.close();
     await ctx.close();
   }
 

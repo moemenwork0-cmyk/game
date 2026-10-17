@@ -1,29 +1,31 @@
 /** Visual and feel tunables (spec 5, 9). */
 export const THEME = {
   /**
-   * Calm palette (player feedback replaced the spec's purple → pink gradient, see DECISIONS.md):
-   * a soft deep-blue background that is easy on the eyes and lets the jelly colours carry the screen.
+   * Calm palette (player feedback, see DECISIONS.md): a deep indigo night that is easy on the eyes
+   * and lets the jelly colours carry the screen.
    */
   palette: {
-    bgTop: '#26408F',
-    bgMid: '#3253B0',
-    bgBottom: '#4468C6',
-    boardFill: '#121B44',
-    boardBorder: '#0F1A44',
-    frameTop: '#4C70DA',
-    frameBottom: '#2A45A3',
-    socket: '#1B2858',
-    socketShadow: '#0E1638',
-    socketHighlight: '#26356D',
+    // Midnight candy: deep indigo night, glass board, bright jelly.
+    bgTop: '#2A1E78',
+    bgMid: '#1B1554',
+    bgBottom: '#120D3B',
+    boardFill: '#100C34',
+    boardBorder: '#241050',
+    frameTop: '#3A3196',
+    frameBottom: '#231C68',
+    socket: '#1D1854',
+    socketShadow: '#0B0828',
+    socketHighlight: '#2A2470',
     gold: '#FFC93C',
     goldText: '#4A2A00',
-    ink: '#0F1A44',
-    panel: 'rgba(23,33,64,0.96)',
-    panelBorder: '#33467C',
+    ink: '#241050',
+    panel: 'rgba(34,28,100,0.96)',
+    panelBorder: '#4A40A8',
     text: '#FFFFFF',
-    textSecondary: '#C9D6FF',
+    textSecondary: '#CDC8FF',
     coin: '#FFD54A',
   },
+
 
   /** Classic Jelly, slightly softened: Strawberry, Tangerine, Lemon, Lime, Ocean, Grape, Aqua. */
   jelly: ['#F4517A', '#F7953F', '#F6CD4C', '#55CC6B', '#4891F2', '#9C6BF2', '#2BC8BF'],
@@ -59,24 +61,25 @@ export const THEME = {
   },
 
   drag: {
-    pickupMs: 120,
-    pickupOvershoot: 1.15,
-    touchLiftCells: 1.4,
-    /** Touch drag speed-up (piece moves this much faster than the finger). See DECISIONS.md. */
-    touchGainX: 1.2,
-    touchGainUp: 1.6,
-    touchGainDown: 1.0,
+    /** Pickup: the piece grows from tray size and jumps above the finger in this time, then it is locked. */
+    pickupMs: 80,
+    pickupOvershoot: 1.08,
     /**
-     * Mouse/trackpad: same idea as touch but gentler. The piece floats just above the cursor and moves
-     * faster than it upwards, so the top rows are reached with ~half the mouse travel.
+     * The piece is locked to the pointer (no smoothing, no lag): a fixed lift above the finger and one
+     * constant, symmetric speed-up along the tray→board axis, so the finger–piece gap is predictable
+     * and the top rows are reached with a short thumb move. Sideways is 1:1 for precise aiming.
+     * See DECISIONS.md.
      */
-    mouseLiftCells: 0.35,
-    mouseGainX: 1.12,
-    mouseGainUp: 1.75,
-    mouseGainDown: 1.0,
+    touchLiftCells: 1.5,
+    mouseLiftCells: 0.4,
+    gainToBoard: 1.35,
+    /** Mouse/trackpad: the cursor is precise and hides nothing, so it gets a stronger boost. */
+    mouseGainToBoard: 1.6,
+    gainSide: 1.0,
+    /** Keep the current target while the piece stays within this many cells of it (no flicker, no lift jitter). */
+    stickyCells: 0.75,
     shadowOffset: 8,
     shadowAlpha: 0.35,
-    follow: 0.55,
     maxTiltDeg: 6,
     maxStretch: 0.06,
     /** Velocity (CSS px/s) that produces the full tilt/stretch. */
@@ -85,8 +88,8 @@ export const THEME = {
     tiltDamping: 18,
     /** Extra snap reach beyond plain rounding, in cells. */
     snapTolerance: 0.45,
-    snapMs: 70,
-    returnMs: 220,
+    snapMs: 55,
+    returnMs: 170,
     ghostAlpha: 0.35,
     previewPulseMs: 600,
     previewPulseScale: 0.05,
@@ -106,8 +109,8 @@ export const THEME = {
 
   tray: {
     unfitAlpha: 0.45,
-    dealStaggerMs: 60,
-    dealPopMs: 320,
+    dealStaggerMs: 35,
+    dealPopMs: 210,
   },
 
   clear: {
@@ -138,5 +141,5 @@ export const THEME = {
     panelDelayMs: 900,
   },
 
-  bokeh: { count: 10, minAlpha: 0.025, maxAlpha: 0.05, minSpeed: 4, maxSpeed: 9 },
+  bokeh: { count: 9, minAlpha: 0.03, maxAlpha: 0.07, minSpeed: 4, maxSpeed: 9 },
 } as const;

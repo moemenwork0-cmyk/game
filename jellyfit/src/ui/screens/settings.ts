@@ -1,14 +1,15 @@
-/** Settings dialog: sound, music, haptics, reduced motion, language. Changes apply and save immediately. */
+/** Settings sheet: sound, Jello's chatter, music, vibration, reduced motion, language. Changes apply at once. */
 import { LANG, LANG_NAMES, STR, type Lang } from '../../config/strings';
 import type { Settings } from '../../meta/save';
-import { button, stroked } from '../dom';
+import { ICON } from '../icons';
+import { button } from '../dom';
 
-const rows = (): { key: keyof Settings; label: string }[] => [
-  { key: 'sfx', label: STR.sound },
-  { key: 'jello', label: STR.jelloTalk },
-  { key: 'music', label: STR.music },
-  { key: 'haptics', label: STR.haptics },
-  { key: 'reducedMotion', label: STR.reducedMotion },
+const rows = (): { key: keyof Settings; label: string; icon: string }[] => [
+  { key: 'sfx', label: STR.sound, icon: ICON.sound },
+  { key: 'music', label: STR.music, icon: ICON.music },
+  { key: 'jello', label: STR.jelloTalk, icon: ICON.jello },
+  { key: 'haptics', label: STR.haptics, icon: ICON.vibrate },
+  { key: 'reducedMotion', label: STR.reducedMotion, icon: ICON.motion },
 ];
 
 export class SettingsScreen {
@@ -29,25 +30,32 @@ export class SettingsScreen {
     this.root.className = 'overlay dialog settings';
     this.root.innerHTML = `
       <div class="panel" role="dialog" aria-label="${STR.settings}">
-        <div class="ribbon">${stroked(STR.settings)}</div>
-        <div class="well rows">
-          ${rows().map(
-            (r) => `
+        <div class="panel-head">
+          <h2 class="panel-title">${STR.settings}</h2>
+          ${button('btn-glass btn-icon btn-sm b-close', '', ICON.close).replace('<button ', `<button aria-label="${STR.done}" `)}
+        </div>
+        <div class="group">
+          ${rows()
+            .map(
+              (r) => `
             <button class="row" type="button" data-k="${r.key}" role="switch">
+              <span class="row-ico">${r.icon}</span>
               <span class="row-label">${r.label}</span>
               <span class="switch"><span class="knob"></span></span>
             </button>`,
-          ).join('')}
-          ${
-            onLang
-              ? `<button class="row row-lang" type="button">
+            )
+            .join('')}
+        </div>
+        ${
+          onLang
+            ? `<div class="group"><button class="row row-lang" type="button">
+              <span class="row-ico">${ICON.globe}</span>
               <span class="row-label">${langLabel}</span>
               <span class="lang-chip" lang="${other}">${LANG_NAMES[other]}</span>
-            </button>`
-              : ''
-          }
-        </div>
-        <div class="btn-col">${button('btn-gold btn-wide btn-done', STR.done)}</div>
+            </button></div>`
+            : ''
+        }
+        ${button('btn-primary btn-block btn-done', STR.done)}
       </div>`;
     parent.appendChild(this.root);
     this.root.querySelector('.row-lang')?.addEventListener('click', () => onLang?.(other));
@@ -59,6 +67,7 @@ export class SettingsScreen {
       }),
     );
     this.root.querySelector('.btn-done')!.addEventListener('click', () => this.hide());
+    this.root.querySelector('.b-close')!.addEventListener('click', () => this.hide());
     this.root.addEventListener('pointerdown', (e) => {
       if (e.target === this.root) this.hide();
     });

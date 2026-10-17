@@ -1,17 +1,29 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#1A2547" />
+    <meta name="theme-color" content="#1B1554" />
     <link rel="icon" type="image/png" href="./icon-192.png" />
     <link rel="apple-touch-icon" href="./icon-192.png" />
     <title>جيلي فيت</title>
     <style>
-      html,body{margin:0;height:100%;background:#1A2547;overflow:hidden}
+      html,body{margin:0;height:100%;background:#1B1554;overflow:hidden}
+      /* Loading screen: the same night and the same Jello as the Android splash, then a fade. */
+      #boot{position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;
+        background:radial-gradient(ellipse at 50% 42%,#3a2a92 0%,#1b1554 55%,#120d3b 100%);transition:opacity .35s ease}
+      #boot.done{opacity:0;pointer-events:none}
+      #boot img{width:min(46vmin,230px);height:auto;margin-top:-6vmin;animation:boot-bob 1.6s ease-in-out infinite}
+      #boot .bar{width:min(44vmin,200px);height:10px;margin-top:4vmin;border-radius:6px;background:rgba(255,255,255,.12);overflow:hidden}
+      #boot .bar i{display:block;height:100%;width:8%;border-radius:6px;background:linear-gradient(90deg,#ff7aa8,#ffc23a);
+        animation:boot-fill 2.4s cubic-bezier(.2,.7,.3,1) forwards}
+      #boot.done .bar i{width:100%!important;animation:none;transition:width .2s ease}
+      @keyframes boot-bob{0%,100%{transform:translateY(0) scale(1,1)}50%{transform:translateY(-6px) scale(.98,1.03)}}
+      @keyframes boot-fill{to{width:88%}}
     </style>
   </head>
   <body>
+    <div id="boot"><img src="./jello.png" alt="" /><div class="bar"><i></i></div></div>
     <div id="app">
       <canvas id="game" dir="ltr" aria-label="لوحة اللعب"></canvas>
       <div id="safe-probe"></div>

@@ -1,6 +1,6 @@
 /**
- * Pre-rendered board: a chunky candy tray (dark outline, raised glossy frame with a bottom lip),
- * a recessed well and soft recessed cell sockets.
+ * Pre-rendered board: a glass panel (soft shadow and glow, light edge, top sheen) holding a dark
+ * well with softly recessed cell sockets.
  */
 import { THEME } from '../config/theme';
 import { makeCanvas, roundRectPath } from './blockSprites';
@@ -24,43 +24,45 @@ export function renderBoardBase(lay: Layout): BoardBase {
   const y = off;
   const b = lay.boardSize;
   const R = Math.max(18, b * 0.06);
-  const lip = Math.max(5, b * 0.016);
 
-  // Soft drop shadow, drawn once.
+  // Shadow + coloured glow, drawn once.
   ctx.save();
-  ctx.shadowColor = 'rgba(6,12,40,0.45)';
-  ctx.shadowBlur = 26 * dpr;
-  ctx.shadowOffsetY = 12 * dpr;
-  roundRectPath(ctx, x, y, b, b + lip, R);
-  ctx.fillStyle = P.ink;
+  ctx.shadowColor = 'rgba(3,1,20,0.6)';
+  ctx.shadowBlur = 34 * dpr;
+  ctx.shadowOffsetY = 16 * dpr;
+  roundRectPath(ctx, x, y, b, b, R);
+  ctx.fillStyle = P.frameBottom;
+  ctx.fill();
+  ctx.restore();
+  ctx.save();
+  ctx.shadowColor = 'rgba(150,110,255,0.35)';
+  ctx.shadowBlur = 28 * dpr;
+  roundRectPath(ctx, x, y, b, b, R);
+  ctx.fillStyle = P.frameBottom;
   ctx.fill();
   ctx.restore();
 
-  // Dark outline + lip.
-  roundRectPath(ctx, x - 2, y - 2, b + 4, b + lip + 4, R + 2);
-  ctx.fillStyle = P.ink;
-  ctx.fill();
-  roundRectPath(ctx, x + 1, y + lip * 0.5, b - 2, b + lip * 0.5, R);
-  ctx.fillStyle = '#1F3486';
-  ctx.fill();
-
-  // Raised frame.
-  roundRectPath(ctx, x + 1, y + 1, b - 2, b - 2, R - 1);
+  // Glass frame.
+  roundRectPath(ctx, x, y, b, b, R);
   const fg = ctx.createLinearGradient(0, y, 0, y + b);
   fg.addColorStop(0, P.frameTop);
   fg.addColorStop(1, P.frameBottom);
   ctx.fillStyle = fg;
   ctx.fill();
-  // Gloss along the top edge of the frame.
+  // Light edge and a sheen along the top.
   ctx.save();
-  roundRectPath(ctx, x + 1, y + 1, b - 2, b - 2, R - 1);
+  roundRectPath(ctx, x, y, b, b, R);
   ctx.clip();
-  const gl = ctx.createLinearGradient(0, y, 0, y + b * 0.08);
-  gl.addColorStop(0, 'rgba(255,255,255,0.45)');
+  const gl = ctx.createLinearGradient(0, y, 0, y + b * 0.12);
+  gl.addColorStop(0, 'rgba(255,255,255,0.22)');
   gl.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = gl;
-  ctx.fillRect(x, y, b, b * 0.08);
+  ctx.fillRect(x, y, b, b * 0.12);
   ctx.restore();
+  roundRectPath(ctx, x + 0.75, y + 0.75, b - 1.5, b - 1.5, R - 0.5);
+  ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
 
   // Recessed well.
   const pad = (b - 8 * lay.cs) / 2;
@@ -69,21 +71,22 @@ export function renderBoardBase(lay: Layout): BoardBase {
   const wy = y + wi;
   const ww = b - wi * 2;
   const wr = Math.max(10, R - wi * 0.7);
-  roundRectPath(ctx, wx - 1.5, wy - 1.5, ww + 3, ww + 3, wr + 1.5);
-  ctx.fillStyle = P.ink;
-  ctx.fill();
   roundRectPath(ctx, wx, wy, ww, ww, wr);
   const wg = ctx.createLinearGradient(0, wy, 0, wy + ww);
-  wg.addColorStop(0, '#0D1536');
-  wg.addColorStop(0.08, P.boardFill);
-  wg.addColorStop(1, '#16214F');
+  wg.addColorStop(0, '#0A0726');
+  wg.addColorStop(0.1, P.boardFill);
+  wg.addColorStop(1, '#151045');
   ctx.fillStyle = wg;
   ctx.fill();
-  // Bottom rim light inside the well.
+  // Inner shadow at the top, a faint light edge at the bottom.
   ctx.save();
   roundRectPath(ctx, wx, wy, ww, ww, wr);
   ctx.clip();
-  ctx.strokeStyle = 'rgba(120,150,255,0.18)';
+  ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+  ctx.lineWidth = 6;
+  roundRectPath(ctx, wx - 2, wy - 1, ww + 4, ww + 6, wr + 2);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(170,150,255,0.16)';
   ctx.lineWidth = 2;
   roundRectPath(ctx, wx + 1, wy - 2, ww - 2, ww + 1, wr);
   ctx.stroke();
@@ -100,15 +103,16 @@ export function renderBoardBase(lay: Layout): BoardBase {
     for (let c = 0; c < 8; c++) {
       const sx = gx + c * cs + inset;
       const sy = gy + r * cs + inset;
-      roundRectPath(ctx, sx, sy + 1.2, sw, sw, sr);
+      // Faint light lip below, the socket, then a darker top edge (reads as recessed).
+      roundRectPath(ctx, sx, sy + 1, sw, sw, sr);
       ctx.fillStyle = P.socketHighlight;
       ctx.fill();
       roundRectPath(ctx, sx, sy, sw, sw, sr);
       ctx.fillStyle = P.socketShadow;
       ctx.fill();
-      roundRectPath(ctx, sx, sy + 1.6, sw, sw - 1.6, sr);
+      roundRectPath(ctx, sx, sy + 1.4, sw, sw - 1.4, sr);
       const sg = ctx.createLinearGradient(0, sy, 0, sy + sw);
-      sg.addColorStop(0, '#18244F');
+      sg.addColorStop(0, '#191449');
       sg.addColorStop(1, P.socket);
       ctx.fillStyle = sg;
       ctx.fill();

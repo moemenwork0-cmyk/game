@@ -1,6 +1,6 @@
 /** Small helpers for the candy-style markup. */
 
-/** Text with a thick outline (the ::before copy draws the outline). */
+/** Text with a soft outline (the ::before copy draws it), used for big numbers and the logo. */
 export function stroked(text: string, cls = ''): string {
   const t = escapeHtml(text);
   return `<span class="stroked ${cls}" data-t="${t}">${t}</span>`;
@@ -17,9 +17,9 @@ export function escapeHtml(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 }
 
-/** 3D candy button. */
-export function button(cls: string, label: string, icon = '', extra = ''): string {
-  return `<button class="btn3d ${cls}" type="button">${extra}<span class="btn-label">${icon}${label ? `<span>${label}</span>` : ''}</span></button>`;
+/** Game button: `btn-primary` (green), `btn-gold`, `btn-glass`; add `btn-lg` / `btn-icon` for size. */
+export function button(cls: string, label: string, icon = ''): string {
+  return `<button class="btn ${cls}" type="button"><span class="btn-face">${icon}${label ? `<span class="btn-text">${label}</span>` : ''}</span></button>`;
 }
 
 /**

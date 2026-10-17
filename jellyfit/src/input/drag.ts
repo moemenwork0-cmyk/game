@@ -27,6 +27,9 @@ export interface DragState {
   cy: number;
   cs: number;
   fromCs: number;
+  /** Tray pose the pickup eases from. */
+  fromX: number;
+  fromY: number;
   start: number;
   vx: number;
   vy: number;
@@ -57,8 +60,8 @@ export interface DragHost {
   onReturn(d: DragState): void;
   /** Slot index of the held piece if (x, y) is on it, else -1. */
   heldAt(x: number, y: number): number;
-  /** True if a dragged tray piece at (cx, cy) / pointer (px, py) is over Jello. */
-  overJello(d: DragState): boolean;
+  /** True if a dragged tray piece centred at (x, y) (or the pointer) is over Jello. */
+  overJello(d: DragState, x: number, y: number): boolean;
   onGiveJello(d: DragState): void;
 }
 
@@ -124,6 +127,8 @@ export class DragController {
       cy: pose.cy,
       cs: pose.cs,
       fromCs: pose.cs,
+      fromX: pose.cx,
+      fromY: pose.cy,
       start: this.host.now(),
       vx: 0,
       vy: 0,
@@ -171,9 +176,15 @@ export class DragController {
     if (!d || e.pointerId !== d.pointerId) return;
     e.preventDefault();
     const rect = this.el.getBoundingClientRect();
-    d.px = e.clientX - rect.left;
-    d.py = e.clientY - rect.top;
-    this.evaluate();
+    // The spot shown on the last move is where it lands: lifting a finger jitters by a few pixels,
+    // and that must never turn a valid drop into a fly-back.
+    const ux = e.clientX - rect.left;
+    const uy = e.clientY - rect.top;
+    if (!d.target || Math.hypot(ux - d.px, uy - d.py) > 24) {
+      d.px = ux;
+      d.py = uy;
+      this.evaluate();
+    }
     this.finish();
   };
 
@@ -203,34 +214,32 @@ export class DragController {
     this.host.onReturn(d);
   }
 
+  /** Speed-ups along x and y for this drag (the tray→board axis gets the boost). */
+  private gains(d: DragState): { gx: number; gy: number } {
+    const L = this.host.layout();
+    const g = d.touch ? D.gainToBoard : D.mouseGainToBoard;
+    // Wide layout: the board is left of the tray column; the held piece always comes from above.
+    if (L.wide && d.slot !== HOLD) return { gx: g, gy: D.gainSide };
+    return { gx: D.gainSide, gy: g };
+  }
+
+  private lift(touch: boolean, ph: number): number {
+    const L = this.host.layout();
+    return (touch ? D.touchLiftCells : D.mouseLiftCells) * L.cs + ph / 2;
+  }
+
   /**
-   * Desired centre of the piece for the current pointer.
-   * The piece floats above the pointer and moves faster than it (more upward than sideways), relative
-   * to where the drag started, so a short movement from the tray reaches every row, even the top one.
-   * Touch uses a bigger lift (the finger hides the piece); mouse/trackpad a smaller one.
+   * Where the piece centre sits for the current pointer: a fixed lift above it and a constant,
+   * symmetric speed-up, measured from where the drag started. Same pointer → same spot, always.
    */
   private desired(d: DragState): { x: number; y: number } {
     const L = this.host.layout();
     const p = PIECES[d.piece];
     const pw = p.w * L.cs;
     const ph = p.h * L.cs;
-    const t = d.touch;
-    const dx = d.px - d.p0x;
-    const dy = d.py - d.p0y;
-    const lift = (t ? D.touchLiftCells : D.mouseLiftCells) * L.cs + ph / 2;
-    const toward = t ? D.touchGainUp : D.mouseGainUp;
-    const back = t ? D.touchGainDown : D.mouseGainDown;
-    const side = t ? D.touchGainX : D.mouseGainX;
-    let x: number;
-    let y: number;
-    if (L.wide && d.slot !== HOLD) {
-      // Wide layout: the board is to the left of the tray, so the speed-up points left.
-      x = d.p0x + dx * (dx < 0 ? toward : back);
-      y = d.p0y - lift + dy * side;
-    } else {
-      x = d.p0x + dx * side;
-      y = d.p0y - lift + dy * (dy < 0 ? toward : back);
-    }
+    const { gx, gy } = this.gains(d);
+    let x = d.p0x + (d.px - d.p0x) * gx;
+    let y = d.p0y - this.lift(d.touch, ph) + (d.py - d.p0y) * gy;
     // Keep the whole piece on screen.
     x = clamp(x, pw / 2 + 2, L.w - pw / 2 - 2);
     y = clamp(y, ph / 2 + 2, L.h - ph / 2 - 2);
@@ -246,55 +255,56 @@ export class DragController {
     const p = PIECES[piece];
     const wx = L.gridX + (c + p.w / 2) * L.cs;
     const wy = L.gridY + (r + p.h / 2) * L.cs;
-    const lift = (touch ? D.touchLiftCells : D.mouseLiftCells) * L.cs + (p.h * L.cs) / 2;
-    const toward = touch ? D.touchGainUp : D.mouseGainUp;
-    const back = touch ? D.touchGainDown : D.mouseGainDown;
-    const side = touch ? D.touchGainX : D.mouseGainX;
-    const ex = wx - p0x;
-    const ey = wy - (p0y - lift);
-    if (L.wide && slot !== HOLD) return { x: p0x + ex / (ex < 0 ? toward : back), y: p0y + ey / side };
-    return { x: p0x + ex / side, y: p0y + ey / (ey < 0 ? toward : back) };
+    const fake = { slot, touch } as DragState;
+    const { gx, gy } = this.gains(fake);
+    return { x: p0x + (wx - p0x) / gx, y: p0y + (wy - (p0y - this.lift(touch, p.h * L.cs))) / gy };
   }
 
   /** Finds the snap target and line preview for the current pointer. */
   evaluate(): void {
     const d = this.drag;
     if (!d) return;
-    d.toJello = this.host.overJello(d);
-    if (d.toJello) {
-      d.target = null;
-      d.previewRows = d.previewCols = 0;
-      return;
-    }
     const L = this.host.layout();
     const p = PIECES[d.piece];
     const want = this.desired(d);
     const rawC = (want.x - (p.w * L.cs) / 2 - L.gridX) / L.cs;
     const rawR = (want.y - (p.h * L.cs) / 2 - L.gridY) / L.cs;
-    const r0 = Math.round(rawR);
-    const c0 = Math.round(rawC);
-    const reach = 0.5 + D.snapTolerance;
     let best: { r: number; c: number } | null = null;
-    let bestD = Infinity;
-    for (let r = r0 - 1; r <= r0 + 1; r++) {
-      for (let c = c0 - 1; c <= c0 + 1; c++) {
-        const dr = Math.abs(rawR - r);
-        const dc = Math.abs(rawC - c);
-        if (dr > reach || dc > reach) continue;
-        const dist = dr * dr + dc * dc;
-        if (dist < bestD && this.host.canPlace(d.slot, r, c)) {
-          bestD = dist;
-          best = { r, c };
+    const cur = d.target;
+    if (cur && Math.abs(rawR - cur.r) <= D.stickyCells && Math.abs(rawC - cur.c) <= D.stickyCells && this.host.canPlace(d.slot, cur.r, cur.c)) {
+      // Sticky: small wobbles (and the finger lifting off) never lose the spot the player sees.
+      best = cur;
+    } else {
+      const r0 = Math.round(rawR);
+      const c0 = Math.round(rawC);
+      const reach = 0.5 + D.snapTolerance;
+      let bestD = Infinity;
+      for (let r = r0 - 1; r <= r0 + 1; r++) {
+        for (let c = c0 - 1; c <= c0 + 1; c++) {
+          const dr = Math.abs(rawR - r);
+          const dc = Math.abs(rawC - c);
+          if (dr > reach || dc > reach) continue;
+          const dist = dr * dr + dc * dc;
+          if (dist < bestD && this.host.canPlace(d.slot, r, c)) {
+            bestD = dist;
+            best = { r, c };
+          }
         }
       }
     }
-    d.target = best;
-    if (best) {
-      const pl = this.host.previewLines(d.slot, best.r, best.c);
-      d.previewRows = pl.rows;
-      d.previewCols = pl.cols;
-    } else {
-      d.previewRows = d.previewCols = 0;
+    // A spot on the board always wins; Jello only takes pieces held above the board, next to him.
+    const centreAbove = want.y < L.gridY + L.cs * 0.25;
+    d.toJello = (!best || centreAbove) && this.host.overJello(d, want.x, want.y);
+    if (d.toJello) best = null;
+    if (best !== cur || !best) {
+      d.target = best;
+      if (best) {
+        const pl = this.host.previewLines(d.slot, best.r, best.c);
+        d.previewRows = pl.rows;
+        d.previewCols = pl.cols;
+      } else {
+        d.previewRows = d.previewCols = 0;
+      }
     }
   }
 
@@ -305,9 +315,10 @@ export class DragController {
     const t = clamp01((now - d.start) / D.pickupMs);
     d.cs = lerp(d.fromCs, L.cs, easeOutBack(t, D.pickupOvershoot));
     const want = this.desired(d);
-    const a = smoothing(D.follow, dt);
-    const nx = d.cx + (want.x - d.cx) * a;
-    const ny = d.cy + (want.y - d.cy) * a;
+    // Locked to the pointer; only the 80 ms pickup eases from the tray.
+    const e = t >= 1 ? 1 : 1 - Math.pow(1 - t, 3);
+    const nx = lerp(d.fromX, want.x, e);
+    const ny = lerp(d.fromY, want.y, e);
     if (dt > 0) {
       const k = smoothing(0.35, dt);
       d.vx += ((nx - d.cx) / dt - d.vx) * k;
@@ -325,10 +336,5 @@ export class DragController {
     }
     d.tilt.step(dt);
     d.stretch.step(dt);
-    d.toJello = this.host.overJello(d);
-    if (d.toJello) {
-      d.target = null;
-      d.previewRows = d.previewCols = 0;
-    }
   }
 }

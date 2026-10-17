@@ -2,11 +2,11 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.jellyfit.game',
-  appName: 'جيلي فيت',
+  appName: 'Jelly Fit',
   webDir: 'dist',
-  backgroundColor: '#2C4596',
+  backgroundColor: '#1B1554',
   android: {
-    backgroundColor: '#2C4596',
+    backgroundColor: '#1B1554',
   },
 };
 

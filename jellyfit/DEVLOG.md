@@ -1,5 +1,12 @@
 # Dev log
 
+## Feel + redesign + app polish (2026-10-17)
+
+- **Drag feel:** the piece is now locked to the finger/cursor (the 0.55 follow smoothing, ~50 ms of lag, is gone; only an 80 ms pickup ease). One constant, symmetric speed-up towards the board (touch ×1.35, mouse ×1.6), 1:1 sideways, so the finger–piece gap is predictable. Sticky snapping (the shown spot is kept within 0.75 cells), and the release keeps the spot shown on the last move (lift-off jitter no longer turns a drop into a fly-back). The board always wins over "give to Jello" unless the piece is above the board next to him. Smoke test drops include a release wobble.
+- **Speed:** the next pieces pop in as soon as the last one lands (they used to wait ~0.2 s and take ~0.45 s; also fixed a flash at full size before the pop). Pickup 80 ms, snap 55 ms, fly-back 170 ms.
+- **Redesign ("midnight candy"):** deep indigo night background with colour glows and twinkling stars (no pattern, no rays), glass board, new buttons (green primary with depth, glass secondary, no black outlines), gold-crown best chip, glowing score, dialogs as glass cards: settings with coloured icon rows and real switches, pause with Resume + Restart / Settings / Home tiles, results with a score card, new-best badge and stats. Home: Play button centred and raised off the bottom edge.
+- **Android app:** name "Jelly Fit"; adaptive icon redone (art at 70dp of 108 with a soft edge on a blue background — Jello's head and crown are never cropped by any launcher mask); splash = the night colour with a big Jello (rendered from the game's own drawing, `scripts/brand.mjs`) instead of a small square; then an in-page loading screen (same Jello, progress bar) that fades into the menu. Language follows the phone (Arabic for `ar-*`, else English), switchable in Settings. Version 1.1 (code 2).
+
 ## CrazyGames version + mouse reach + English (2026-10-16)
 
 - **Mouse drag reach:** mouse/trackpad drags now work like touch: the piece floats just above the cursor and moves faster than it (×1.75 towards the board, ×1.12 sideways, 1:1 back), relative to where the drag started. Reaching the top row takes about half the mouse travel (1366×768: 226 px instead of ~450 px). Hand cursor over pieces, closed hand while dragging. The smoke test drags to the top row from every slot at 11 desktop/iframe sizes; `__jf.pointerFor()` inverts the mapping for tests.

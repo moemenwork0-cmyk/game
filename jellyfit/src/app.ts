@@ -102,6 +102,7 @@ export class App {
     this.pauseUi = new PauseScreen(
       this.root,
       () => this.resumeGame(),
+      () => this.restartGame(),
       () => this.openSettings(),
       () => this.goHome(),
     );
@@ -136,7 +137,7 @@ export class App {
       onDrop: (d, r, c) => this.onDrop(d, r, c),
       onReturn: (d) => this.onReturn(d),
       heldAt: (x, y) => this.heldAt(x, y),
-      overJello: (d) => this.overJello(d),
+      overJello: (d, x, y) => this.overJello(d, x, y),
       onGiveJello: (d) => this.onGiveJello(d),
     });
 
@@ -242,6 +243,13 @@ export class App {
     this.platform.gameplayStart();
   }
 
+  /** Pause → Restart: a fresh game right away. */
+  restartGame(): void {
+    this.pauseUi.hide();
+    this.drag.cancel();
+    this.playAgain();
+  }
+
   goHome(): void {
     this.sfx.click();
     this.persist();
@@ -339,17 +347,17 @@ export class App {
   }
 
   /** A tray piece is over Jello (or his hand): dropping gives it to him. */
-  private overJello(d: DragState): boolean {
+  private overJello(d: DragState, x: number, y: number): boolean {
     if (d.slot === HOLD || this.screen !== 'game') return false;
     const j = this.jello;
     const jx = j.x;
     const jy = j.ground - j.H * 0.5;
-    if (Math.hypot(d.cx - jx, d.cy - jy) < j.R * 1.9) return true;
-    if (j.hit(d.px, d.py)) return true;
+    if (Math.hypot(x - jx, y - jy) < j.R * 1.9) return true;
+    if (!d.touch && j.hit(d.px, d.py)) return true;
     const held = this.session.held;
     if (held) {
       const h = this.renderer.holdPose(held.piece);
-      if (Math.hypot(d.cx - h.cx, d.cy - h.cy) < j.R * 1.4) return true;
+      if (Math.hypot(x - h.cx, y - h.cy) < j.R * 1.4) return true;
     }
     return false;
   }
@@ -370,7 +378,7 @@ export class App {
     this.store.data.tips.hold = true;
     this.tutorial.stop(now);
     this.director.gave(!!res.swapped, first);
-    if (res.newDeal) this.renderer.after(160, now, () => this.renderer.dealt(this.loop.now));
+    if (res.newDeal) this.renderer.dealt(now + 90);
     this.persist();
   }
 
@@ -444,7 +452,9 @@ export class App {
     const s = this.session;
     if (!res.gameOver && s.held && s.heldFits && !s.fits.some((f) => f)) this.director.onlyHeldFits();
     this.maybeHoldTip(now);
-    if (res.newDeal) this.renderer.after(land + 120, now, () => this.renderer.dealt(this.loop.now));
+    // The next pieces pop in as soon as the last one lands: no waiting on the clear animation.
+    // (Scheduled, so they stay hidden until then instead of flashing in at full size.)
+    if (res.newDeal) this.renderer.dealt(now + land);
     if (res.gameOver) this.beginGameOver(land + (res.lines > 0 ? 450 : 200));
     this.persist();
   }

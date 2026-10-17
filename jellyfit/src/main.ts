@@ -10,6 +10,7 @@ import { createPlatform } from './platform/platform';
 
 function fatal(): void {
   if (document.querySelector('.fatal')) return;
+  document.getElementById('boot')?.remove();
   const el = document.createElement('div');
   el.className = 'fatal';
   el.textContent = STR.fatal;
@@ -40,14 +41,27 @@ async function loadFonts(): Promise<void> {
   await Promise.race([load, new Promise((r) => setTimeout(r, 1200))]);
 }
 
+const bootT0 = performance.now();
+
+/** Fades the loading screen out once the game is ready (shown at least briefly, so it never flickers). */
+function hideLoader(): void {
+  const el = document.getElementById('boot');
+  if (!el) return;
+  const wait = Math.max(0, 500 - (performance.now() - bootT0));
+  setTimeout(() => {
+    el.classList.add('done');
+    setTimeout(() => el.remove(), 450);
+  }, wait);
+}
+
 async function boot(): Promise<void> {
   const params = new URLSearchParams(location.search);
   const platform = createPlatform();
   // Fonts and the portal SDK load side by side; neither can hold the game for more than ~3 s.
   await Promise.all([loadFonts(), platform.init()]);
   platform.loadingStart();
-  // CrazyGames needs English as the default; the app and other builds default to Arabic.
-  setLang(pickLang(params.get('lang') ?? savedLang(), platform.locale(), platform.name === 'crazygames' ? 'en' : 'ar'));
+  // The player's own choice, else the device/portal language (Arabic for ar-*, otherwise English).
+  setLang(pickLang(params.get('lang') ?? savedLang(), platform.locale(), 'en'));
   const app = new App({
     debug: params.get('debug') === '1',
     test: params.get('test') === '1',
@@ -56,6 +70,7 @@ async function boot(): Promise<void> {
   });
   app.start();
   requestAnimationFrame(() => platform.loadingStop());
+  hideLoader();
 }
 
 let booted = false;

@@ -156,13 +156,12 @@ export class Popups {
     ctx.scale(scale, scale);
     const x = -w / 2;
     const y = -h / 2;
-    const P = THEME.palette;
     ctx.fillStyle = 'rgba(20,6,50,0.35)';
     roundRectPath(ctx, x, y + size * 0.14, w, h, h / 2);
     ctx.fill();
     const g = ctx.createLinearGradient(0, y, 0, y + h);
-    g.addColorStop(0, '#FFE27A');
-    g.addColorStop(1, P.gold);
+    g.addColorStop(0, '#FF8FB6');
+    g.addColorStop(1, '#E8458A');
     ctx.fillStyle = g;
     roundRectPath(ctx, x, y, w, h, h / 2);
     ctx.fill();
@@ -173,7 +172,7 @@ export class Popups {
     ctx.fillStyle = '#fff';
     ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.fillStyle = P.goldText;
+    ctx.fillStyle = '#FFFFFF';
     ctx.textBaseline = 'middle';
     // Word and number drawn separately so the number never flips around the Arabic word.
     // Reading order: Arabic «كومبو ×4» right to left with the grace ring at the left end,
@@ -196,11 +195,11 @@ export class Popups {
       rx = x + w - size * 0.45 - ring / 2;
     }
     ctx.lineWidth = ring * 0.22;
-    ctx.strokeStyle = 'rgba(74,42,0,0.22)';
+    ctx.strokeStyle = 'rgba(80,0,40,0.28)';
     ctx.beginPath();
     ctx.arc(rx, 0, ring / 2 - ctx.lineWidth / 2, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.strokeStyle = this.comboGrace > 0.34 ? '#FF3D6E' : '#FF8C2B';
+    ctx.strokeStyle = this.comboGrace > 0.34 ? '#FFFFFF' : '#FFE27A';
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.arc(rx, 0, ring / 2 - ctx.lineWidth / 2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.001, this.comboGrace));

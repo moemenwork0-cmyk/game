@@ -542,7 +542,8 @@ export class Renderer {
       if (sc <= 0) continue;
       const fits = s.fits[slot];
       const cx = tp.x + (p.w * tp.cs) / 2;
-      const cy = tp.y + (p.h * tp.cs) / 2;
+      // Quick slide up while popping in.
+      const cy = tp.y + (p.h * tp.cs) / 2 + (1 - Math.min(1, k * 1.4)) * L.cs * 0.6;
       ctx.save();
       ctx.translate(cx, cy);
       ctx.scale(sc, sc);
