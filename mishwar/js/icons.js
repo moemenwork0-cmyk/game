@@ -1,4 +1,5 @@
-/* مشوار — الأيقونات والرسومات (SVG داخل الكود، من غير أي ملفات خارجية) */
+/* مشوار — الأيقونات والصور
+   رموز بسيطة (سهم رجوع، بحث، +، −) خطية، وكل الباقي صور ثلاثية الأبعاد من js/assets.js */
 (function () {
   'use strict';
   window.MW = window.MW || {};
@@ -58,74 +59,46 @@
       (P[name] || '') + '</svg>';
   };
 
-  MW.starIcon = function (size, filled) {
-    return '<svg class="ic" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="' + (filled ? 'currentColor' : 'none') +
-      '" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">' + P.star + '</svg>';
+  // رموز مصمتة صغيرة (دبوس الخريطة، مربع الوجهة، النجمة...)
+  const F = {
+    pin: '<path d="M12 2.5a7 7 0 0 0-7 7c0 5.1 6 11.3 6.3 11.6a1 1 0 0 0 1.4 0C13 20.8 19 14.6 19 9.5a7 7 0 0 0-7-7Zm0 9.6a2.6 2.6 0 1 1 0-5.2 2.6 2.6 0 0 1 0 5.2Z"/>',
+    nav: '<path d="M20.6 3.4a1 1 0 0 0-1.1-.2L3.6 10.1a1 1 0 0 0 .1 1.9l6.6 1.7 1.7 6.6a1 1 0 0 0 1.9.1l6.9-15.9a1 1 0 0 0-.2-1.1Z"/>',
+    square: '<rect x="5" y="5" width="14" height="14" rx="3.2"/>',
+    grid: '<rect x="3" y="3" width="8" height="8" rx="2.4"/><rect x="13" y="3" width="8" height="8" rx="2.4"/><rect x="3" y="13" width="8" height="8" rx="2.4"/><rect x="13" y="13" width="8" height="8" rx="2.4"/>',
+    star: '<path d="M11.1 2.9a1 1 0 0 1 1.8 0l2.3 4.8 5.2.7a1 1 0 0 1 .6 1.7l-3.8 3.7.9 5.2a1 1 0 0 1-1.5 1L12 17.6 7.4 20a1 1 0 0 1-1.5-1l.9-5.2L3 10.1a1 1 0 0 1 .6-1.7l5.2-.7z"/>',
+    person: '<circle cx="12" cy="8" r="4.2"/><path d="M3.8 20.2C4.6 15.9 8 13.6 12 13.6s7.4 2.3 8.2 6.6a1 1 0 0 1-1 1.2H4.8a1 1 0 0 1-1-1.2Z"/>',
+  };
+  MW.fill = function (name, size, extra) {
+    const s = size || 18;
+    return '<svg class="ic' + (extra ? ' ' + extra : '') + '" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' + (F[name] || '') + '</svg>';
+  };
+  MW.starIcon = function (size) { return MW.fill('star', size); };
+
+  // صور ثلاثية الأبعاد (Microsoft Fluent Emoji 3D، رخصة MIT) بدل الأيقونات الخطية
+  MW.pic = function (name, size, cls) {
+    const src = (MW.IMG && MW.IMG[name]) || '';
+    return '<img class="pic' + (cls ? ' ' + cls : '') + '" src="' + src + '" width="' + size + '" height="' + size + '" alt="" draggable="false">';
   };
 
-  MW.gridIcon = function () {
-    return '<svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">' +
-      '<rect x="3" y="3" width="8" height="8" rx="2.4"/><rect x="13" y="3" width="8" height="8" rx="2.4"/>' +
-      '<rect x="3" y="13" width="8" height="8" rx="2.4"/><rect x="13" y="13" width="8" height="8" rx="2.4"/></svg>';
+  // صور العربيات (متولّدة بـ three.js من tools/car-render.html)
+  const CAR_HEX = { '#F4F4F6': 'white', '#1B1C1F': 'black', '#C9CCD2': 'silver', '#7D8088': 'grey', '#26324A': 'navy', '#A3261E': 'red', '#CDBFA6': 'beige' };
+  const carKey = (c) => (MW.IMG['car_' + c] ? c : CAR_HEX[String(c).toUpperCase()] || 'white');
+  MW.car = function (color, width, cls) {
+    return '<img class="car-img' + (cls ? ' ' + cls : '') + '" src="' + MW.IMG['car_' + carKey(color)] + '" style="width:' + (width || 120) + 'px" alt="" draggable="false">';
+  };
+  MW.carTop = function (color) {
+    return '<img class="car-top" src="' + MW.IMG['top_' + carKey(color || 'white')] + '" alt="" draggable="false">';
   };
 
-  let uid = 0;
-
-  // عربية جانبية (للكروت). اللون بيتغير حسب عربية الكابتن.
-  MW.carSide = function (color) {
-    const id = 'cs' + (++uid);
-    const body = color || '#F2F2F4';
-    return '' +
-      '<svg class="car-side" viewBox="0 0 262 112" aria-hidden="true">' +
-      '<defs>' +
-      '<radialGradient id="' + id + 'sh" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#000" stop-opacity=".38"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>' +
-      '<linearGradient id="' + id + 'hl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".85"/><stop offset=".38" stop-color="#fff" stop-opacity=".08"/><stop offset=".62" stop-color="#000" stop-opacity=".02"/><stop offset="1" stop-color="#000" stop-opacity=".32"/></linearGradient>' +
-      '<linearGradient id="' + id + 'gl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4a505b"/><stop offset=".55" stop-color="#15171c"/><stop offset="1" stop-color="#0a0b0d"/></linearGradient>' +
-      '<radialGradient id="' + id + 'rim" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#f4f5f7"/><stop offset=".7" stop-color="#a9adb5"/><stop offset="1" stop-color="#6c7079"/></radialGradient>' +
-      '</defs>' +
-      '<ellipse cx="132" cy="98" rx="126" ry="9" fill="url(#' + id + 'sh)"/>' +
-      '<path d="M12 77C12 67 19 62 32 60L82 54C97 41 114 32 138 30H168C188 30 203 38 216 50L238 55C246 57 250 64 250 72V81C250 85.4 246.4 89 242 89H20C15.6 89 12 85.4 12 81Z" fill="' + body + '"/>' +
-      '<path d="M12 77C12 67 19 62 32 60L82 54C97 41 114 32 138 30H168C188 30 203 38 216 50L238 55C246 57 250 64 250 72V81C250 85.4 246.4 89 242 89H20C15.6 89 12 85.4 12 81Z" fill="url(#' + id + 'hl)"/>' +
-      '<path d="M92 54C104 43 118 37 138 36H150V54Z" fill="url(#' + id + 'gl)"/>' +
-      '<path d="M156 36H167C182 36 194 42 204 54H156Z" fill="url(#' + id + 'gl)"/>' +
-      '<path d="M100 50C110 42 122 39 136 38" stroke="#fff" stroke-opacity=".35" stroke-width="2" fill="none" stroke-linecap="round"/>' +
-      '<path d="M34 67H240" stroke="#FF6A13" stroke-width="2.2" stroke-linecap="round"/>' +
-      '<path d="M153 56V86M90 57V86" stroke="#000" stroke-opacity=".12" stroke-width="1.4"/>' +
-      '<rect x="128" y="62" width="14" height="3" rx="1.5" fill="#000" fill-opacity=".22"/><rect x="194" y="62" width="12" height="3" rx="1.5" fill="#000" fill-opacity=".22"/>' +
-      '<path d="M14 66 32 63.5 30 69.5 15 70.5Z" fill="#fff"/><path d="M14 66 32 63.5 30 69.5 15 70.5Z" fill="#FFD9BF" fill-opacity=".5"/>' +
-      '<path d="M243 60 250 62.5V68.5L241.5 67.5Z" fill="#E4380A"/>' +
-      '<circle cx="62" cy="88" r="18" fill="#0d0e10"/><circle cx="62" cy="88" r="11" fill="url(#' + id + 'rim)"/><circle cx="62" cy="88" r="3.2" fill="#2a2c31"/>' +
-      '<circle cx="200" cy="88" r="18" fill="#0d0e10"/><circle cx="200" cy="88" r="11" fill="url(#' + id + 'rim)"/><circle cx="200" cy="88" r="3.2" fill="#2a2c31"/>' +
-      '</svg>';
-  };
-
-  // عربية من فوق (لعلامات الخريطة)
-  MW.carTop = function (variant) {
-    const body = variant === 'brand' ? '#FF6A13' : '#141417';
-    const roof = variant === 'brand' ? '#FF8A45' : '#2A2B30';
-    return '' +
-      '<svg class="car-top" viewBox="0 0 44 88" aria-hidden="true">' +
-      '<ellipse cx="4.5" cy="30" rx="3" ry="2.2" fill="' + body + '"/><ellipse cx="39.5" cy="30" rx="3" ry="2.2" fill="' + body + '"/>' +
-      '<rect x="6" y="4" width="32" height="80" rx="13" fill="' + body + '"/>' +
-      '<path d="M10 9Q22 3 34 9" stroke="#fff" stroke-opacity=".25" stroke-width="1.5" fill="none"/>' +
-      '<path d="M10.5 27Q22 20.5 33.5 27L31.5 38Q22 35 12.5 38Z" fill="#5B616C"/>' +
-      '<rect x="11.5" y="38.5" width="21" height="25" rx="5" fill="' + roof + '"/>' +
-      '<path d="M12.5 64Q22 66.5 31.5 64L33 72Q22 75.5 11 72Z" fill="#5B616C"/>' +
-      '<rect x="9" y="5.5" width="7" height="3.2" rx="1.6" fill="#FFF8EF"/><rect x="28" y="5.5" width="7" height="3.2" rx="1.6" fill="#FFF8EF"/>' +
-      '<rect x="9" y="79.5" width="7" height="2.6" rx="1.3" fill="#FF3B1F"/><rect x="28" y="79.5" width="7" height="2.6" rx="1.3" fill="#FF3B1F"/>' +
-      '</svg>';
-  };
-
-  // صورة شخصية (لحد ما الصور الحقيقية تيجي من السيرفر)
-  const PALETTES = [
-    ['#FF6A13', '#FFB27A'], ['#141417', '#4A4B52'], ['#2B2B30', '#FF6A13'],
-    ['#E4560A', '#141417'], ['#5A5B63', '#B9BAC1'], ['#FF8A3D', '#E4380A'],
-  ];
-  MW.avatar = function (name, seed, size, cls) {
-    const pal = PALETTES[Math.abs(seed || 0) % PALETTES.length];
-    const s = size || 48;
-    return '<span class="avatar' + (cls ? ' ' + cls : '') + '" style="--sz:' + s + 'px;--a:' + pal[0] + ';--b:' + pal[1] + '" aria-label="' + String(name || '').replace(/"/g, '') + '">' +
-      '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="15.5" r="7.2"/><path d="M5 41c1.2-9 7.4-13.6 15-13.6S33.8 32 35 41z"/></svg></span>';
+  // صورة شخصية ثلاثية الأبعاد على خلفية ناعمة
+  const AV_BG = [['#FFE3CC', '#FFC08F'], ['#E7E9EE', '#C9CDD6'], ['#FFE9D6', '#FFD0A8'], ['#E5ECE8', '#C3D3CA'], ['#EEE6DD', '#D9C8B6'], ['#E4E7F0', '#C5CBDD']];
+  const PEOPLE = ['man', 'man_curly_hair', 'man_office_worker', 'man_bald', 'old_man', 'person', 'person_curly_hair'];
+  MW.avatar = function (name, seed, size, who) {
+    const k = Math.abs(seed || 0);
+    const bg = AV_BG[k % AV_BG.length];
+    const face = who || PEOPLE[k % PEOPLE.length];
+    return '<span class="avatar" style="--sz:' + (size || 48) + 'px;--a:' + bg[0] + ';--b:' + bg[1] + '" aria-label="' + String(name || '').replace(/"/g, '') + '">' +
+      '<img src="' + MW.IMG['av_' + face] + '" alt="" draggable="false"></span>';
   };
 
   // لوحة أرقام مصرية

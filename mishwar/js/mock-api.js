@@ -58,6 +58,7 @@
     for (let k = 0; k < 3; k++) letters += LETTERS[(Math.random() * LETTERS.length) | 0];
     return {
       id: 'd' + (++seq),
+      face: ['man', 'man_curly_hair', 'man_office_worker', 'man_bald', 'old_man', 'person', 'person_curly_hair'][(Math.random() * 7) | 0],
       seed: seq + ((Math.random() * 6) | 0),
       name: name,
       rating: Math.round((4.6 + Math.random() * 0.39) * 100) / 100,

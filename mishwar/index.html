@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0F0F11">
+<meta name="theme-color" content="#EDEFF0">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>مشوار</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alexandria:wght@600;700;800&family=Readex+Pro:wght@300;400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
@@ -19,12 +19,12 @@
     <div class="map-fade"></div>
 
     <header class="topbar" id="topbar">
-      <button class="glass-btn me-btn" id="meBtn" data-action="open-profile" aria-label="حسابي"></button>
-      <div class="loc-chip">
-        <small><svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 11 21 3l-8 18-2-8-8-2z"/></svg>موقعك الحالي</small>
+      <button class="me-btn" id="meBtn" data-action="open-profile" aria-label="حسابي"></button>
+      <div class="loc">
+        <small id="locIcon">موقعك الحالي</small>
         <strong id="locText">شارع النصر، مدينة نصر</strong>
       </div>
-      <button class="glass-btn" data-action="open-history" aria-label="مشاويري"></button>
+      <button class="round" id="menuBtn" data-action="menu" aria-label="القائمة"></button>
     </header>
 
     <div class="center-pin" id="centerPin" hidden>
@@ -32,8 +32,8 @@
       <div class="shadow"></div>
     </div>
 
-    <button class="glass-btn fab" id="fab" data-action="recenter" aria-label="رجوع لموقعي"></button>
-    <button class="glass-btn fab fab-skip hide" id="skipBtn" data-action="skip" aria-label="تسريع المرحلة (للتجربة)"></button>
+    <button class="round fab" id="fab" data-action="recenter" aria-label="رجوع لموقعي"></button>
+    <button class="fab fab-skip hide" id="skipBtn" data-action="skip" aria-label="تسريع المرحلة (للتجربة)"></button>
 
     <section class="sheet" id="sheet" aria-live="polite">
       <div class="sheet-handle"></div>
@@ -46,6 +46,7 @@
 
     <div class="splash" id="splash">
       <div>
+        <div id="splashCar"></div>
         <div class="logo">مشوار<i></i></div>
         <small>مشوارك… بأناقة</small>
       </div>
@@ -53,6 +54,7 @@
   </main>
 </div>
 
+<script src="js/assets.js"></script>
 <script src="js/data.js"></script>
 <script src="js/icons.js"></script>
 <script src="js/map.js"></script>

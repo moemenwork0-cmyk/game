@@ -3,7 +3,7 @@
    + حسابي (المشاوير السابقة، الأماكن، الدفع، الإعدادات، المساعدة، عن التطبيق) */
 (function () {
   'use strict';
-  const D = MW.data, M = MW.map, R = MW.rides, I = MW.icon;
+  const D = MW.data, M = MW.map, R = MW.rides, I = MW.icon, F = MW.fill, P = MW.pic;
   const app = document.getElementById('app');
   const sheet = document.getElementById('sheet');
   const sheetBody = document.getElementById('sheetBody');
@@ -19,6 +19,7 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const clock = (d) => new Date(d).toLocaleTimeString('ar-EG', { hour: 'numeric', minute: '2-digit' });
   const mins = (n) => (n === 1 ? 'دقيقة' : n === 2 ? 'دقيقتين' : n <= 10 ? num(n) + ' دقايق' : num(n) + ' دقيقة');
+  const minsUnit = (n) => (n === 1 ? 'دقيقة' : n === 2 ? 'دقيقتين' : n <= 10 ? 'دقايق' : 'دقيقة');
   const firstName = (n) => String(n || '').trim().split(/\s+/)[0];
   function dayLabel(t) {
     const d = new Date(t), now = new Date();
@@ -29,63 +30,53 @@
     return d.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' });
   }
   const norm = (s) => String(s).replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').toLowerCase();
+  const carColor = (hex) => ({ '#F4F4F6': 'white', '#1B1C1F': 'black', '#C9CCD2': 'silver', '#7D8088': 'grey', '#26324A': 'navy', '#A3261E': 'red', '#CDBFA6': 'beige' }[String(hex).toUpperCase()] || 'white');
 
   // ---------- التخزين ----------
   const store = {
     get(k, d) { try { const v = localStorage.getItem('mishwar.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
-    set(k, v) { try { localStorage.setItem('mishwar.' + k, JSON.stringify(v)); } catch (e) { /* تخزين مش متاح */ } },
+    set(k, v) { try { localStorage.setItem('mishwar.' + k, JSON.stringify(v)); } catch (e) { /* التخزين مش متاح */ } },
   };
   const placeById = (id) => (id === 'me' ? D.me : D.places.find((p) => p.id === id));
   const settings = Object.assign({ dark: false, notif: true, sound: true, share: false }, store.get('settings', {}));
-  const profile = Object.assign({ name: 'أحمد محمد', phone: '+20 100 123 4567', payment: 'cash' }, store.get('profile', {}));
-  let trips = store.get('trips', null) || seedTrips();
-  const saveTrips = () => store.set('trips', trips);
-
+  const profile = Object.assign({ name: 'أحمد محمد', phone: '+20 100 123 4567' }, store.get('profile', {}));
+  let trips = store.get('trips2', null) || seedTrips();
+  const saveTrips = () => store.set('trips2', trips);
+  const myAvatar = (size) => MW.avatar(profile.name, 0, size, 'man_beard');
 
   function seedTrips() {
     const day = 864e5, now = Date.now();
     const at = (daysAgo, h, m) => { const d = new Date(now - daysAgo * day); d.setHours(h, m, 0, 0); return d.getTime(); };
-    const P = (id) => { const p = placeById(id); return { id: p.id, title: p.title, sub: p.sub, i: p.i, j: p.j, icon: p.icon }; };
+    const Pl = (id) => { const p = placeById(id); return { id: p.id, title: p.title, sub: p.sub, i: p.i, j: p.j, img: p.img }; };
     return [
-      { id: 's1', sample: true, at: at(1, 21, 40), from: P('citystars'), to: P('home'), km: 6.4, min: 18, price: 70, tip: 10, rating: 5, tags: ['سواقة هادية', 'عربية نضيفة'],
-        driver: { name: 'كريم حسن', seed: 2, rating: 4.93, trips: 3120, car: { model: 'هيونداي إلنترا', color: 'أسود', hex: '#1B1C1F' }, plate: { letters: 'رسع', digits: '٤٨٣٢' } } },
-      { id: 's2', sample: true, at: at(3, 8, 15), from: P('home'), to: P('work'), km: 9.1, min: 24, price: 85, tip: 0, rating: 4, tags: ['في المعاد'],
-        driver: { name: 'عمر خالد', seed: 4, rating: 4.81, trips: 1460, car: { model: 'كيا سيراتو', color: 'فضي', hex: '#C9CCD2' }, plate: { letters: 'طبن', digits: '٧١٥٩' } } },
-      { id: 's3', sample: true, at: at(6, 17, 5), from: P('work'), to: P('airport'), km: 14.7, min: 33, price: 120, tip: 20, rating: 5, tags: ['ذوق ومحترم', 'عارف الطرق'],
-        driver: { name: 'يوسف طارق', seed: 1, rating: 4.97, trips: 4210, car: { model: 'تويوتا كورولا', color: 'أبيض', hex: '#F4F4F6' }, plate: { letters: 'ملق', digits: '٢٦٠٤' } } },
+      { id: 's1', sample: true, at: at(1, 21, 40), from: Pl('citystars'), to: Pl('home'), km: 6.4, min: 18, price: 70, tip: 10, rating: 5, tags: ['سواقة هادية', 'عربية نضيفة'],
+        driver: { name: 'كريم حسن', seed: 2, face: 'man_curly_hair', rating: 4.93, trips: 3120, car: { model: 'هيونداي إلنترا', color: 'أسود', hex: '#1B1C1F' }, plate: { letters: 'رسع', digits: '٤٨٣٢' } } },
+      { id: 's2', sample: true, at: at(3, 8, 15), from: Pl('home'), to: Pl('work'), km: 9.1, min: 24, price: 85, tip: 0, rating: 4, tags: ['في المعاد'],
+        driver: { name: 'عمر خالد', seed: 4, face: 'man', rating: 4.81, trips: 1460, car: { model: 'كيا سيراتو', color: 'فضي', hex: '#C9CCD2' }, plate: { letters: 'طبن', digits: '٧١٥٩' } } },
+      { id: 's3', sample: true, at: at(6, 17, 5), from: Pl('work'), to: Pl('airport'), km: 14.7, min: 33, price: 120, tip: 20, rating: 5, tags: ['ذوق ومحترم', 'عارف الطرق'],
+        driver: { name: 'يوسف طارق', seed: 1, face: 'man_office_worker', rating: 4.97, trips: 4210, car: { model: 'تويوتا كورولا', color: 'أبيض', hex: '#F4F4F6' }, plate: { letters: 'ملق', digits: '٢٦٠٤' } } },
     ];
   }
 
   // ---------- الحالة ----------
   const S = {
-    screen: 'home',
-    pickup: D.me,
-    dest: null,
-    field: 'dest',
-    est: null,
-    price: 0,
-    base: 0,
-    req: null,
-    offers: [],
-    trip: null,
-    view: null,
-    userMoved: false,
+    screen: 'home', pickup: D.me, dest: null, field: 'dest',
+    est: null, price: 0, base: 0,
+    req: null, offers: [], sel: null,
+    trip: null, view: null, userMoved: false,
   };
 
   // ---------- الورقة السفلية ----------
-  function setSheet(html, mode) {
+  function setSheet(html, modes) {
     const from = sheet.offsetHeight;
-    sheet.classList.remove('tall', 'mid', 'away');
-    if (mode) sheet.classList.add(mode);
+    sheet.classList.remove('tall', 'mid', 'away', 'deep');
+    (modes || '').split(' ').filter(Boolean).forEach((m) => sheet.classList.add(m));
     sheetBody.innerHTML = html;
     const to = sheet.offsetHeight;
-    if (from && Math.abs(from - to) > 2) {
-      sheet.animate([{ height: from + 'px' }, { height: to + 'px' }], { duration: 480, easing: 'cubic-bezier(.2,.8,.2,1)' });
-    }
+    if (from && Math.abs(from - to) > 2) sheet.animate([{ height: from + 'px' }, { height: to + 'px' }], { duration: 480, easing: 'cubic-bezier(.2,.8,.2,1)' });
     sheetBody.animate([{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' });
   }
 
-  // تغيير جوه الورقة مع حركة ناعمة للطول
   function morphSheet(fn) {
     const from = sheet.offsetHeight;
     fn();
@@ -98,7 +89,7 @@
     const h = sheet.classList.contains('away') ? 0 : sheet.getBoundingClientRect().height;
     app.style.setProperty('--sheet-h', Math.round(h) + 'px');
     const padTop = parseFloat(getComputedStyle(topbar).paddingTop) || 12;
-    const top = topbar.classList.contains('hide') ? padTop : padTop + 58;
+    const top = topbar.classList.contains('hide') ? padTop : padTop + 60;
     M.setInsets(top, Math.max(0, h - 26));
     placeCenterPin();
     clearTimeout(refitT);
@@ -113,28 +104,23 @@
     setTimeout(() => fn(950), 30);
   }
 
-  function showTopbar(on) {
-    topbar.classList.toggle('hide', !on);
-    updateInsets();
-  }
-
+  function showTopbar(on) { topbar.classList.toggle('hide', !on); updateInsets(); }
   function showFab(on) { $('#fab').classList.toggle('hide', !on); }
   function showSkip(on) { $('#skipBtn').classList.toggle('hide', !on); }
 
-  // ---------- علامات ----------
+  // ---------- علامات الخريطة ----------
   function meMarker(on) {
     if (on) M.setMarker('me', Object.assign({ html: '<div class="me-dot"><i></i></div>' }, M.nodeXY(D.me.i, D.me.j)));
     else M.removeMarker('me');
   }
 
-  function pinLabel(icon, text) {
-    return '<div class="pin-label">' + (icon ? '<span class="tag">' + I(icon, 14) + '</span>' : '') + text + '</div>';
-  }
+  const tagPin = (text) => '<div class="tag"><span class="ti">' + F('pin', 16) + '</span>' + text + '</div>';
+  const tagSq = (text) => '<div class="tag"><span class="ti sq">' + F('square', 14) + '</span>' + text + '</div>';
 
   function placeMarkers(pickupLabel, destLabel) {
     const a = M.nodeXY(S.pickup.i, S.pickup.j), b = M.nodeXY(S.dest.i, S.dest.j);
-    M.setMarker('pickup', { x: a.x, y: a.y, anchor: 'bottom', z: 7, html: '<div class="pin">' + (pickupLabel ? pinLabel(null, pickupLabel) : '') + '<div class="pin-dot"></div></div>' });
-    M.setMarker('dest', { x: b.x, y: b.y, anchor: 'bottom', z: 7, html: '<div class="pin">' + (destLabel ? pinLabel('pin', destLabel) : '') + '<div class="pin-sq"></div></div>' });
+    M.setMarker('pickup', { x: a.x, y: a.y, anchor: 'bottom', z: 7, html: '<div class="pin">' + (pickupLabel ? tagPin(pickupLabel) : '') + '<div class="pin-dot"></div></div>' });
+    M.setMarker('dest', { x: b.x, y: b.y, anchor: 'bottom', z: 7, html: '<div class="pin">' + (destLabel ? tagSq(destLabel) : '') + '<div class="pin-sq"></div></div>' });
   }
 
   function clearTripMarks() {
@@ -147,19 +133,16 @@
   function homeHTML() {
     const hr = new Date().getHours();
     const hi = hr < 12 ? 'صباح الخير' : 'مساء الخير';
-    const quick = [placeById('home'), placeById('work')].concat(D.recentIds.map(placeById));
+    const quick = [placeById('home'), placeById('work')].concat(D.recentIds.slice(0, 2).map(placeById));
     return '' +
-      '<div class="greet"><span>' + hi + '، ' + esc(firstName(profile.name)) + ' 👋</span><h1>رايح فين <em>النهارده</em>؟</h1></div>' +
-      '<button class="ride-card" data-action="open-plan">' +
-        '<span class="eyebrow"><i></i>كباتن قريبين منك دلوقتي</span>' +
-        '<strong>اطلب عربية</strong>' +
-        '<small>حدد وجهتك، اعرف السعر، واختار الكابتن اللي يعجبك</small>' +
-        '<span class="go">' + I('forward', 20) + '</span>' +
-        MW.carSide('#F2F2F4') +
+      '<div class="sheet-title on-glass"><h2 class="hello">' + hi + '، ' + esc(firstName(profile.name)) + '!' + P('waving_hand', 28) + '</h2></div>' +
+      '<button class="card ride-card" data-action="open-plan">' +
+        '<span class="txt"><b>عربية</b><small>اطلب مشوار لأي مكان، واختار الكابتن اللي يعجبك</small><span class="eta"><i></i>كابتن على بُعد ٣ دقايق</span></span>' +
+        MW.car('white', 190) +
       '</button>' +
-      '<button class="search-field" data-action="open-plan">' + I('search') + '<span>رايح فين؟</span><kbd>' + I('clock', 14) + 'دلوقتي</kbd></button>' +
-      '<div class="quick">' + quick.map((p) =>
-        '<button data-action="quick-dest" data-id="' + p.id + '"><span class="qi">' + I(p.icon, 18) + '</span><span><b>' + esc(p.title) + '</b><small>' + esc(p.sub) + '</small></span></button>').join('') +
+      '<button class="search" data-action="open-plan">' + I('search', 22) + '<span>رايح فين؟</span><span class="when">' + I('clock', 14) + 'دلوقتي</span></button>' +
+      '<div class="shortcuts">' + quick.map((p) =>
+        '<button class="shortcut" data-action="quick-dest" data-id="' + p.id + '">' + P(p.img, 34) + '<b>' + esc(p.title) + '</b></button>').join('') +
       '</div>';
   }
 
@@ -176,7 +159,7 @@
     showTopbar(true);
     showFab(true);
     showSkip(false);
-    setSheet(homeHTML());
+    setSheet(homeHTML(), 'deep');
     const me = M.nodeXY(D.me.i, D.me.j);
     setView((d) => M.flyTo(me.x, me.y, 0.42, d));
   }
@@ -185,26 +168,26 @@
     if (S.req) { S.req.cancel(); S.req = null; }
     if (S.trip) { S.trip.api.cancel(); S.trip = null; }
     S.offers = [];
+    S.sel = null;
   }
 
   // ---------- تخطيط المشوار ----------
   function planHTML() {
     return '' +
-      '<div class="sheet-head"><button class="round-btn" data-action="go-home" aria-label="رجوع">' + I('back') + '</button><h2>خطط لمشوارك</h2></div>' +
-      '<div class="route-box">' +
-        '<div class="rail"><span class="dot"></span><span class="line"></span><span class="sq"></span></div>' +
-        '<div class="field' + (S.field === 'pickup' ? ' active' : '') + '" data-field="pickup"><label for="pickupInput">من</label><input id="pickupInput" autocomplete="off" enterkeyhint="search" value="' + esc(S.pickup ? S.pickup.title : '') + '" placeholder="هتركب منين؟"></div>' +
+      '<div class="sheet-title"><h2>خطط لمشوارك</h2></div>' +
+      '<div class="card route-card">' +
+        '<div class="rail">' + F('pin', 18) + '<span class="line"></span><span class="sq">' + F('square', 16) + '</span></div>' +
+        '<div class="field' + (S.field === 'pickup' ? ' active' : '') + '" data-field="pickup"><input id="pickupInput" aria-label="من" autocomplete="off" enterkeyhint="search" value="' + esc(S.pickup ? S.pickup.title : '') + '" placeholder="هتركب منين؟"></div>' +
         '<hr>' +
-        '<div class="field' + (S.field === 'dest' ? ' active' : '') + '" data-field="dest"><label for="destInput">إلى</label><input id="destInput" autocomplete="off" enterkeyhint="search" value="' + esc(S.dest ? S.dest.title : '') + '" placeholder="رايح فين؟"></div>' +
-        '<button class="round-btn swap" data-action="swap" aria-label="بدّل نقطة الركوب والوجهة">' + I('swap', 18) + '</button>' +
+        '<div class="field' + (S.field === 'dest' ? ' active' : '') + '" data-field="dest"><input id="destInput" aria-label="إلى" autocomplete="off" enterkeyhint="search" value="' + esc(S.dest ? S.dest.title : '') + '" placeholder="الوجهة"></div>' +
+        '<button class="add" data-action="swap" aria-label="بدّل نقطة الركوب والوجهة">' + I('swap', 17) + '</button>' +
       '</div>' +
-      '<button class="pick-map" data-action="pick-on-map">' + I('map', 20) + '<span>حدد المكان على الخريطة</span>' + I('chevron', 18) + '</button>' +
-      '<div class="scroll" id="placeScroll"><div id="placeList"></div></div>';
+      '<div class="scroll" id="placeScroll"><ul class="rows"><li><button class="row" data-action="pick-on-map">' + P('world_map', 38) + '<span class="t"><b>حدد على الخريطة</b><small>حرّك الدبوس لحد المكان بالظبط</small></span>' + I('chevron', 18) + '</button></li></ul><div id="placeList"></div></div>';
   }
 
   function openPlan(field) {
     S.screen = 'plan';
-    S.field = field || (S.dest ? 'dest' : 'dest');
+    S.field = field || 'dest';
     clearTripMarks();
     meMarker(true);
     showTopbar(false);
@@ -216,10 +199,10 @@
     setTimeout(() => { try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); } }, 420);
   }
 
-  function placeRow(p, hot) {
+  function placeRow(p) {
     let km = '';
     if (S.pickup && S.field === 'dest' && p.id !== S.pickup.id) km = '<span class="km">' + num(R.estimate(S.pickup, p).km, 1) + ' كم</span>';
-    return '<li><button class="place" data-action="choose-place" data-id="' + p.id + '"><span class="place-ic' + (hot ? ' hot' : '') + '">' + I(p.icon, 20) + '</span>' +
+    return '<li><button class="row" data-action="choose-place" data-id="' + p.id + '">' + P(p.img, 38) +
       '<span class="t"><b>' + esc(p.title) + '</b><small>' + esc(p.sub) + '</small></span>' + km + '</button></li>';
   }
 
@@ -231,32 +214,32 @@
     let html = '';
     if (q) {
       const hits = all.filter((p) => norm(p.title + ' ' + p.sub).indexOf(q) !== -1);
-      html = hits.length ? '<ul class="places">' + hits.map((p) => placeRow(p)).join('') + '</ul>'
-        : '<div class="empty-note">مفيش نتايج لـ "' + esc(q) + '"<br>جرّب تحدد المكان على الخريطة</div>';
+      html = hits.length ? '<ul class="rows">' + hits.map(placeRow).join('') + '</ul>'
+        : '<div class="empty-note">مفيش نتايج للبحث ده، جرّب تحدد المكان على الخريطة</div>';
     } else {
       const saved = all.filter((p) => p.saved || p.id === 'me');
       const recent = D.recentIds.map(placeById);
       const rest = all.filter((p) => !p.saved && p.id !== 'me' && D.recentIds.indexOf(p.id) === -1);
-      html = '<div class="list-title">أماكنك</div><ul class="places">' + saved.map((p) => placeRow(p, true)).join('') + '</ul>' +
-        '<div class="list-title">آخر مشاويرك</div><ul class="places">' + recent.map((p) => placeRow(p)).join('') + '</ul>' +
-        '<div class="list-title">أماكن مشهورة</div><ul class="places">' + rest.map((p) => placeRow(p)).join('') + '</ul>';
+      html = '<div class="list-title">أماكنك</div><ul class="rows">' + saved.map(placeRow).join('') + '</ul>' +
+        '<div class="list-title">آخر مشاويرك</div><ul class="rows">' + recent.map(placeRow).join('') + '</ul>' +
+        '<div class="list-title">أماكن مشهورة</div><ul class="rows">' + rest.map(placeRow).join('') + '</ul>';
     }
     list.innerHTML = html;
   }
 
   function setField(f) {
     S.field = f;
-    $$('.route-box .field').forEach((el) => el.classList.toggle('active', el.dataset.field === f));
+    $$('.route-card .field').forEach((el) => el.classList.toggle('active', el.dataset.field === f));
   }
 
   function choosePlace(p) {
     if (S.field === 'pickup') {
-      if (S.dest && S.dest.id === p.id) return toast('نقطة الركوب لازم تكون غير الوجهة', 'info');
+      if (S.dest && S.dest.id === p.id) return toast('نقطة الركوب لازم تكون غير الوجهة', 'information');
       S.pickup = p;
       $('#pickupInput').value = p.title;
       if (!S.dest) { setField('dest'); $('#destInput').focus(); renderPlaces(''); return; }
     } else {
-      if (S.pickup && S.pickup.id === p.id) return toast('اختار وجهة غير مكان الركوب', 'info');
+      if (S.pickup && S.pickup.id === p.id) return toast('اختار وجهة غير مكان الركوب', 'information');
       S.dest = p;
       $('#destInput').value = p.title;
       if (!S.pickup) { setField('pickup'); $('#pickupInput').focus(); renderPlaces(''); return; }
@@ -266,16 +249,13 @@
   }
 
   // ---------- تحديد على الخريطة ----------
-  function placeCenterPin() {
-    $('#centerPin').style.top = M.visibleCenterY() + 'px';
-  }
+  function placeCenterPin() { $('#centerPin').style.top = M.visibleCenterY() + 'px'; }
 
   function pickHTML() {
     return '' +
-      '<div class="sheet-head"><button class="round-btn" data-action="cancel-pick" aria-label="رجوع">' + I('back') + '</button>' +
-        '<div class="grow"><h2>' + (S.field === 'pickup' ? 'حدد مكان الركوب' : 'حدد وجهتك') + '</h2><p>حرّك الخريطة لحد ما الدبوس ييجي على المكان</p></div></div>' +
-      '<div class="addr-card"><span class="place-ic">' + I('pin', 20) + '</span><div><b id="pickTitle">…</b><small id="pickSub"></small></div></div>' +
-      '<button class="btn btn-primary" data-action="confirm-pick">' + I('check', 20) + 'تأكيد المكان</button>';
+      '<div class="sheet-title"><h2>' + (S.field === 'pickup' ? 'حدد مكان الركوب' : 'حدد وجهتك') + '</h2><p>حرّك الخريطة لحد ما الدبوس ييجي على المكان</p></div>' +
+      '<div class="card pay">' + P('round_pushpin', 30) + '<span><b id="pickTitle" style="font-weight:500">…</b><small id="pickSub"></small></span></div>' +
+      '<div class="cta-row"><button class="round" data-action="cancel-pick" aria-label="رجوع">' + I('back', 22) + '</button><button class="btn btn-primary" data-action="confirm-pick">تأكيد المكان</button></div>';
   }
 
   function startPick() {
@@ -296,7 +276,7 @@
     const c = M.center();
     const n = M.nearestNode(c.x, c.y);
     const desc = M.describeNode(n, D.districts);
-    return { id: 'map-' + n.i + '-' + n.j, title: desc.title, sub: desc.sub, i: n.i, j: n.j, icon: 'pin' };
+    return { id: 'map-' + n.i + '-' + n.j, title: desc.title, sub: desc.sub, i: n.i, j: n.j, img: 'round_pushpin' };
   }
 
   function updatePickAddress() {
@@ -318,7 +298,7 @@
   function confirmPick() {
     const p = pickedPlace();
     const other = S.field === 'pickup' ? S.dest : S.pickup;
-    if (other && other.i === p.i && other.j === p.j) return toast('المكان ده هو نفسه ' + (S.field === 'pickup' ? 'الوجهة' : 'مكان الركوب'), 'info');
+    if (other && other.i === p.i && other.j === p.j) return toast('المكان ده هو نفسه ' + (S.field === 'pickup' ? 'الوجهة' : 'مكان الركوب'), 'information');
     $('#centerPin').hidden = true;
     if (S.field === 'pickup') S.pickup = p; else S.dest = p;
     if (S.pickup && S.dest) openPreview();
@@ -328,18 +308,19 @@
   // ---------- تفاصيل المشوار والسعر ----------
   function previewHTML() {
     const e = S.est;
-    const arrive = Date.now() + e.min * 60000;
     return '' +
-      '<div class="sheet-head"><button class="round-btn" data-action="back-plan" aria-label="رجوع">' + I('back') + '</button>' +
-        '<div class="grow"><h2>تفاصيل المشوار</h2><p>راجع المشوار وحدد السعر اللي يناسبك</p></div></div>' +
-      '<div class="trip-sum"><div class="rail"><span class="dot"></span><span class="line"></span><span class="sq"></span></div>' +
+      '<div class="card option">' + MW.car('white', 96) +
+        '<span class="t"><b>عربية مشوار</b><small><span>' + I('clock', 14) + mins(e.min) + '</span><span>' + F('person', 14) + num(4) + '</span><span>' + num(e.km, 1) + ' كم</span></small></span>' +
+        '<span class="price"><strong id="optPrice">' + egp(S.price) + '</strong><em id="priceNote">السعر المقترح</em></span>' +
+      '</div>' +
+      '<div class="card route-mini"><div class="rail">' + F('pin', 15) + '<span class="line"></span>' + F('square', 13) + '</div>' +
         '<div class="stop"><small>من</small><b>' + esc(S.pickup.title) + '</b></div>' +
-        '<div class="stop"><small>إلى</small><b>' + esc(S.dest.title) + '</b></div>' +
-        '<div class="trip-meta"><span>' + I('route', 16) + num(e.km, 1) + ' كم</span><span>' + I('clock', 16) + num(e.min) + ' دقيقة</span><span>' + I('pin', 16) + 'توصل ' + clock(arrive) + '</span></div></div>' +
-      '<div class="price-box"><div class="lbl"><small>سعر المشوار</small><strong><span id="priceVal">' + num(S.price) + '</span><small>ج.م</small></strong><em id="priceNote">السعر المقترح للمسافة دي</em></div>' +
-        '<div class="adj"><button data-action="price-up" aria-label="زوّد السعر">' + I('plus', 18) + '</button><button data-action="price-down" aria-label="قلّل السعر">' + I('minus', 18) + '</button></div></div>' +
-      '<button class="pay-row" data-action="payment-modal"><span class="pi">' + I('cash', 20) + '</span><span>كاش<small>هتدفع للكابتن في آخر المشوار</small></span>' + I('chevron', 18) + '</button>' +
-      '<button class="btn btn-primary" data-action="request">اطلب الآن <span class="price-pill" id="ctaPrice">' + egp(S.price) + '</span></button>';
+        '<div class="stop"><small>إلى</small><b>' + esc(S.dest.title) + '</b></div></div>' +
+      '<div class="card stepper"><span class="t"><b>اقترح سعرك</b><small>الكباتن هيبعتوا عروضهم على السعر ده</small></span>' +
+        '<span class="ctl"><button data-action="price-up" aria-label="زوّد السعر">' + I('plus', 16) + '</button><output id="priceVal">' + num(S.price) + '</output><button data-action="price-down" aria-label="قلّل السعر">' + I('minus', 16) + '</button></span></div>' +
+      '<button class="card pay" data-action="payment-modal">' + P('dollar_banknote', 30) + '<span>كاش<small>هتدفع للكابتن في آخر المشوار</small></span>' + I('chevron', 18) + '</button>' +
+      '<div class="cta-row"><button class="round" data-action="back-plan" aria-label="رجوع">' + I('back', 22) + '</button>' +
+        '<button class="btn btn-primary" data-action="request">اطلب عربية</button></div>';
   }
 
   function openPreview() {
@@ -354,35 +335,39 @@
     showFab(true);
     $('#centerPin').hidden = true;
     M.drawRoute('trip', S.est.pts, 'main');
-    placeMarkers(S.pickup.id === 'me' ? 'هتركب من هنا' : esc(S.pickup.title), 'توصل <b>' + clock(Date.now() + S.est.min * 60000) + '</b>');
+    placeMarkers(S.pickup.id === 'me' ? 'موقعك' : esc(S.pickup.title), 'توصل خلال <b>' + mins(S.est.min) + '</b>');
     setSheet(previewHTML());
-    setView((d) => M.fit(S.est.pts, { dur: d, pad: 70, extraTop: 40 }));
+    setView((d) => M.fit(S.est.pts, { dur: d, pad: 72, extraTop: 50 }));
   }
 
   function adjustPrice(step) {
     const min = Math.max(25, Math.round(S.base * 0.85 / 5) * 5), max = Math.round(S.base * 1.6 / 5) * 5;
     const next = Math.min(max, Math.max(min, S.price + step));
-    if (next === S.price) return toast(step < 0 ? 'ده أقل سعر ممكن للمشوار ده' : 'ده أعلى سعر ممكن', 'info');
+    if (next === S.price) return toast(step < 0 ? 'ده أقل سعر ممكن للمشوار ده' : 'ده أعلى سعر ممكن', 'information');
     S.price = next;
     $('#priceVal').textContent = num(S.price);
-    $('#ctaPrice').textContent = egp(S.price);
+    $('#optPrice').textContent = egp(S.price);
     const d = S.price - S.base;
-    $('#priceNote').textContent = d === 0 ? 'السعر المقترح للمسافة دي' : d > 0 ? 'سعر أعلى = عروض أسرع' : 'سعر أقل ممكن ياخد وقت أطول';
+    $('#priceNote').textContent = d === 0 ? 'السعر المقترح' : d > 0 ? 'عروض أسرع' : 'ممكن ياخد وقت';
     $('#priceVal').animate([{ transform: 'translateY(' + (step > 0 ? 8 : -8) + 'px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 260, easing: 'ease-out' });
   }
 
   // ---------- العروض ----------
+  const skeletonRow = '<div class="skeleton"><i style="width:84px;height:44px;border-radius:14px"></i><span style="flex:1;display:flex;flex-direction:column;gap:8px"><i style="width:60%;height:12px"></i><i style="width:40%;height:10px"></i></span><i style="width:56px;height:16px"></i></div>';
+
   function searchingHTML() {
     return '' +
-      '<div class="sheet-head"><div class="grow"><h2 id="offTitle">بندوّر لك على كابتن</h2><p>' + esc(S.pickup.title) + ' ← ' + esc(S.dest.title) + ' · ' + egp(S.price) + '</p></div></div>' +
-      '<div class="searching"><span class="loader">' + I('nav', 18) + '</span><div class="grow"><b id="offState">طلبك وصل للكباتن اللي حواليك</b><small id="offHint">العروض هتظهر هنا، واختار الكابتن اللي يعجبك</small><div class="bars"><i></i><i></i><i></i></div></div></div>' +
-      '<div class="scroll"><div class="offers" id="offers"></div></div>' +
-      '<button class="btn btn-ghost" data-action="cancel-request">إلغاء الطلب</button>';
+      '<div class="offers-head"><div class="sheet-title"><h2 id="offTitle">بندوّر لك على كابتن</h2><p id="offSub">طلبك وصل للكباتن اللي حواليك</p></div><span class="spinner" aria-hidden="true"></span></div>' +
+      '<div class="scroll"><div id="offers">' + skeletonRow + skeletonRow + skeletonRow + '</div></div>' +
+      '<button class="card pay" data-action="payment-modal">' + P('dollar_banknote', 30) + '<span>كاش · سعرك ' + egp(S.price) + '</span>' + I('chevron', 18) + '</button>' +
+      '<div class="cta-row"><button class="round" data-action="cancel-request" aria-label="إلغاء الطلب">' + I('x', 20) + '</button>' +
+        '<button class="btn btn-primary" id="offerCta" data-action="accept-sel" disabled>مستنيين العروض…</button></div>';
   }
 
   function requestRide() {
     S.screen = 'searching';
     S.offers = [];
+    S.sel = null;
     meMarker(false);
     const a = M.nodeXY(S.pickup.i, S.pickup.j);
     M.removeMarker('pickup');
@@ -398,62 +383,70 @@
 
   function offerHTML(o) {
     const d = o.driver, diff = o.price - S.price;
-    return '<article class="offer" data-offer="' + o.id + '">' +
-      '<div class="offer-top">' + MW.avatar(d.name, d.seed, 48) +
-        '<div class="who"><b>' + esc(d.name) + '</b><span class="rating">' + MW.starIcon(13, true) + num(d.rating, 2) + ' · ' + num(d.trips) + ' مشوار</span></div>' +
-        '<div class="price"><strong>' + num(o.price) + ' <small>ج.م</small></strong>' + (diff > 0 ? '<em>+' + num(diff) + ' ج.م</em>' : '<em class="same">نفس سعرك</em>') + '</div></div>' +
-      '<div class="offer-car">' + MW.carSide(d.car.hex) + '<div class="meta"><b>' + esc(d.car.model) + '</b>' + esc(d.car.color) + ' · ' + d.plate.letters.split('').join(' ') + ' ' + d.plate.digits + '</div>' +
-        '<div class="eta"><b>' + num(o.eta) + '</b>دقيقة</div></div>' +
-      '<div class="offer-actions"><button class="btn btn-ghost" data-action="decline" data-id="' + o.id + '">تجاهل</button>' +
-        '<button class="btn btn-primary" data-action="accept" data-id="' + o.id + '">قبول · ' + egp(o.price) + '</button></div>' +
-      '<div class="offer-timer"><i style="animation-duration:' + o.ttl + 'ms"></i></div>' +
-      '</article>';
+    return '<button class="offer' + (S.sel === o.id ? ' sel' : '') + '" data-offer="' + o.id + '" data-action="select-offer" data-id="' + o.id + '">' +
+      '<span class="media">' + MW.car(carColor(d.car.hex), 92) + MW.avatar(d.name, d.seed, 30, d.face) + '</span>' +
+      '<span class="t"><b>' + esc(d.name) + '</b>' +
+        '<small><span>' + I('clock', 13) + mins(o.eta) + '</span><span>' + MW.starIcon(13) + num(d.rating, 2) + '</span></small>' +
+        '<span class="model">' + esc(d.car.model) + ' · ' + esc(d.car.color) + '</span></span>' +
+      '<span class="price"><strong>' + egp(o.price) + '</strong>' + (diff > 0 ? '<em>+' + num(diff) + ' عن سعرك</em>' : '<em class="same">نفس سعرك</em>') + '</span>' +
+      '<span class="offer-timer"><i style="animation-duration:' + Math.max(0, o.ttl - (Date.now() - o.at)) + 'ms"></i></span>' +
+      '</button>';
   }
 
-  function updateOfferHeader() {
+  function updateOffersUI() {
     const n = S.offers.length;
-    const t = $('#offTitle'), st = $('#offState'), h = $('#offHint');
+    const t = $('#offTitle'), sub = $('#offSub'), cta = $('#offerCta');
     if (!t) return;
     t.textContent = n ? (n === 1 ? 'وصلك عرض' : n === 2 ? 'وصلك عرضين' : 'وصلك ' + num(n) + ' عروض') : 'بندوّر لك على كابتن';
-    st.textContent = n ? 'لسه بنستقبل عروض تانية…' : 'طلبك وصل للكباتن اللي حواليك';
-    h.textContent = n ? 'كل عرض متاح لمدة ٣٠ ثانية' : 'العروض هتظهر هنا، واختار الكابتن اللي يعجبك';
+    sub.textContent = n ? 'اختار الكابتن اللي يناسبك · كل عرض متاح ٣٠ ثانية' : 'طلبك وصل للكباتن اللي حواليك';
+    const o = S.offers.find((x) => x.id === S.sel);
+    cta.disabled = !o;
+    cta.innerHTML = o ? 'اختار ' + esc(firstName(o.driver.name)) + ' <small>· ' + egp(o.price) + '</small>' : 'مستنيين العروض…';
+    $$('#offers .offer').forEach((el) => el.classList.toggle('sel', el.dataset.offer === S.sel));
   }
 
   function addOffer(o) {
     if (S.screen !== 'searching') return;
     S.offers.unshift(o);
+    if (!S.sel) S.sel = o.id;
     morphSheet(() => {
+      $$('#offers .skeleton').forEach((el) => el.remove());
       $('#offers').insertAdjacentHTML('afterbegin', offerHTML(o));
-      updateOfferHeader();
+      updateOffersUI();
     });
     const p = M.pointAt(o.approachPts, 0);
-    M.setMarker('ocar-' + o.id, { x: p.x, y: p.y, angle: p.angle, cls: 'mk-car', html: MW.carTop() });
-    M.setMarker('ochip-' + o.id, { x: p.x, y: p.y, anchor: 'bottom', z: 5, html: '<div class="chip-car"><i></i>' + num(o.eta) + ' د</div>' });
+    M.setMarker('ocar-' + o.id, { x: p.x, y: p.y, angle: p.angle, cls: 'mk-car', html: MW.carTop(carColor(o.driver.car.hex)) });
+    M.setMarker('ochip-' + o.id, { x: p.x, y: p.y, anchor: 'bottom', z: 5, html: '<div class="chip-car"><i></i>' + mins(o.eta) + '</div>' });
     fitOffers();
     if (settings.notif && navigator.vibrate) { try { navigator.vibrate(30); } catch (e) { /* */ } }
   }
 
   function fitOffers() {
     const pts = [M.nodeXY(S.pickup.i, S.pickup.j)].concat(S.offers.map((o) => M.pointAt(o.approachPts, 0)));
-    S.view = (d) => M.fit(pts, { dur: d, pad: 60, maxS: 0.55 });
+    S.view = (d) => M.fit(pts, { dur: d, pad: 60, maxS: 0.55, extraTop: 30 });
     if (!S.userMoved) S.view(800);
   }
 
   function removeOffer(id, expired) {
     S.offers = S.offers.filter((o) => o.id !== id);
+    if (S.sel === id) S.sel = S.offers.length ? S.offers[0].id : null;
     M.removeMarker('ocar-' + id, 'ochip-' + id);
     const card = $('[data-offer="' + id + '"]');
     if (card) {
       card.classList.add('out');
-      setTimeout(() => morphSheet(() => { card.remove(); updateOfferHeader(); }), 330);
+      setTimeout(() => morphSheet(() => {
+        card.remove();
+        if (!S.offers.length && $('#offers')) $('#offers').innerHTML = skeletonRow + skeletonRow;
+        updateOffersUI();
+      }), 330);
     }
-    if (expired && S.screen === 'searching') toast('عرض انتهى وقته', 'clock');
+    if (expired && S.screen === 'searching') toast('عرض انتهى وقته', 'hourglass_not_done');
     if (S.offers.length) fitOffers();
   }
 
   function cancelRequest() {
     if (S.req) { S.req.cancel(); S.req = null; }
-    toast('اتلغى الطلب', 'x');
+    toast('اتلغى الطلب', 'cross_mark');
     openPreview();
   }
 
@@ -466,35 +459,38 @@
     const api = S.req.accept(id);
     S.req = null;
     S.offers = [];
+    S.sel = null;
     M.removeMarker('radar');
     M.removeMarkersWhere((k) => k.indexOf('ocar-') === 0 || k.indexOf('ochip-') === 0);
     M.setAmbient(false);
     S.trip = { api: api, offer: offer, phase: 'accepted', eta: offer.eta, chat: [], startedAt: Date.now() };
-    api.on('phase', onPhase).on('update', onTripUpdate).on('completed', onCompleted);
+    api.on('phase', (e) => applyPhase(e.phase)).on('update', onTripUpdate).on('completed', onCompleted);
     openTrip();
   }
 
   function tripHTML() {
     const o = S.trip.offer, d = o.driver;
     return '' +
-      '<div class="trip-status"><div class="grow"><h2 id="tTitle"></h2><p id="tSub"></p></div>' +
-        '<div class="eta-badge" id="tEta"><b>' + num(o.eta) + '</b><small>دقيقة</small></div></div>' +
+      '<div class="trip-head"><div class="sheet-title"><h2 id="tTitle"></h2><p id="tSub"></p></div>' +
+        '<div class="eta-pill" id="tEta"><b>' + num(o.eta) + '</b><small>' + minsUnit(o.eta) + '</small></div></div>' +
       '<div class="steps" id="tSteps"><i></i><i></i><i></i><i></i></div>' +
-      '<div class="scroll"><div style="display:flex;flex-direction:column;gap:12px;padding-bottom:4px">' +
-        '<div class="driver"><span class="av-wrap">' + MW.avatar(d.name, d.seed, 56) + '<span class="badge">' + MW.starIcon(11, true) + num(d.rating, 2) + '</span></span>' +
-          '<div class="who"><b>' + esc(d.name) + '</b><small>' + num(d.trips) + ' مشوار · ' + (d.years === 1 ? 'سنة' : num(d.years) + ' سنين') + ' خبرة</small></div>' + MW.plate(d.plate) + '</div>' +
-        '<div class="car-strip">' + MW.carSide(d.car.hex) + '<div class="meta"><b>' + esc(d.car.model) + '</b><small>لون ' + esc(d.car.color) + ' · دوّر على اللوحة</small></div></div>' +
-        '<div class="pin-code" id="tPin">' + I('lock', 20) + '<span>رمز المشوار، قوله للكابتن لما تركب</span><b>' + S.trip.api.pin + '</b></div>' +
-        '<div class="actions4">' +
-          '<button class="act" data-action="call">' + I('phone', 20) + 'اتصال</button>' +
-          '<button class="act" data-action="chat">' + I('message', 20) + 'رسالة</button>' +
-          '<button class="act" data-action="share">' + I('share', 20) + 'مشاركة</button>' +
-          '<button class="act sos" data-action="safety">' + I('shield', 20) + 'الأمان</button>' +
+      '<div class="scroll"><div class="stack" style="padding-bottom:4px">' +
+        '<div class="card driver-card">' +
+          '<div class="driver-top">' + MW.avatar(d.name, d.seed, 54, d.face) +
+            '<span class="t"><b>' + esc(d.name) + '</b><small>' + MW.starIcon(13) + num(d.rating, 2) + ' · ' + num(d.trips) + ' مشوار</small></span>' + MW.plate(d.plate) + '</div>' +
+          '<div class="driver-car">' + MW.car(carColor(d.car.hex), 118) + '<span class="t"><b>' + esc(d.car.model) + '</b><small>لون ' + esc(d.car.color) + ' · دوّر على اللوحة</small></span></div>' +
         '</div>' +
-        '<div class="trip-sum"><div class="rail"><span class="dot"></span><span class="line"></span><span class="sq"></span></div>' +
+        '<div class="card pin-row" id="tPin">' + P('locked', 30) + '<span>رمز المشوار، قوله للكابتن لما تركب</span><b>' + S.trip.api.pin + '</b></div>' +
+        '<div class="actions">' +
+          '<button class="act" data-action="call">' + P('telephone_receiver', 32) + 'اتصال</button>' +
+          '<button class="act" data-action="chat">' + P('speech_balloon', 32) + 'رسالة</button>' +
+          '<button class="act" data-action="share">' + P('link', 32) + 'مشاركة</button>' +
+          '<button class="act" data-action="safety">' + P('shield', 32) + 'الأمان</button>' +
+        '</div>' +
+        '<div class="card route-mini"><div class="rail">' + F('pin', 15) + '<span class="line"></span>' + F('square', 13) + '</div>' +
           '<div class="stop"><small>من</small><b>' + esc(S.pickup.title) + '</b></div>' +
           '<div class="stop"><small>إلى</small><b>' + esc(S.dest.title) + '</b></div></div>' +
-        '<button class="pay-row" data-action="noop"><span class="pi">' + I('cash', 20) + '</span><span>' + egp(o.price) + '<small>كاش · هتدفع في آخر المشوار</small></span></button>' +
+        '<div class="card pay">' + P('dollar_banknote', 30) + '<span>' + egp(o.price) + '<small>كاش · هتدفع في آخر المشوار</small></span></div>' +
         '<button class="btn btn-text btn-danger" id="tCancel" data-action="cancel-trip">إلغاء المشوار</button>' +
       '</div></div>';
   }
@@ -507,7 +503,7 @@
     setSheet(tripHTML(), 'mid');
     placeMarkers('', '');
     applyPhase('accepted');
-    toast('تم! ' + firstName(S.trip.offer.driver.name) + ' جاي لك', 'check');
+    toast('تمام! ' + firstName(S.trip.offer.driver.name) + ' جاي لك', 'check_mark_button');
   }
 
   function applyPhase(phase) {
@@ -530,49 +526,49 @@
     $$('#tSteps i').forEach((el, k) => { el.className = k < idx ? 'done' : k === idx ? 'now' : ''; el.style.setProperty('--p', 0); });
     const badge = $('#tEta');
     badge.classList.toggle('done', phase === 'arrived');
-    if (phase === 'arrived') badge.innerHTML = '<b>' + I('check', 22, '') + '</b><small>وصل</small>';
-    if (phase === 'ontrip') {
-      const c = $('#tCancel'); if (c) c.hidden = true;
-      const pin = $('#tPin'); if (pin) morphSheet(() => pin.remove());
-      M.removeMarker('pickup', 'dchip');
-      M.clearRoute('approach');
-      const est = t.api.estimate;
-      setView((dd) => M.fit(est.pts, { dur: dd, pad: 70, extraTop: 30 }));
-      toast('بدأ المشوار، رحلة سعيدة', 'nav');
+    if (phase === 'arrived') badge.innerHTML = '<b>' + I('check', 22) + '</b><small>وصل</small>';
+    const pk = M.nodeXY(S.pickup.i, S.pickup.j);
+    if (phase === 'accepted') {
+      const p0 = M.pointAt(t.offer.approachPts, 0);
+      setView((dd) => M.fit([p0, pk], { dur: dd, pad: 90, maxS: 0.6, extraTop: 50 }));
     }
     if (phase === 'coming') {
       const pts = t.offer.approachPts;
-      setView((dd) => M.fit(pts.concat([M.nodeXY(S.pickup.i, S.pickup.j)]), { dur: dd, pad: 80, maxS: 0.6, extraTop: 40 }));
-    }
-    if (phase === 'accepted') {
-      const p0 = M.pointAt(t.offer.approachPts, 0);
-      setView((dd) => M.fit([p0, M.nodeXY(S.pickup.i, S.pickup.j)], { dur: dd, pad: 90, maxS: 0.6, extraTop: 40 }));
+      setView((dd) => M.fit(pts.concat([pk]), { dur: dd, pad: 80, maxS: 0.6, extraTop: 50 }));
     }
     if (phase === 'arrived') {
       M.removeMarker('dchip');
       M.clearRoute('approach');
-      toast(first + ' وصل! ' + d.car.model + ' ' + d.car.color, 'pin');
+      toast(first + ' وصل! ' + d.car.model + ' ' + d.car.color, 'round_pushpin');
       if (settings.notif && navigator.vibrate) { try { navigator.vibrate([40, 60, 40]); } catch (e) { /* */ } }
     }
+    if (phase === 'ontrip') {
+      const c = $('#tCancel'); if (c) c.hidden = true;
+      const pin = $('#tPin'); if (pin) morphSheet(() => pin.remove());
+      M.removeMarker('pickup');
+      M.clearRoute('approach');
+      const est = t.api.estimate;
+      setView((dd) => M.fit(est.pts, { dur: dd, pad: 70, extraTop: 50 }));
+      toast('بدأ المشوار، رحلة سعيدة', 'chequered_flag');
+    }
   }
-
-  function onPhase(e) { applyPhase(e.phase); }
 
   function onTripUpdate(u) {
     const t = S.trip;
     if (!t) return;
-    M.setMarker('driver', { x: u.pos.x, y: u.pos.y, angle: u.pos.angle, cls: 'mk-driver', html: MW.carTop('brand') });
+    M.setMarker('driver', { x: u.pos.x, y: u.pos.y, angle: u.pos.angle, cls: 'mk-driver', html: MW.carTop(carColor(t.offer.driver.car.hex)) });
     if (u.phase === 'coming' || u.phase === 'accepted') {
-      M.setMarker('dchip', { x: u.pos.x, y: u.pos.y, anchor: 'bottom', z: 9, html: '<div class="chip-car" style="margin-bottom:34px"><i></i>يوصل خلال ' + num(u.eta) + ' د</div>' });
+      M.setMarker('dchip', { x: u.pos.x, y: u.pos.y, anchor: 'bottom', z: 9, html: '<div style="margin-bottom:30px">' + tagSq('يوصل خلال <b>' + mins(u.eta) + '</b>') + '</div>' });
       if (u.remaining && u.remaining.length > 1) M.drawRoute('approach', u.remaining, 'approach');
       M.drawRoute('trip', t.api.estimate.pts, 'ghost');
     } else if (u.phase === 'ontrip') {
       if (u.remaining && u.remaining.length > 1) M.drawRoute('trip', u.remaining, 'main');
+      M.setMarker('dchip', { x: u.pos.x, y: u.pos.y, anchor: 'bottom', z: 9, html: '<div style="margin-bottom:30px">' + tagSq('توصل خلال <b>' + mins(u.eta) + '</b>') + '</div>' });
     }
     if (u.eta !== t.eta && u.phase !== 'arrived') {
       t.eta = u.eta;
       const b = $('#tEta');
-      if (b) b.innerHTML = '<b>' + num(u.eta) + '</b><small>' + (u.eta === 1 ? 'دقيقة' : u.eta === 2 ? 'دقيقتين' : u.eta <= 10 ? 'دقايق' : 'دقيقة') + '</small>';
+      if (b) b.innerHTML = '<b>' + num(u.eta) + '</b><small>' + minsUnit(u.eta) + '</small>';
     }
     const now = $('#tSteps i.now');
     if (now) now.style.setProperty('--p', u.progress.toFixed(3));
@@ -604,15 +600,10 @@
     scr.className = 'rate-screen';
     scr.id = 'rateScreen';
     scr.innerHTML = '<div class="rate-card"><div class="page-body">' +
-      '<div class="done-badge">' + I('check', 32) + '</div>' +
-      '<div class="rate-title"><h2>وصلت بالسلامة</h2><p>' + esc(S.dest.title) + ' · <b>' + egp(sum.price) + '</b> كاش</p></div>' +
-      '<div class="stats">' +
-        '<div class="stat">' + I('route', 18) + '<b>' + num(sum.km, 1) + ' كم</b><small>المسافة</small></div>' +
-        '<div class="stat">' + I('clock', 18) + '<b>' + num(sum.min) + ' دقيقة</b><small>المدة</small></div>' +
-        '<div class="stat">' + I('cash', 18) + '<b>' + egp(sum.price) + '</b><small>الأجرة</small></div>' +
-      '</div>' +
-      '<div class="rate-driver">' + MW.avatar(d.name, d.seed, 68) + '<b>إيه رأيك في مشوارك مع ' + esc(firstName(d.name)) + '؟</b>' +
-        '<div class="stars" role="radiogroup" aria-label="التقييم">' + [1, 2, 3, 4, 5].map((n) => '<button class="star-btn" data-action="star" data-n="' + n + '" aria-label="' + num(n) + ' نجوم">' + MW.starIcon(36, true) + '</button>').join('') + '</div>' +
+      '<div class="rate-top">' + P('party_popper', 74) + '<h2>وصلت بالسلامة</h2><p>' + esc(S.dest.title) + ' · <b>' + egp(sum.price) + '</b> كاش</p></div>' +
+      '<div class="card sum3"><div><b>' + num(sum.km, 1) + ' كم</b><small>المسافة</small></div><div><b>' + mins(sum.min) + '</b><small>المدة</small></div><div><b>' + egp(sum.price) + '</b><small>الأجرة</small></div></div>' +
+      '<div class="card rate-box">' + MW.avatar(d.name, d.seed, 64, d.face) + '<b>إيه رأيك في مشوارك مع ' + esc(firstName(d.name)) + '؟</b>' +
+        '<div class="stars" role="radiogroup" aria-label="التقييم">' + [1, 2, 3, 4, 5].map((n) => '<button class="star-btn" data-action="star" data-n="' + n + '" aria-label="' + num(n) + ' من ٥">' + P('star', 38) + '</button>').join('') + '</div>' +
         '<div class="rate-word" id="rateWord">اختار من ١ لـ ٥ نجوم</div>' +
         '<div class="chips" id="rateTags" hidden></div>' +
       '</div>' +
@@ -645,12 +636,12 @@
     const t = rate.trip, d = t.offer.driver;
     trips.unshift({
       id: 't' + Date.now(), at: t.startedAt,
-      from: { id: S.pickup.id, title: S.pickup.title, sub: S.pickup.sub, i: S.pickup.i, j: S.pickup.j, icon: S.pickup.icon },
-      to: { id: S.dest.id, title: S.dest.title, sub: S.dest.sub, i: S.dest.i, j: S.dest.j, icon: S.dest.icon },
+      from: { id: S.pickup.id, title: S.pickup.title, sub: S.pickup.sub, i: S.pickup.i, j: S.pickup.j, img: S.pickup.img },
+      to: { id: S.dest.id, title: S.dest.title, sub: S.dest.sub, i: S.dest.i, j: S.dest.j, img: S.dest.img },
       km: t.summary.km, min: t.summary.min, price: t.summary.price,
       tip: submit ? rate.tip : 0, rating: submit ? rate.stars : 0, tags: submit ? rate.tags : [],
       comment: submit ? ($('#rateComment').value || '').trim() : '',
-      driver: { name: d.name, seed: d.seed, rating: d.rating, trips: d.trips, car: d.car, plate: d.plate },
+      driver: { name: d.name, seed: d.seed, face: d.face, rating: d.rating, trips: d.trips, car: d.car, plate: d.plate },
     });
     saveTrips();
     const scr = $('#rateScreen');
@@ -658,7 +649,7 @@
     S.trip = null;
     rate = null;
     goHome();
-    setTimeout(() => toast(submit ? 'شكراً! تقييمك بيساعدنا نحسّن مشوار' : 'المشوار اتسجل في مشاويرك', 'check'), 400);
+    setTimeout(() => toast(submit ? 'شكراً! تقييمك بيساعدنا نحسّن مشوار' : 'المشوار اتسجل في مشاويرك', 'glowing_star'), 400);
   }
 
   // ---------- نوافذ ----------
@@ -684,33 +675,41 @@
   let confirmFn = null;
   function confirmBox(o) {
     confirmFn = o.onOk;
-    openModal('<div class="m-icon' + (o.danger ? ' danger' : '') + '">' + I(o.icon || 'info', 26) + '</div><h3>' + o.title + '</h3><p>' + o.text + '</p>' +
+    openModal(P(o.pic || 'information', 64, 'm-pic') + '<h3>' + o.title + '</h3><p>' + o.text + '</p>' +
       '<button class="btn ' + (o.danger ? 'btn-dark' : 'btn-primary') + '" data-action="confirm-ok">' + o.ok + '</button>' +
       '<button class="btn btn-text" data-action="close-modal">' + (o.cancel || 'رجوع') + '</button>');
   }
 
+  const payItems = () => '<div class="card menu">' +
+    '<button class="item" data-action="close-modal">' + P('dollar_banknote', 32) + '<span class="t"><b>كاش</b><small>ادفع للكابتن في آخر المشوار</small></span><span class="radio on"></span></button>' +
+    '<button class="item" data-action="soon">' + P('credit_card', 32) + '<span class="t"><b>بطاقة بنكية</b><small>فيزا وماستركارد وميزة</small></span><span class="soon">قريباً</span></button>' +
+    '<button class="item" data-action="soon">' + P('mobile_phone', 32) + '<span class="t"><b>محفظة إلكترونية</b><small>فودافون كاش وإنستاباي</small></span><span class="soon">قريباً</span></button>' +
+    '</div>';
+
   function paymentModal() {
-    openModal('<h3>طريقة الدفع</h3>' +
-      '<div class="menu">' +
-        '<button class="menu-item" data-action="close-modal"><span class="mi hot">' + I('cash', 20) + '</span><span class="t"><b>كاش</b><small>ادفع للكابتن في آخر المشوار</small></span><span class="radio on"></span></button>' +
-        '<button class="menu-item" data-action="soon"><span class="mi">' + I('card', 20) + '</span><span class="t"><b>بطاقة بنكية</b><small>فيزا وماستركارد وميزة</small></span><span class="soon">قريباً</span></button>' +
-        '<button class="menu-item" data-action="soon"><span class="mi">' + I('wallet', 20) + '</span><span class="t"><b>محفظة إلكترونية</b><small>فودافون كاش وإنستاباي</small></span><span class="soon">قريباً</span></button>' +
-      '</div>' +
-      '<button class="btn btn-dark" data-action="close-modal">تمام</button>');
+    openModal('<h3>طريقة الدفع</h3>' + payItems() + '<button class="btn btn-dark" data-action="close-modal">تمام</button>');
+  }
+
+  function menuModal() {
+    const tile = (pic, label, action, page) => '<button class="card tile" data-action="' + action + '"' + (page ? ' data-page="' + page + '"' : '') + '>' + P(pic, 44) + '<b>' + label + '</b></button>';
+    openModal('<h3>القائمة</h3><div class="tiles">' +
+      tile('receipt', 'مشاويري', 'open-history') + tile('bookmark', 'أماكني', 'page', 'places') + tile('credit_card', 'الدفع', 'page', 'payment') +
+      tile('gear', 'الإعدادات', 'page', 'settings') + tile('red_question_mark', 'المساعدة', 'page', 'help') + tile('information', 'عن مشوار', 'page', 'about') +
+      '</div><button class="btn btn-ghost" data-action="open-profile">' + myAvatar(30) + 'حسابي</button>');
   }
 
   function callModal() {
     const d = S.trip.offer.driver;
-    openModal('<div class="m-icon">' + I('phone', 26) + '</div><h3>اتصال بـ ' + esc(firstName(d.name)) + '</h3>' +
+    openModal(P('telephone_receiver', 64, 'm-pic') + '<h3>اتصال بـ ' + esc(firstName(d.name)) + '</h3>' +
       '<div class="phone-num">' + d.phone + '</div>' +
-      '<p>رقمك بيظهر للكابتن برقم وسيط عشان خصوصيتك.<br>ده رقم تجريبي، الاتصال الحقيقي هيشتغل لما نربط التطبيق.</p>' +
-      '<button class="btn btn-primary" data-action="close-modal">' + I('phone', 18) + 'تمام</button>');
+      '<p>رقمك بيظهر للكابتن برقم وسيط عشان خصوصيتك. ده رقم تجريبي، الاتصال الحقيقي هيشتغل لما نربط التطبيق.</p>' +
+      '<button class="btn btn-primary" data-action="close-modal">تمام</button>');
   }
 
   const REPLIES = ['تمام يا فندم، أنا جاي في الطريق', 'حاضر، دقايق وأكون عندك', 'تمام، شايف مكانك على الخريطة', 'العفو، في خدمتك'];
   function chatModal() {
-    const t = S.trip, d = t.offer.driver;
-    openModal('<div class="sheet-head">' + MW.avatar(d.name, d.seed, 44) + '<div class="grow"><h2 style="font-size:18px">' + esc(d.name) + '</h2><p>' + esc(d.car.model) + ' · ' + esc(d.car.color) + '</p></div><button class="round-btn" data-action="close-modal" aria-label="قفل">' + I('x', 18) + '</button></div>' +
+    const d = S.trip.offer.driver;
+    openModal('<div class="m-head">' + MW.avatar(d.name, d.seed, 46, d.face) + '<span class="t"><b>' + esc(d.name) + '</b><small>' + esc(d.car.model) + ' · ' + esc(d.car.color) + '</small></span><button class="round" data-action="close-modal" aria-label="قفل">' + I('x', 18) + '</button></div>' +
       '<div class="chat" id="chat"></div>' +
       '<div class="quick-replies">' + ['أنا مستنيك قدام البوابة', 'ممكن تيجي أسرع شوية؟', 'شكراً'].map((x) => '<button class="chip" data-action="quick-msg">' + x + '</button>').join('') + '</div>' +
       '<form class="chat-input" id="chatForm"><input id="chatText" autocomplete="off" placeholder="اكتب رسالة…" enterkeyhint="send"><button type="submit" aria-label="ابعت">' + I('send', 20) + '</button></form>');
@@ -744,31 +743,27 @@
   }
 
   function safetyModal() {
-    openModal('<div class="m-icon">' + I('shield', 26) + '</div><h3>أمانك أولاً</h3>' +
-      '<p>الكابتن متراجع بياناته، ورحلتك متابعة لحظة بلحظة.</p>' +
-      '<div class="menu">' +
-        '<button class="menu-item" data-action="share"><span class="mi hot">' + I('share', 20) + '</span><span class="t"><b>شارك تفاصيل الرحلة</b><small>ابعت مكانك لحد بتثق فيه</small></span>' + I('chevron', 18) + '</button>' +
-        '<button class="menu-item" data-action="soon"><span class="mi">' + I('users', 20) + '</span><span class="t"><b>جهات اتصال الطوارئ</b><small>ضيف ناس تتبلغ لو حصل حاجة</small></span>' + I('chevron', 18) + '</button>' +
-        '<button class="menu-item danger" data-action="soon"><span class="mi">' + I('phone', 20) + '</span><span class="t"><b>اتصل بالنجدة ١٢٢</b><small>في حالة الطوارئ بس</small></span>' + I('chevron', 18) + '</button>' +
-      '</div>' +
-      '<button class="btn btn-dark" data-action="close-modal">تمام</button>');
+    openModal(P('shield', 64, 'm-pic') + '<h3>أمانك أولاً</h3><p>الكابتن متراجع بياناته، ورحلتك متابعة لحظة بلحظة.</p>' +
+      '<div class="card menu">' +
+        '<button class="item" data-action="share">' + P('link', 32) + '<span class="t"><b>شارك تفاصيل الرحلة</b><small>ابعت مكانك لحد بتثق فيه</small></span>' + I('chevron', 18) + '</button>' +
+        '<button class="item" data-action="soon">' + P('busts_in_silhouette', 32) + '<span class="t"><b>جهات اتصال الطوارئ</b><small>ضيف ناس تتبلغ لو حصل حاجة</small></span>' + I('chevron', 18) + '</button>' +
+        '<button class="item danger" data-action="soon">' + P('police_car_light', 32) + '<span class="t"><b>النجدة ١٢٢</b><small>في حالة الطوارئ بس</small></span>' + I('chevron', 18) + '</button>' +
+      '</div><button class="btn btn-dark" data-action="close-modal">تمام</button>');
   }
 
   function shareTrip() {
     const t = S.trip;
     const txt = t ? 'أنا في مشوار مع ' + t.offer.driver.name + ' (' + t.offer.driver.car.model + ' ' + t.offer.driver.car.color + ') من ' + S.pickup.title + ' لـ ' + S.dest.title : '';
-    const done = () => toast('اتنسخت تفاصيل الرحلة، ابعتها لأي حد', 'share');
-    try {
-      navigator.clipboard.writeText(txt).then(done, () => toast('تفاصيل الرحلة جاهزة للمشاركة', 'share'));
-    } catch (e) { toast('تفاصيل الرحلة جاهزة للمشاركة', 'share'); }
+    const done = () => toast('اتنسخت تفاصيل الرحلة، ابعتها لأي حد', 'link');
+    try { navigator.clipboard.writeText(txt).then(done, () => toast('تفاصيل الرحلة جاهزة للمشاركة', 'link')); } catch (e) { toast('تفاصيل الرحلة جاهزة للمشاركة', 'link'); }
   }
 
   // ---------- تنبيهات ----------
-  function toast(msg, icon) {
+  function toast(msg, pic) {
     const root = $('#toastRoot');
     const el = document.createElement('div');
     el.className = 'toast';
-    el.innerHTML = I(icon || 'check', 18) + '<span>' + esc(msg) + '</span>';
+    el.innerHTML = P(pic || 'check_mark_button', 34) + '<span>' + esc(msg) + '</span>';
     root.appendChild(el);
     while (root.children.length > 2) root.firstElementChild.remove();
     setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 320); }, 2600);
@@ -777,10 +772,11 @@
   // ---------- الصفحات ----------
   const pageStack = [];
   function pageShell(title, body) {
-    return '<header class="page-head"><button class="round-btn" data-action="close-page" aria-label="رجوع">' + I('back') + '</button><h2>' + title + '</h2></header>' +
+    return '<header class="page-head"><button class="round" data-action="close-page" aria-label="رجوع">' + I('back', 22) + '</button><h2>' + title + '</h2></header>' +
       '<div class="page-body">' + body + '</div>';
   }
   function openPage(name, arg) {
+    closeModal();
     const el = document.createElement('section');
     el.className = 'page';
     el.dataset.page = name;
@@ -809,46 +805,48 @@
 
   function starsRow(n, size) {
     let s = '';
-    for (let k = 1; k <= 5; k++) s += '<span style="opacity:' + (k <= n ? 1 : 0.25) + '">' + MW.starIcon(size || 13, true) + '</span>';
+    for (let k = 1; k <= 5; k++) s += '<span style="opacity:' + (k <= n ? 1 : 0.22) + '">' + MW.starIcon(size || 13) + '</span>';
     return s;
   }
 
   function tripCard(t) {
-    return '<button class="trip-card" data-action="open-trip" data-id="' + t.id + '">' +
-      '<div class="top">' + MW.avatar(t.driver.name, t.driver.seed, 34) + '<small>' + dayLabel(t.at) + ' · ' + clock(t.at) + '</small>' +
-        (t.sample ? '<span class="sample-tag">مثال</span>' : '') + '<strong>' + egp(t.price + (t.tip || 0)) + '</strong></div>' +
-      '<div class="stops"><span class="dot"></span><span>' + esc(t.from.title) + '</span><span class="sq"></span><span>' + esc(t.to.title) + '</span></div>' +
-      '<div class="foot">' + I('route', 14) + num(t.km, 1) + ' كم · ' + mins(Math.round(t.min)) + (t.rating ? '<span class="stars">' + starsRow(t.rating) + '</span>' : '<span class="stars" style="color:var(--text-3)">من غير تقييم</span>') + '</div>' +
+    return '<button class="card trip-card" data-action="open-trip" data-id="' + t.id + '">' +
+      '<span class="top">' + MW.car(carColor(t.driver.car.hex), 76) +
+        '<span class="t"><b>' + esc(t.to.title) + '</b><small>' + dayLabel(t.at) + ' · ' + clock(t.at) + (t.sample ? '<span class="sample-tag">مثال</span>' : '') + '</small></span>' +
+        '<strong>' + egp(t.price + (t.tip || 0)) + '</strong></span>' +
+      '<span class="foot">من ' + esc(t.from.title) + ' · ' + num(t.km, 1) + ' كم' + (t.rating ? '<span class="stars">' + starsRow(t.rating) + '</span>' : '<span class="stars" style="color:var(--text-3)">من غير تقييم</span>') + '</span>' +
       '</button>';
   }
+
+  const item = (pic, title, sub, action, extra, attrs) => '<button class="item" data-action="' + action + '"' + (attrs || '') + '>' + P(pic, 32) +
+    '<span class="t"><b>' + title + '</b>' + (sub ? '<small>' + sub + '</small>' : '') + '</span>' + (extra || '') + I('chevron', 18) + '</button>';
 
   const PAGES = {
     profile() {
       const total = trips.reduce((s, t) => s + t.km, 0);
       return pageShell('حسابي',
-        '<div class="profile-hero">' + MW.avatar(profile.name, 2, 84) +
+        '<div class="card hero">' + myAvatar(88) +
           '<h3>' + esc(profile.name) + '</h3><p>' + esc(profile.phone) + '</p>' +
-          '<span class="tier">' + MW.starIcon(12, true) + 'راكب مميز · ٤٫٩٢</span>' +
-          '<div class="hero-stats"><div><b>' + num(trips.length) + '</b><small>مشوار</small></div><div><b>' + num(total) + '</b><small>كيلومتر</small></div><div><b>' + num(trips.filter((t) => t.rating === 5).length) + '</b><small>تقييم ٥ نجوم</small></div></div>' +
+          '<span class="badge">' + MW.starIcon(13) + 'راكب مميز · ٤٫٩٢</span>' +
+          '<div class="kpis"><div><b>' + num(trips.length) + '</b><small>مشوار</small></div><div><b>' + num(total) + '</b><small>كيلومتر</small></div><div><b>' + num(trips.filter((t) => t.rating === 5).length) + '</b><small>تقييم ٥ نجوم</small></div></div>' +
         '</div>' +
-        '<div class="menu">' +
-          '<button class="menu-item" data-action="open-history"><span class="mi hot">' + I('history', 20) + '</span><span class="t"><b>مشاويري السابقة</b><small>كل رحلاتك وإيصالاتها</small></span><span class="count">' + num(trips.length) + '</span>' + I('chevron', 18) + '</button>' +
-          '<button class="menu-item" data-action="page" data-page="places"><span class="mi">' + I('bookmark', 20) + '</span><span class="t"><b>الأماكن المحفوظة</b><small>البيت، الشغل، وأماكنك المفضلة</small></span>' + I('chevron', 18) + '</button>' +
-          '<button class="menu-item" data-action="page" data-page="payment"><span class="mi">' + I('wallet', 20) + '</span><span class="t"><b>طرق الدفع</b><small>كاش</small></span>' + I('chevron', 18) + '</button>' +
-          '<button class="menu-item" data-action="page" data-page="settings"><span class="mi">' + I('sliders', 20) + '</span><span class="t"><b>الإعدادات</b><small>الحساب، الوضع الليلي، الإشعارات</small></span>' + I('chevron', 18) + '</button>' +
+        '<div class="card menu">' +
+          item('receipt', 'مشاويري السابقة', 'كل رحلاتك وإيصالاتها', 'open-history', '<span class="count">' + num(trips.length) + '</span>') +
+          item('bookmark', 'الأماكن المحفوظة', 'البيت، الشغل، وأماكنك المفضلة', 'page', '', ' data-page="places"') +
+          item('credit_card', 'طرق الدفع', 'كاش', 'page', '', ' data-page="payment"') +
+          item('gear', 'الإعدادات', 'الحساب، الوضع الليلي، الإشعارات', 'page', '', ' data-page="settings"') +
         '</div>' +
-        '<div class="menu">' +
-          '<button class="menu-item" data-action="page" data-page="help"><span class="mi">' + I('help', 20) + '</span><span class="t"><b>المساعدة والدعم</b></span>' + I('chevron', 18) + '</button>' +
-          '<button class="menu-item" data-action="page" data-page="about"><span class="mi">' + I('info', 20) + '</span><span class="t"><b>عن مشوار</b></span>' + I('chevron', 18) + '</button>' +
+        '<div class="card menu">' +
+          item('red_question_mark', 'المساعدة والدعم', '', 'page', '', ' data-page="help"') +
+          item('information', 'عن مشوار', '', 'page', '', ' data-page="about"') +
         '</div>' +
-        '<div class="menu"><button class="menu-item danger" data-action="logout"><span class="mi">' + I('logout', 20) + '</span><span class="t"><b>تسجيل الخروج</b></span></button></div>');
+        '<div class="card menu"><button class="item danger" data-action="logout">' + P('door', 32) + '<span class="t"><b>تسجيل الخروج</b></span></button></div>');
     },
 
     history() {
       const list = trips.slice().sort((a, b) => b.at - a.at);
       if (!list.length) {
-        return pageShell('مشاويري السابقة', '<div class="about-hero"><div class="m-icon" style="width:64px;height:64px;border-radius:22px;display:grid;place-items:center;background:var(--orange-tint);color:var(--orange)">' + I('route', 28) + '</div>' +
-          '<h3 style="margin:6px 0 0;font-family:var(--font-display)">لسه معملتش مشاوير</h3><p>أول ما تخلص مشوار هيظهر هنا بكل تفاصيله.</p></div>' +
+        return pageShell('مشاويري السابقة', '<div class="center">' + P('receipt', 72) + '<h3>لسه معملتش مشاوير</h3><p>أول ما تخلص مشوار هيظهر هنا بكل تفاصيله.</p></div>' +
           '<button class="btn btn-primary" data-action="new-ride">اطلب أول مشوار</button>');
       }
       let html = '', last = '';
@@ -865,12 +863,12 @@
       if (!t) return pageShell('تفاصيل المشوار', '<div class="empty-note">المشوار ده مش موجود</div>');
       const d = t.driver;
       return pageShell('تفاصيل المشوار',
-        '<div class="rate-title" style="text-align:start;padding:0 4px"><p>' + dayLabel(t.at) + ' · ' + clock(t.at) + (t.sample ? ' · مثال' : '') + '</p><h2 style="margin:2px 0 0">' + esc(t.to.title) + '</h2></div>' +
-        '<div class="trip-sum"><div class="rail"><span class="dot"></span><span class="line"></span><span class="sq"></span></div>' +
+        '<div class="center" style="padding:4px 16px 0">' + MW.car(carColor(d.car.hex), 210) + '<h3>' + esc(t.to.title) + '</h3><p>' + dayLabel(t.at) + ' · ' + clock(t.at) + (t.sample ? ' · مثال' : '') + '</p></div>' +
+        '<div class="card route-mini"><div class="rail">' + F('pin', 15) + '<span class="line"></span>' + F('square', 13) + '</div>' +
           '<div class="stop"><small>من</small><b>' + esc(t.from.title) + '</b></div><div class="stop"><small>إلى</small><b>' + esc(t.to.title) + '</b></div></div>' +
-        '<div class="driver"><span class="av-wrap">' + MW.avatar(d.name, d.seed, 52) + '<span class="badge">' + MW.starIcon(11, true) + num(d.rating, 2) + '</span></span>' +
-          '<div class="who"><b>' + esc(d.name) + '</b><small>' + esc(d.car.model) + ' · ' + esc(d.car.color) + '</small></div>' + MW.plate(d.plate) + '</div>' +
-        '<div class="receipt">' +
+        '<div class="card driver-card"><div class="driver-top">' + MW.avatar(d.name, d.seed, 50, d.face) +
+          '<span class="t"><b>' + esc(d.name) + '</b><small>' + MW.starIcon(13) + num(d.rating, 2) + ' · ' + esc(d.car.model) + ' ' + esc(d.car.color) + '</small></span>' + MW.plate(d.plate) + '</div></div>' +
+        '<div class="card receipt">' +
           '<div class="r"><span>المسافة</span><b>' + num(t.km, 1) + ' كم</b></div>' +
           '<div class="r"><span>المدة</span><b>' + mins(Math.round(t.min)) + '</b></div>' +
           '<div class="r"><span>أجرة المشوار</span><b>' + egp(t.price) + '</b></div>' +
@@ -878,77 +876,67 @@
           '<div class="r"><span>طريقة الدفع</span><b>كاش</b></div>' +
           '<div class="r total"><span>الإجمالي</span><b>' + egp(t.price + (t.tip || 0)) + '</b></div>' +
         '</div>' +
-        (t.rating ? '<div class="rate-driver" style="align-items:flex-start"><span class="sub-title">تقييمك</span><span class="stars" style="color:var(--orange);gap:2px">' + starsRow(t.rating, 22) + '</span>' +
-          (t.tags && t.tags.length ? '<div class="chips" style="justify-content:flex-start">' + t.tags.map((x) => '<span class="chip on">' + esc(x) + '</span>').join('') + '</div>' : '') +
-          (t.comment ? '<p style="margin:0;color:var(--text-2);font-size:14px">"' + esc(t.comment) + '"</p>' : '') + '</div>' : '') +
-        '<button class="btn btn-primary" data-action="repeat-trip" data-id="' + t.id + '">' + I('route', 20) + 'اطلب نفس المشوار تاني</button>' +
-        '<button class="btn btn-ghost" data-action="soon">' + I('help', 20) + 'عندي مشكلة في المشوار ده</button>');
+        (t.rating ? '<div class="card rate-box" style="align-items:flex-start"><span class="sub-title" style="padding:0">تقييمك</span><span class="stars" style="color:var(--orange);gap:2px">' + starsRow(t.rating, 22) + '</span>' +
+          (t.tags && t.tags.length ? '<div class="chips" style="justify-content:flex-start">' + t.tags.map((x) => '<span class="chip">' + esc(x) + '</span>').join('') + '</div>' : '') +
+          (t.comment ? '<p style="color:var(--text-2);font-size:14px">"' + esc(t.comment) + '"</p>' : '') + '</div>' : '') +
+        '<button class="btn btn-primary" data-action="repeat-trip" data-id="' + t.id + '">اطلب نفس المشوار تاني</button>' +
+        '<button class="btn btn-ghost" data-action="soon">عندي مشكلة في المشوار ده</button>');
     },
 
     settings() {
       const sw = (key) => '<label class="switch"><input type="checkbox" data-setting="' + key + '"' + (settings[key] ? ' checked' : '') + '><span></span></label>';
+      const row = (pic, title, sub, key) => '<div class="item">' + P(pic, 32) + '<span class="t"><b>' + title + '</b>' + (sub ? '<small>' + sub + '</small>' : '') + '</span>' + sw(key) + '</div>';
       return pageShell('الإعدادات',
         '<div class="group-title">الحساب</div>' +
-        '<div class="menu">' +
-          '<label class="menu-item"><span class="mi">' + I('user', 20) + '</span><span class="t"><small>الاسم</small><input type="text" id="nameInput" value="' + esc(profile.name) + '" maxlength="40"></span></label>' +
-          '<div class="menu-item"><span class="mi">' + I('phone', 20) + '</span><span class="t"><small>رقم الموبايل</small><b style="direction:ltr;text-align:end">' + esc(profile.phone) + '</b></span></div>' +
+        '<div class="card menu">' +
+          '<label class="item">' + P('av_man_beard', 32) + '<span class="t"><small>الاسم</small><input type="text" id="nameInput" value="' + esc(profile.name) + '" maxlength="40"></span></label>' +
+          '<div class="item">' + P('mobile_phone', 32) + '<span class="t"><small>رقم الموبايل</small><b style="direction:ltr;text-align:end">' + esc(profile.phone) + '</b></span></div>' +
         '</div>' +
         '<div class="group-title">التفضيلات</div>' +
-        '<div class="menu">' +
-          '<div class="menu-item"><span class="mi">' + I('moon', 20) + '</span><span class="t"><b>الوضع الليلي</b><small>ألوان داكنة مريحة للعين</small></span>' + sw('dark') + '</div>' +
-          '<div class="menu-item"><span class="mi">' + I('bell', 20) + '</span><span class="t"><b>الإشعارات</b><small>العروض وتحديثات الرحلة</small></span>' + sw('notif') + '</div>' +
-          '<div class="menu-item"><span class="mi">' + I('volume', 20) + '</span><span class="t"><b>أصوات التطبيق</b></span>' + sw('sound') + '</div>' +
-        '</div>' +
+        '<div class="card menu">' + row('crescent_moon', 'الوضع الليلي', 'ألوان داكنة مريحة للعين', 'dark') + row('bell', 'الإشعارات', 'العروض وتحديثات الرحلة', 'notif') + row('speaker_high_volume', 'أصوات التطبيق', '', 'sound') + '</div>' +
         '<div class="group-title">الأمان</div>' +
-        '<div class="menu">' +
-          '<div class="menu-item"><span class="mi">' + I('share', 20) + '</span><span class="t"><b>مشاركة الرحلة تلقائياً</b><small>مع جهات اتصال الطوارئ</small></span>' + sw('share') + '</div>' +
-          '<button class="menu-item" data-action="soon"><span class="mi">' + I('users', 20) + '</span><span class="t"><b>جهات اتصال الطوارئ</b></span>' + I('chevron', 18) + '</button>' +
-        '</div>' +
+        '<div class="card menu">' + row('link', 'مشاركة الرحلة تلقائياً', 'مع جهات اتصال الطوارئ', 'share') +
+          item('busts_in_silhouette', 'جهات اتصال الطوارئ', '', 'soon') + '</div>' +
         '<div class="group-title">البيانات</div>' +
-        '<div class="menu"><button class="menu-item danger" data-action="clear-history"><span class="mi">' + I('trash', 20) + '</span><span class="t"><b>مسح سجل المشاوير</b></span></button></div>' +
-        '<p style="text-align:center;color:var(--text-3);font-size:12px;margin:8px 0 0">مشوار · الإصدار ١٫٠٫٠ (تجريبي)</p>');
+        '<div class="card menu"><button class="item danger" data-action="clear-history">' + P('wastebasket', 32) + '<span class="t"><b>مسح سجل المشاوير</b></span></button></div>' +
+        '<p style="text-align:center;color:var(--text-3);font-size:12px;margin-top:6px">مشوار · الإصدار ١٫١ (تجريبي)</p>');
     },
 
     places() {
       const saved = D.places.filter((p) => p.saved);
       return pageShell('الأماكن المحفوظة',
-        '<div class="menu">' + saved.map((p) => '<button class="menu-item" data-action="ride-to" data-id="' + p.id + '"><span class="mi hot">' + I(p.icon, 20) + '</span><span class="t"><b>' + esc(p.title) + '</b><small>' + esc(p.sub) + '</small></span>' + I('chevron', 18) + '</button>').join('') + '</div>' +
+        '<div class="card menu">' + saved.map((p) => item(p.img, esc(p.title), esc(p.sub), 'ride-to', '', ' data-id="' + p.id + '"')).join('') + '</div>' +
         '<div class="group-title">أماكن بتروحها كتير</div>' +
-        '<div class="menu">' + D.recentIds.map(placeById).map((p) => '<button class="menu-item" data-action="ride-to" data-id="' + p.id + '"><span class="mi">' + I(p.icon, 20) + '</span><span class="t"><b>' + esc(p.title) + '</b><small>' + esc(p.sub) + '</small></span>' + I('chevron', 18) + '</button>').join('') + '</div>' +
+        '<div class="card menu">' + D.recentIds.map(placeById).map((p) => item(p.img, esc(p.title), esc(p.sub), 'ride-to', '', ' data-id="' + p.id + '"')).join('') + '</div>' +
         '<button class="btn btn-ghost" data-action="soon">' + I('plus', 20) + 'ضيف مكان جديد</button>');
     },
 
     payment() {
-      return pageShell('طرق الدفع',
-        '<div class="menu">' +
-          '<div class="menu-item"><span class="mi hot">' + I('cash', 20) + '</span><span class="t"><b>كاش</b><small>ادفع للكابتن في آخر المشوار</small></span><span class="radio on"></span></div>' +
-          '<button class="menu-item" data-action="soon"><span class="mi">' + I('card', 20) + '</span><span class="t"><b>بطاقة بنكية</b><small>فيزا وماستركارد وميزة</small></span><span class="soon">قريباً</span></button>' +
-          '<button class="menu-item" data-action="soon"><span class="mi">' + I('wallet', 20) + '</span><span class="t"><b>محفظة إلكترونية</b><small>فودافون كاش وإنستاباي</small></span><span class="soon">قريباً</span></button>' +
-        '</div>' +
+      return pageShell('طرق الدفع', payItems() +
         '<div class="note"><b>الدفع كاش بس دلوقتي.</b> الدفع الإلكتروني هيتفعّل أول ما نربط التطبيق ببوابة الدفع.</div>');
     },
 
     help() {
       const faq = [
         ['السعر بيتحسب إزاي؟', 'السعر المقترح بيتحسب من المسافة والوقت المتوقع للمشوار. تقدر تزوّده أو تقلّله شوية قبل ما تطلب، والكباتن بيبعتوا عروضهم.'],
-        ['إزاي أختار الكابتن؟', 'بعد ما تطلب، العروض بتوصلك واحد ورا التاني وفيها اسم الكابتن وتقييمه والعربية والسعر ووقت الوصول. اختار اللي يناسبك ودوس قبول.'],
+        ['إزاي أختار الكابتن؟', 'بعد ما تطلب، العروض بتوصلك واحد ورا التاني وفيها اسم الكابتن وتقييمه والعربية والسعر ووقت الوصول. اختار اللي يناسبك ودوس "اختار".'],
         ['إيه هو رمز المشوار؟', 'رقم من ٤ أرقام بيظهرلك بعد ما تقبل العرض. قوله للكابتن وانت راكب عشان تتأكد إنك في العربية الصح.'],
         ['ينفع ألغي المشوار؟', 'أيوه، تقدر تلغي في أي وقت قبل ما المشوار يبدأ من غير أي رسوم.'],
         ['نسيت حاجة في العربية', 'افتح المشوار من "مشاويري السابقة" ودوس "عندي مشكلة في المشوار ده" وفريق الدعم هيتواصل مع الكابتن.'],
       ];
       return pageShell('المساعدة والدعم',
-        '<div class="faq">' + faq.map((f) => '<details><summary>' + f[0] + '</summary><p>' + f[1] + '</p></details>').join('') + '</div>' +
-        '<button class="btn btn-primary" data-action="soon">' + I('message', 20) + 'كلّم فريق الدعم</button>');
+        '<div class="center" style="padding:8px 16px 4px">' + P('red_question_mark', 64) + '<h3>محتاج مساعدة؟</h3></div>' +
+        '<div class="card faq">' + faq.map((f) => '<details><summary>' + f[0] + '</summary><p>' + f[1] + '</p></details>').join('') + '</div>' +
+        '<button class="btn btn-primary" data-action="soon">كلّم فريق الدعم</button>');
     },
 
     about() {
       return pageShell('عن مشوار',
-        '<div class="about-hero"><div class="logo" style="font-size:52px">مشوار<i></i></div><p>مشوارك… بأناقة. اطلب عربية، اختار الكابتن اللي يعجبك، ووصل بأمان.</p></div>' +
+        '<div class="center">' + MW.car('orange', 230) + '<div class="logo" style="font-size:44px">مشوار<i></i></div><p>مشوارك… بأناقة. اطلب عربية، اختار الكابتن اللي يعجبك، ووصل بأمان.</p></div>' +
         '<div class="note"><b>دي نسخة تجريبية.</b> الكباتن والعروض وحركة العربية على الخريطة كلها محاكاة عشان تجرب التطبيق من الأول للآخر. الخطوة الجاية: ربط التطبيق بسيرفر حقيقي وخرائط حقيقية.</div>' +
-        '<div class="menu">' +
-          '<div class="menu-item"><span class="t"><b>الإصدار</b></span><span style="color:var(--text-3)">١٫٠٫٠</span></div>' +
-          '<button class="menu-item" data-action="soon"><span class="t"><b>الشروط والأحكام</b></span>' + I('chevron', 18) + '</button>' +
-          '<button class="menu-item" data-action="soon"><span class="t"><b>سياسة الخصوصية</b></span>' + I('chevron', 18) + '</button>' +
+        '<div class="card menu">' +
+          '<div class="item"><span class="t"><b>الإصدار</b></span><span style="color:var(--text-2)">١٫١</span></div>' +
+          '<div class="item"><span class="t"><b>الصور الثلاثية الأبعاد</b><small>Microsoft Fluent Emoji (رخصة MIT)</small></span></div>' +
         '</div>');
     },
   };
@@ -958,18 +946,12 @@
     'open-plan': () => openPlan('dest'),
     'go-home': () => goHome(),
     'quick-dest': (el) => { S.pickup = D.me; S.dest = placeById(el.dataset.id); openPreview(); },
-    'choose-place': (el) => {
-      const p = placeById(el.dataset.id);
-      if (p) choosePlace(p);
-    },
+    'choose-place': (el) => { const p = placeById(el.dataset.id); if (p) choosePlace(p); },
     'swap': () => {
-      if (!S.pickup || !S.dest) {
-        if (S.dest && !S.pickup) { S.pickup = S.dest; S.dest = null; }
-        else if (S.pickup && !S.dest) { S.dest = S.pickup; S.pickup = null; }
-      } else { const t = S.pickup; S.pickup = S.dest; S.dest = t; }
+      const t = S.pickup; S.pickup = S.dest; S.dest = t;
       $('#pickupInput').value = S.pickup ? S.pickup.title : '';
       $('#destInput').value = S.dest ? S.dest.title : '';
-      if (S.pickup && S.dest) openPreview(); else renderPlaces('');
+      if (S.pickup && S.dest) openPreview(); else { setField(S.pickup ? 'dest' : 'pickup'); renderPlaces(''); }
     },
     'pick-on-map': () => startPick(),
     'cancel-pick': () => { $('#centerPin').hidden = true; openPlan(S.field); },
@@ -980,12 +962,12 @@
     'payment-modal': () => paymentModal(),
     'request': () => requestRide(),
     'cancel-request': () => cancelRequest(),
-    'accept': (el) => acceptOffer(el.dataset.id),
-    'decline': (el) => { if (S.req) S.req.decline(el.dataset.id); removeOffer(el.dataset.id); },
+    'select-offer': (el) => { S.sel = el.dataset.id; updateOffersUI(); },
+    'accept-sel': () => { if (S.sel) acceptOffer(S.sel); },
     'cancel-trip': () => confirmBox({
-      icon: 'x', danger: true, title: 'تلغي المشوار؟', text: 'الكابتن في الطريق ليك. لو لغيت دلوقتي مش هيتحسب عليك أي رسوم.',
+      pic: 'cross_mark', danger: true, title: 'تلغي المشوار؟', text: 'الكابتن في الطريق ليك. لو لغيت دلوقتي مش هيتحسب عليك أي رسوم.',
       ok: 'أيوه، الغي المشوار', cancel: 'لأ، كمّل',
-      onOk: () => { toast('اتلغى المشوار', 'x'); goHome(); },
+      onOk: () => { toast('اتلغى المشوار', 'cross_mark'); goHome(); },
     }),
     'call': () => callModal(),
     'chat': () => chatModal(),
@@ -993,6 +975,7 @@
     'safety': () => safetyModal(),
     'quick-msg': (el) => sendChat(el.textContent),
     'skip': () => { if (S.trip) S.trip.api.skip(); },
+    'menu': () => menuModal(),
     'recenter': () => {
       S.userMoved = false;
       if (S.view) S.view(700);
@@ -1017,31 +1000,30 @@
     'open-trip': (el) => openPage('trip', el.dataset.id),
     'page': (el) => openPage(el.dataset.page),
     'close-page': () => closePage(),
-    'soon': () => toast('الميزة دي جاية قريب', 'sparkle'),
-    'noop': () => {},
+    'soon': () => toast('الميزة دي جاية قريب', 'sparkles'),
     'new-ride': () => { closeAllPages(); if (S.screen === 'home') openPlan('dest'); },
     'ride-to': (el) => {
-      if (S.trip || S.req) return toast('عندك مشوار شغال دلوقتي', 'info');
+      if (S.trip || S.req) return toast('عندك مشوار شغال دلوقتي', 'information');
       closeAllPages();
       S.pickup = D.me; S.dest = placeById(el.dataset.id);
       setTimeout(openPreview, 200);
     },
     'repeat-trip': (el) => {
-      if (S.trip || S.req) return toast('عندك مشوار شغال دلوقتي', 'info');
+      if (S.trip || S.req) return toast('عندك مشوار شغال دلوقتي', 'information');
       const t = trips.find((x) => x.id === el.dataset.id);
       if (!t) return;
       closeAllPages();
-      S.pickup = t.from.id === 'me' ? D.me : t.from;
-      S.dest = t.to;
+      S.pickup = t.from.id === 'me' ? D.me : (placeById(t.from.id) || t.from);
+      S.dest = placeById(t.to.id) || t.to;
       setTimeout(openPreview, 200);
     },
     'logout': () => confirmBox({
-      icon: 'logout', title: 'تسجيل الخروج', text: 'دي نسخة تجريبية من غير حسابات لسه. تسجيل الدخول برقم الموبايل هيتفعّل لما نربط السيرفر.',
+      pic: 'door', title: 'تسجيل الخروج', text: 'دي نسخة تجريبية من غير حسابات لسه. تسجيل الدخول برقم الموبايل هيتفعّل لما نربط السيرفر.',
       ok: 'تمام', cancel: 'رجوع', onOk: () => {},
     }),
     'clear-history': () => confirmBox({
-      icon: 'trash', danger: true, title: 'تمسح سجل المشاوير؟', text: 'كل المشاوير السابقة هتتمسح من على الجهاز ده.',
-      ok: 'امسح السجل', onOk: () => { trips = []; saveTrips(); toast('اتمسح سجل المشاوير', 'trash'); pageStack.forEach(refreshPage); },
+      pic: 'wastebasket', danger: true, title: 'تمسح سجل المشاوير؟', text: 'كل المشاوير السابقة هتتمسح من على الجهاز ده.',
+      ok: 'امسح السجل', onOk: () => { trips = []; saveTrips(); toast('اتمسح سجل المشاوير', 'wastebasket'); pageStack.forEach(refreshPage); },
     }),
   };
 
@@ -1081,9 +1063,8 @@
       if (!v) { t.value = profile.name; return; }
       profile.name = v;
       store.set('profile', profile);
-      $('#meBtn').innerHTML = MW.avatar(profile.name, 2, 44);
-      if (S.screen === 'home') setSheet(homeHTML());
-      toast('اتحفظ الاسم', 'check');
+      if (S.screen === 'home') setSheet(homeHTML(), 'deep');
+      toast('اتحفظ الاسم', 'check_mark_button');
     }
   });
 
@@ -1098,7 +1079,7 @@
 
   app.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && (e.target.id === 'destInput' || e.target.id === 'pickupInput')) {
-      const first = $('#placeList .place');
+      const first = $('#placeList .row');
       if (first) first.click();
     }
     if (e.key === 'Escape') {
@@ -1110,7 +1091,7 @@
   function applyTheme() {
     document.body.classList.toggle('dark', !!settings.dark);
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', settings.dark ? '#0E0E10' : '#0F0F11');
+    if (meta) meta.setAttribute('content', settings.dark ? '#1A1B1E' : '#EDEFF0');
   }
 
   // ---------- البداية ----------
@@ -1119,16 +1100,18 @@
     document.documentElement.dir = 'rtl';
     applyTheme();
     M.init(document.getElementById('map'), D.places, D.districts);
-    $('#meBtn').innerHTML = MW.avatar(profile.name, 2, 44);
-    $('[data-action="open-history"]', topbar).innerHTML = I('history', 21);
+    $('#meBtn').innerHTML = myAvatar(50);
+    $('#menuBtn').innerHTML = F('grid', 20);
+    $('#locIcon').innerHTML = F('nav', 13) + 'موقعك الحالي';
     $('#fab').innerHTML = I('locate', 21);
-    $('#skipBtn').innerHTML = I('forward', 16) + 'تسريع (للتجربة)';
+    $('#skipBtn').innerHTML = I('forward', 15) + 'تسريع (للتجربة)';
+    $('#splashCar').innerHTML = MW.car('white', 230);
     $('#locText').textContent = D.me.sub;
     const me = M.nodeXY(D.me.i, D.me.j);
     M.flyTo(me.x, me.y - 200, 0.3, 0);
     goHome();
-    setTimeout(() => $('#splash').classList.add('gone'), 1300);
-    setTimeout(() => $('#splash').remove(), 2100);
+    setTimeout(() => $('#splash').classList.add('gone'), 1500);
+    setTimeout(() => $('#splash').remove(), 2300);
   }
 
   boot();

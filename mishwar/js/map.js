@@ -47,7 +47,11 @@
     return !(i1 > 13 && Math.min(j1, j2) < 2);
   }
 
-  const nodeXY = (i, j) => ({ x: VX[i], y: HY[j] });
+  // المدينة كلها مايلة شوية زي الخرايط الحقيقية
+  const ANG = -14 * Math.PI / 180, CX = W / 2, CY = H / 2;
+  const COS = Math.cos(ANG), SIN = Math.sin(ANG);
+  const rot = (x, y) => ({ x: CX + (x - CX) * COS - (y - CY) * SIN, y: CY + (x - CX) * SIN + (y - CY) * COS });
+  const nodeXY = (i, j) => rot(VX[i], HY[j]);
 
   // ---------- الحالة ----------
   let host, svg, overlay, routeLayer;
@@ -69,8 +73,8 @@
   }
 
   function buildCity(places, districts) {
-    const g = el('g', { class: 'city' }, svg);
-    el('rect', { x: -2000, y: -2000, width: W + 4000, height: H + 4000, class: 'm-land' }, g);
+    el('rect', { x: -3000, y: -3000, width: W + 6000, height: H + 6000, class: 'm-land' }, svg);
+    const g = el('g', { class: 'city', transform: 'rotate(' + (ANG * 180 / Math.PI) + ' ' + CX + ' ' + CY + ')' }, svg);
 
     // النيل
     let left = '', right = '', prom = '';
@@ -94,7 +98,6 @@
     const xs = [null].concat(VX, [W + 300]);
     const ys = [-300].concat(HY, [H + 300]);
     const blocks = el('g', {}, g);
-    const bld = el('g', {}, g);
     for (let a = 0; a < xs.length - 1; a++) {
       for (let b = 0; b < ys.length - 1; b++) {
         const i = a - 1, j = b - 1;
@@ -119,21 +122,6 @@
           el('rect', { x: bx, y: by, width: bw, height: bh, rx: 14, class: 'm-park' }, blocks);
           el('ellipse', { cx: bx + bw / 2, cy: by + bh / 2, rx: bw * 0.36, ry: bh * 0.3, class: 'm-water' }, blocks);
           continue;
-        }
-        el('rect', { x: bx, y: by, width: bw, height: bh, rx: 12, class: 'm-block' }, blocks);
-        // مباني جوه البلوك
-        const cols = bw > 150 ? 2 : 1, rows = bh > 140 ? 2 : 1;
-        const gap = 12, pad = 12;
-        const cw = (bw - pad * 2 - gap * (cols - 1)) / cols, ch = (bh - pad * 2 - gap * (rows - 1)) / rows;
-        for (let c = 0; c < cols; c++) {
-          for (let r = 0; r < rows; r++) {
-            if (rnd() < 0.18) continue;
-            const shrinkW = rnd() * 0.25, shrinkH = rnd() * 0.25;
-            el('rect', {
-              x: (bx + pad + c * (cw + gap) + cw * shrinkW / 2).toFixed(1), y: (by + pad + r * (ch + gap) + ch * shrinkH / 2).toFixed(1),
-              width: (cw * (1 - shrinkW)).toFixed(1), height: (ch * (1 - shrinkH)).toFixed(1), rx: 6, class: 'm-bldg',
-            }, bld);
-          }
         }
       }
     }
@@ -165,12 +153,17 @@
     const diag = 'M' + VX[8] + ' ' + (H + 300) + 'L' + (W + 300) + ' ' + (HY[8] - 80);
     main += diag;
 
+    // خطوط ملونة خفيفة على شوارع مختارة (زي حارات العجل والمواصلات)
+    let tint = '';
+    [3, 11].forEach((i) => { tint += 'M' + VX[i] + ' ' + HY[2] + 'V' + (H + 300); });
+    [6, 14].forEach((j) => { tint += 'M' + cornicheX(HY[j]).toFixed(1) + ' ' + HY[j] + 'H' + (W + 300); });
+    tint += diag;
     const roads = el('g', { fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, g);
     el('path', { d: minor, class: 'm-road-edge', 'stroke-width': ROAD_MINOR + 4 }, roads);
     el('path', { d: main, class: 'm-road-edge', 'stroke-width': ROAD_MAIN + 4 }, roads);
     el('path', { d: minor, class: 'm-road', 'stroke-width': ROAD_MINOR }, roads);
     el('path', { d: main, class: 'm-road-main', 'stroke-width': ROAD_MAIN }, roads);
-    el('path', { d: main, class: 'm-road-line', 'stroke-width': 1.6, 'stroke-dasharray': '18 22' }, roads);
+    el('path', { d: tint, class: 'm-road-tint', 'stroke-width': 9 }, roads);
 
     // أسماء الشوارع
     const labels = el('g', { class: 'm-labels' }, g);
@@ -386,7 +379,7 @@
           i: Math.max(0, Math.min(COLS - 1, ambient.zone.i - 4 + ((Math.random() * 9) | 0))),
           j: Math.max(2, Math.min(ROWS - 1, ambient.zone.j - 4 + ((Math.random() * 9) | 0))),
         };
-        const c = { id: 'amb' + k, from: from, prev: null, to: null, t: Math.random() * 100, speed: 70 + Math.random() * 60, angle: null };
+        const c = { id: 'amb' + k, color: ['white', 'black', 'white', 'silver'][k % 4], from: from, prev: null, to: null, t: Math.random() * 100, speed: 70 + Math.random() * 60, angle: null };
         c.to = pickNext(from, null);
         if (!c.to) continue;
         ambient.cars.push(c);
@@ -412,7 +405,7 @@
       const dx = (q.x - p.x) / L, dy = (q.y - p.y) / L;
       const target = Math.atan2(dx, -dy) * 180 / Math.PI;
       c.angle = c.angle == null ? target : turnToward(c.angle, target, dt * 360);
-      setMarker(c.id, { x: p.x + (q.x - p.x) * t - dy * 7, y: p.y + (q.y - p.y) * t + dx * 7, angle: c.angle, cls: 'mk-car', html: MW.carTop() });
+      setMarker(c.id, { x: p.x + (q.x - p.x) * t - dy * 7, y: p.y + (q.y - p.y) * t + dx * 7, angle: c.angle, cls: 'mk-car', html: MW.carTop(c.color) });
     }
   }
 
@@ -440,7 +433,7 @@
     const vb = viewBox();
     const vbs = vb.x.toFixed(2) + ' ' + vb.y.toFixed(2) + ' ' + vb.w.toFixed(2) + ' ' + vb.h.toFixed(2);
     if (vbs !== lastVB) { svg.setAttribute('viewBox', vbs); lastVB = vbs; }
-    const k = Math.min(1.25, Math.max(0.72, Math.pow(cam.s / 0.42, 0.35)));
+    const k = Math.min(1.2, Math.max(0.7, Math.pow(cam.s / 0.42, 0.35)));
     for (const m of markers.values()) {
       const px = (m.x - vb.x) * cam.s, py = (m.y - vb.y) * cam.s;
       let tf = 'translate3d(' + px.toFixed(1) + 'px,' + py.toFixed(1) + 'px,0) translate(-50%,' + (m.anchor === 'bottom' ? '-100%' : '-50%') + ')';
@@ -516,7 +509,8 @@
     for (let i = 0; i < COLS; i++) {
       for (let j = 0; j < ROWS; j++) {
         if (i > 13 && j < 2) continue;
-        const d = Math.hypot(VX[i] - x, HY[j] - y);
+        const q = nodeXY(i, j);
+        const d = Math.hypot(q.x - x, q.y - y);
         if (d < bd) { bd = d; bi = i; bj = j; }
       }
     }
