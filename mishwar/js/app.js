@@ -36,7 +36,7 @@
     return d.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' });
   }
   const norm = (s) => String(s).replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').toLowerCase();
-  const carColor = (hex) => ({ '#F4F4F6': 'white', '#1B1C1F': 'black', '#C9CCD2': 'silver', '#7D8088': 'grey', '#26324A': 'navy', '#A3261E': 'red', '#CDBFA6': 'beige' }[String(hex).toUpperCase()] || 'white');
+  const carColor = (hex) => ({ '#F4F4F6': 'white', '#1B1C1F': 'black', '#C9CCD2': 'silver', '#7D8088': 'grey' }[String(hex).toUpperCase()] || 'white');
 
   // ---------- التخزين ----------
   const store = {
@@ -1069,7 +1069,7 @@
 
     about() {
       return pageShell('عن مشوار',
-        '<div class="center">' + MW.car('yellow', 230) + '<div class="logo" style="font-size:44px">مشوار<i></i></div><p>مشوارك… بأناقة. اطلب عربية، اختار الكابتن اللي يعجبك، ووصل بأمان.</p></div>' +
+        '<div class="center">' + MW.car('black', 230) + '<div class="logo" style="font-size:44px">مشوار<i></i></div><p>مشوارك… بأناقة. اطلب عربية، اختار الكابتن اللي يعجبك، ووصل بأمان.</p></div>' +
         '<div class="note"><b>دي نسخة تجريبية.</b> الكباتن والعروض وحركة العربية على الخريطة كلها محاكاة عشان تجرب التطبيق من الأول للآخر. الخطوة الجاية: ربط التطبيق بسيرفر حقيقي وخرائط حقيقية.</div>' +
         '<div class="card menu">' +
           '<div class="item"><span class="t"><b>الإصدار</b></span><span style="color:var(--text-2)">١٫٢</span></div>' +
@@ -1231,7 +1231,7 @@
   function applyTheme() {
     document.body.classList.toggle('dark', !!settings.dark);
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', settings.dark ? '#161617' : '#EEEEEC');
+    if (meta) meta.setAttribute('content', settings.dark ? '#151515' : '#EDEDED');
   }
 
   // ---------- البداية ----------

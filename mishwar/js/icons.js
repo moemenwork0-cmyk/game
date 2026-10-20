@@ -39,7 +39,7 @@
   };
 
   // صور العربيات (متولّدة بـ three.js من tools/car-render.html)
-  const CAR_HEX = { '#F4F4F6': 'white', '#1B1C1F': 'black', '#C9CCD2': 'silver', '#7D8088': 'grey', '#26324A': 'navy', '#A3261E': 'red', '#CDBFA6': 'beige' };
+  const CAR_HEX = { '#F4F4F6': 'white', '#1B1C1F': 'black', '#C9CCD2': 'silver', '#7D8088': 'grey' };
   const carKey = (c) => (MW.IMG['car_' + c] ? c : CAR_HEX[String(c).toUpperCase()] || 'white');
   MW.car = function (color, width, cls) {
     return '<img class="car-img' + (cls ? ' ' + cls : '') + '" src="' + MW.IMG['car_' + carKey(color)] + '" style="width:' + (width || 120) + 'px" alt="" draggable="false">';
@@ -49,7 +49,7 @@
   };
 
   // صورة شخصية بالحروف الأولى (لحد ما الصور الحقيقية تيجي من السيرفر)
-  const AV = [['#121214', '#3A3A3E'], ['#FFC21A', '#FFD34F', '#121214'], ['#2F3B36', '#4F625A'], ['#4A3B33', '#7A6457'], ['#2E3440', '#4C566A'], ['#3E2F45', '#6A5577']];
+  const AV = [['#111111', '#3A3A3A'], ['#E8E8E8', '#CFCFCF', '#111111'], ['#4A4A4A', '#6E6E6E'], ['#262626', '#4F4F4F'], ['#7A7A7A', '#9A9A9A'], ['#1C1C1C', '#444444']];
   MW.avatar = function (name, seed, size, opts) {
     const words = String(name || '').trim().split(/\s+/).filter(Boolean);
     const letters = (words[0] ? words[0][0] : '') + (words.length > 1 ? words[1][0] : '');
