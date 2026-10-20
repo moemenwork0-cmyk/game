@@ -1013,7 +1013,7 @@
           '<div class="r"><span>طريقة الدفع</span><b>كاش</b></div>' +
           '<div class="r total"><span>الإجمالي</span><b>' + egp(t.price + (t.tip || 0)) + '</b></div>' +
         '</div>' +
-        (t.rating ? '<div class="card rate-box" style="align-items:flex-start"><span class="sub-title" style="padding:0">تقييمك</span><span class="stars" style="color:var(--orange);gap:2px">' + starsRow(t.rating, 22) + '</span>' +
+        (t.rating ? '<div class="card rate-box" style="align-items:flex-start"><span class="sub-title" style="padding:0">تقييمك</span><span class="stars" style="color:var(--star);gap:2px">' + starsRow(t.rating, 22) + '</span>' +
           (t.tags && t.tags.length ? '<div class="chips" style="justify-content:flex-start">' + t.tags.map((x) => '<span class="chip">' + esc(x) + '</span>').join('') + '</div>' : '') +
           (t.comment ? '<p style="color:var(--text-2);font-size:14px">"' + esc(t.comment) + '"</p>' : '') + '</div>' : '') +
         '<button class="btn btn-primary" data-action="repeat-trip" data-id="' + t.id + '">اطلب نفس المشوار تاني</button>' +
@@ -1069,7 +1069,7 @@
 
     about() {
       return pageShell('عن مشوار',
-        '<div class="center">' + MW.car('orange', 230) + '<div class="logo" style="font-size:44px">مشوار<i></i></div><p>مشوارك… بأناقة. اطلب عربية، اختار الكابتن اللي يعجبك، ووصل بأمان.</p></div>' +
+        '<div class="center">' + MW.car('blue', 230) + '<div class="logo" style="font-size:44px">مشوار<i></i></div><p>مشوارك… بأناقة. اطلب عربية، اختار الكابتن اللي يعجبك، ووصل بأمان.</p></div>' +
         '<div class="note"><b>دي نسخة تجريبية.</b> الكباتن والعروض وحركة العربية على الخريطة كلها محاكاة عشان تجرب التطبيق من الأول للآخر. الخطوة الجاية: ربط التطبيق بسيرفر حقيقي وخرائط حقيقية.</div>' +
         '<div class="card menu">' +
           '<div class="item"><span class="t"><b>الإصدار</b></span><span style="color:var(--text-2)">١٫٢</span></div>' +
@@ -1231,7 +1231,7 @@
   function applyTheme() {
     document.body.classList.toggle('dark', !!settings.dark);
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', settings.dark ? '#1A1B1E' : '#EDEFF0');
+    if (meta) meta.setAttribute('content', settings.dark ? '#111723' : '#EEF1F5');
   }
 
   // ---------- البداية ----------

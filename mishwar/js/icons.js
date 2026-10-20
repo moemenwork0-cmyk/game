@@ -49,7 +49,7 @@
   };
 
   // صورة شخصية بالحروف الأولى (لحد ما الصور الحقيقية تيجي من السيرفر)
-  const AV = [['#1C1D21', '#3A3B42'], ['#FF6A13', '#FF9A5C'], ['#2E3A4F', '#56657F'], ['#4E3D31', '#86705C'], ['#24413A', '#44695F'], ['#3B2F4A', '#685A7C']];
+  const AV = [['#0B1220', '#2A3447'], ['#2E5BFF', '#5B7CFF'], ['#334A6E', '#5A729A'], ['#4E3D31', '#86705C'], ['#24413A', '#44695F'], ['#3B2F4A', '#685A7C']];
   MW.avatar = function (name, seed, size, opts) {
     const words = String(name || '').trim().split(/\s+/).filter(Boolean);
     const letters = (words[0] ? words[0][0] : '') + (words.length > 1 ? words[1][0] : '');
