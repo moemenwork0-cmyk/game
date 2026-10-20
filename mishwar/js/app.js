@@ -296,7 +296,7 @@
       '<button class="hero-cta" id="homeCta" data-action="open-plan">' +
         '<span class="car-ic">' + IC('car-profile', 30, 'fill') + '</span>' +
         '<span class="t"><b>اطلب عربية</b><small><i></i>كابتن على بُعد ٣ دقايق منك</small></span>' +
-        '<span class="go">' + I('forward', 20) + '</span></button>' +
+        '<span class="go">' + I('forward', 24) + '</span></button>' +
       '<div class="card promo"><span class="t"><b>عربية مشوار</b><small>عربيات نضيفة ومكيفة، وكباتن متراجعين ومتقيمين.</small>' +
         '<span class="feats"><span>' + IC('shield-check', 14, 'fill') + 'رحلة آمنة</span><span>' + IC('star', 14, 'fill') + 'كباتن ٤٫٨+</span><span>' + IC('money', 14, 'fill') + 'كاش</span></span></span>' +
         MW.car('white', 170) + '</div>' +
@@ -511,7 +511,7 @@
       '<div class="head"><div class="t"><h2 id="offTitle">بندوّر لك على كابتن</h2><p id="offSub">طلبك وصل للكباتن اللي حواليك</p></div><span class="live"><i></i>مباشر</span></div>' +
       '<div class="card trip-line">' + F('pin', 15) + '<b>' + esc(S.pickup.title) + '</b>' + I('forward', 14) + '<b>' + esc(S.dest.title) + '</b><span class="price">' + egp(S.price) + '</span></div>' +
       '<div class="offers" id="offers">' +
-        '<div class="searching-hero" id="searchHero"><div class="orb"><span></span><span></span><span></span>' + T('steering-wheel', 'solid') + '</div><b>بنبعت طلبك لأقرب الكباتن</b><small>أول ما حد يقبل، عرضه هيظهر هنا وتقدر تقبله أو ترفضه</small></div>' +
+        '<div class="searching-hero" id="searchHero"><div class="orb"><span></span><span></span><span></span>' + MW.tile('steering-wheel', { tone: 'solid', size: 48, icon: 44 }) + '</div><b>بنبعت طلبك لأقرب الكباتن</b><small>أول ما حد يقبل، عرضه هيظهر هنا وتقدر تقبله أو ترفضه</small></div>' +
         skel + '</div>';
   }
 
@@ -633,10 +633,10 @@
         '<div class="driver-car">' + MW.car(carColor(d.car.hex), 118) + '<span class="t"><b>' + esc(d.car.model) + '</b><small>لون ' + esc(d.car.color) + ' · دوّر على اللوحة</small></span></div>' +
       '</div>' +
       '<div class="actions">' +
-        '<button class="act" data-action="call">' + T('phone', 'hot') + 'اتصال</button>' +
-        '<button class="act" data-action="chat">' + T('chat-circle-dots', 'hot') + 'رسالة</button>' +
-        '<button class="act" data-action="share">' + T('share-network', 'hot') + 'مشاركة</button>' +
-        '<button class="act" data-action="safety">' + T('shield-check', 'good') + 'الأمان</button>' +
+        '<button class="act" data-action="call">' + MW.tile('phone', { tone: 'hot', size: 30, icon: 28 }) + 'اتصال</button>' +
+        '<button class="act" data-action="chat">' + MW.tile('chat-circle-dots', { tone: 'hot', size: 30, icon: 28 }) + 'رسالة</button>' +
+        '<button class="act" data-action="share">' + MW.tile('share-network', { tone: 'hot', size: 30, icon: 28 }) + 'مشاركة</button>' +
+        '<button class="act" data-action="safety">' + MW.tile('shield-check', { tone: 'good', size: 30, icon: 28 }) + 'الأمان</button>' +
       '</div>' +
       '<div class="card pin-row" id="tPin">' + T('lock-key', 'dark') + '<span>رمز المشوار، قوله للكابتن لما تركب</span><b>' + S.trip.api.pin + '</b></div>' +
       '<div class="card route-mini">' + routeRail +
@@ -747,7 +747,7 @@
     S.rate = { stars: 0, tags: [], tip: 0, trip: t };
     showTopbar(false);
     openSheet('' +
-      '<div class="done-top"><div class="done-mark">' + MW.tile('check', { tone: 'solid', icon: 30, weight: 'bold' }) + '</div><h2>وصلت بالسلامة</h2><p>' + esc(S.dest.title) + ' · <b>' + egp(sum.price) + '</b> كاش</p></div>' +
+      '<div class="done-top"><div class="done-mark">' + MW.tile('check-circle', { tone: 'hot', size: 64, icon: 64 }) + '</div><h2>وصلت بالسلامة</h2><p>' + esc(S.dest.title) + ' · <b>' + egp(sum.price) + '</b> كاش</p></div>' +
       '<div class="card sum3"><div><b>' + num(sum.km, 1) + ' كم</b><small>المسافة</small></div><div><b>' + mins(sum.min) + '</b><small>المدة</small></div><div><b>' + egp(sum.price) + '</b><small>الأجرة</small></div></div>' +
       '<div class="card rate-box">' + MW.avatar(d.name, d.seed, 62, { verified: true }) + '<b>إيه رأيك في مشوارك مع ' + esc(firstName(d.name)) + '؟</b>' +
         '<div class="stars" role="radiogroup" aria-label="التقييم">' + [1, 2, 3, 4, 5].map((n) => '<button class="star-btn" data-action="star" data-n="' + n + '" aria-label="' + num(n) + ' من ٥">' + MW.starIcon(38) + '</button>').join('') + '</div>' +
@@ -814,7 +814,7 @@
   let confirmFn = null;
   function confirmBox(o) {
     confirmFn = o.onOk;
-    openModal(MW.tile(o.icon || 'info', { tone: o.danger ? 'bad' : 'hot', icon: 30 }) + '<h3>' + o.title + '</h3><p>' + o.text + '</p>' +
+    openModal(MW.tile(o.icon || 'info', { tone: o.danger ? 'bad' : 'hot', size: 56, icon: 48 }) + '<h3>' + o.title + '</h3><p>' + o.text + '</p>' +
       '<button class="btn ' + (o.danger ? 'btn-dark' : 'btn-primary') + '" data-action="confirm-ok">' + o.ok + '</button>' +
       '<button class="btn btn-text" data-action="close-modal">' + (o.cancel || 'رجوع') + '</button>');
   }
@@ -828,7 +828,7 @@
   function paymentModal() { openModal('<h3>طريقة الدفع</h3>' + payItems() + '<button class="btn btn-dark" data-action="close-modal">تمام</button>'); }
 
   function menuModal() {
-    const tile = (ic, label, action, page) => '<button class="card tile" data-action="' + action + '"' + (page ? ' data-page="' + page + '"' : '') + '>' + T(ic, 'hot', 50) + '<b>' + label + '</b></button>';
+    const tile = (ic, label, action, page) => '<button class="card tile" data-action="' + action + '"' + (page ? ' data-page="' + page + '"' : '') + '>' + MW.tile(ic, { tone: 'hot', size: 40, icon: 36 }) + '<b>' + label + '</b></button>';
     openModal('<h3>القائمة</h3><div class="tiles">' +
       tile('receipt', 'مشاويري', 'open-history') + tile('bookmark-simple', 'أماكني', 'page', 'places') + tile('wallet', 'الدفع', 'page', 'payment') +
       tile('gear-six', 'الإعدادات', 'page', 'settings') + tile('question', 'المساعدة', 'page', 'help') + tile('info', 'عن مشوار', 'page', 'about') +
@@ -837,7 +837,7 @@
 
   function callModal() {
     const d = S.trip.offer.driver;
-    openModal(MW.tile('phone', { tone: 'hot', icon: 30 }) + '<h3>اتصال بـ ' + esc(firstName(d.name)) + '</h3>' +
+    openModal(MW.tile('phone', { tone: 'hot', size: 56, icon: 48 }) + '<h3>اتصال بـ ' + esc(firstName(d.name)) + '</h3>' +
       '<div class="phone-num">' + d.phone + '</div>' +
       '<p>رقمك بيظهر للكابتن برقم وسيط عشان خصوصيتك. ده رقم تجريبي، الاتصال الحقيقي هيشتغل لما نربط التطبيق.</p>' +
       '<button class="btn btn-primary" data-action="close-modal">تمام</button>');
@@ -880,9 +880,9 @@
   }
 
   function safetyModal() {
-    openModal(MW.tile('shield-check', { tone: 'good', icon: 30 }) + '<h3>أمانك أولاً</h3><p>الكابتن متراجع بياناته، ورحلتك متابعة لحظة بلحظة.</p>' +
+    openModal(MW.tile('shield-check', { tone: 'good', size: 56, icon: 48 }) + '<h3>أمانك أولاً</h3><p>الكابتن متراجع بياناته، ورحلتك متابعة لحظة بلحظة.</p>' +
       '<div class="card menu">' +
-        '<button class="item" data-action="share">' + T('share-network', 'hot') + '<span class="t"><b>شارك تفاصيل الرحلة</b><small>ابعت مكانك لحد بتثق فيه</small></span>' + I('chevron', 16) + '</button>' +
+        '<button class="item" data-action="share">' + MW.tile('share-network', { tone: 'hot', size: 30, icon: 28 }) + '<span class="t"><b>شارك تفاصيل الرحلة</b><small>ابعت مكانك لحد بتثق فيه</small></span>' + I('chevron', 16) + '</button>' +
         '<button class="item" data-action="soon">' + T('users-three') + '<span class="t"><b>جهات اتصال الطوارئ</b><small>ضيف ناس تتبلغ لو حصل حاجة</small></span>' + I('chevron', 16) + '</button>' +
         '<button class="item danger" data-action="soon">' + T('siren', 'bad') + '<span class="t"><b>النجدة ١٢٢</b><small>في حالة الطوارئ بس</small></span>' + I('chevron', 16) + '</button>' +
       '</div><button class="btn btn-dark" data-action="close-modal">تمام</button>');
@@ -900,7 +900,7 @@
     const root = $('#toastRoot');
     const el = document.createElement('div');
     el.className = 'toast';
-    el.innerHTML = MW.tile(icon || 'check-circle', { icon: 20, weight: 'fill' }) + '<span>' + esc(msg) + '</span>';
+    el.innerHTML = MW.tile(icon || 'check-circle', { size: 26, icon: 24, weight: 'fill' }) + '<span>' + esc(msg) + '</span>';
     root.appendChild(el);
     while (root.children.length > 2) root.firstElementChild.remove();
     setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 320); }, 2600);
@@ -983,7 +983,7 @@
     history() {
       const list = trips.slice().sort((a, b) => b.at - a.at);
       if (!list.length) {
-        return pageShell('مشاويري السابقة', '<div class="center">' + T('receipt', 'hot', 64) + '<h3>لسه معملتش مشاوير</h3><p>أول ما تخلص مشوار هيظهر هنا بكل تفاصيله.</p></div>' +
+        return pageShell('مشاويري السابقة', '<div class="center">' + MW.tile('receipt', { tone: 'hot', size: 64, icon: 56 }) + '<h3>لسه معملتش مشاوير</h3><p>أول ما تخلص مشوار هيظهر هنا بكل تفاصيله.</p></div>' +
           '<button class="btn btn-primary" data-action="new-ride">اطلب أول مشوار</button>');
       }
       let html = '', last = '';
@@ -1062,14 +1062,14 @@
         ['نسيت حاجة في العربية', 'افتح المشوار من "مشاويري السابقة" ودوس "عندي مشكلة في المشوار ده" وفريق الدعم هيتواصل مع الكابتن.'],
       ];
       return pageShell('المساعدة والدعم',
-        '<div class="center" style="padding:8px 16px 4px">' + T('question', 'hot', 64) + '<h3>محتاج مساعدة؟</h3></div>' +
+        '<div class="center" style="padding:8px 16px 4px">' + MW.tile('question', { tone: 'hot', size: 64, icon: 56 }) + '<h3>محتاج مساعدة؟</h3></div>' +
         '<div class="card faq">' + faq.map((f) => '<details><summary>' + f[0] + '</summary><p>' + f[1] + '</p></details>').join('') + '</div>' +
         '<button class="btn btn-primary" data-action="soon">كلّم فريق الدعم</button>');
     },
 
     about() {
       return pageShell('عن مشوار',
-        '<div class="center">' + MW.car('blue', 230) + '<div class="logo" style="font-size:44px">مشوار<i></i></div><p>مشوارك… بأناقة. اطلب عربية، اختار الكابتن اللي يعجبك، ووصل بأمان.</p></div>' +
+        '<div class="center">' + MW.car('yellow', 230) + '<div class="logo" style="font-size:44px">مشوار<i></i></div><p>مشوارك… بأناقة. اطلب عربية، اختار الكابتن اللي يعجبك، ووصل بأمان.</p></div>' +
         '<div class="note"><b>دي نسخة تجريبية.</b> الكباتن والعروض وحركة العربية على الخريطة كلها محاكاة عشان تجرب التطبيق من الأول للآخر. الخطوة الجاية: ربط التطبيق بسيرفر حقيقي وخرائط حقيقية.</div>' +
         '<div class="card menu">' +
           '<div class="item"><span class="t"><b>الإصدار</b></span><span style="color:var(--text-2)">١٫٢</span></div>' +
@@ -1231,7 +1231,7 @@
   function applyTheme() {
     document.body.classList.toggle('dark', !!settings.dark);
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', settings.dark ? '#111723' : '#EEF1F5');
+    if (meta) meta.setAttribute('content', settings.dark ? '#161617' : '#EEEEEC');
   }
 
   // ---------- البداية ----------

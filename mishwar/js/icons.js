@@ -35,7 +35,7 @@
   MW.tile = function (name, opts) {
     opts = opts || {};
     return '<span class="tile-ic' + (opts.tone ? ' ' + opts.tone : '') + '"' + (opts.size ? ' style="--t:' + opts.size + 'px"' : '') + '>' +
-      MW.ic(name, opts.icon || 22, opts.weight || 'duotone') + '</span>';
+      MW.ic(name, opts.icon || 24, opts.weight || 'duotone') + '</span>';
   };
 
   // صور العربيات (متولّدة بـ three.js من tools/car-render.html)
@@ -49,13 +49,13 @@
   };
 
   // صورة شخصية بالحروف الأولى (لحد ما الصور الحقيقية تيجي من السيرفر)
-  const AV = [['#0B1220', '#2A3447'], ['#2E5BFF', '#5B7CFF'], ['#334A6E', '#5A729A'], ['#4E3D31', '#86705C'], ['#24413A', '#44695F'], ['#3B2F4A', '#685A7C']];
+  const AV = [['#121214', '#3A3A3E'], ['#FFC21A', '#FFD34F', '#121214'], ['#2F3B36', '#4F625A'], ['#4A3B33', '#7A6457'], ['#2E3440', '#4C566A'], ['#3E2F45', '#6A5577']];
   MW.avatar = function (name, seed, size, opts) {
     const words = String(name || '').trim().split(/\s+/).filter(Boolean);
     const letters = (words[0] ? words[0][0] : '') + (words.length > 1 ? words[1][0] : '');
     const c = AV[Math.abs(seed || 0) % AV.length];
     const s = size || 48;
-    return '<span class="avatar" style="--sz:' + s + 'px;--a:' + c[0] + ';--b:' + c[1] + '" aria-label="' + String(name || '').replace(/"/g, '') + '">' +
+    return '<span class="avatar" style="--sz:' + s + 'px;--a:' + c[0] + ';--b:' + c[1] + (c[2] ? ';color:' + c[2] : '') + '" aria-label="' + String(name || '').replace(/"/g, '') + '">' +
       '<span>' + letters.split('').join(' ') + '</span>' +
       (opts && opts.verified ? '<i class="verified">' + MW.ic('seal-check', Math.round(s * 0.36), 'fill') + '</i>' : '') + '</span>';
   };

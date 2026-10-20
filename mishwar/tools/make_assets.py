@@ -14,7 +14,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "assets" / "img"
 
-COLORS = "white black silver grey navy red beige blue".split()
+COLORS = "white black silver grey navy red beige yellow".split()
 
 
 def save(im, name, size, quality=84):
