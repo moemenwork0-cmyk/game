@@ -35,10 +35,12 @@
     <button class="round fab" id="fab" data-action="recenter" aria-label="رجوع لموقعي"></button>
     <button class="fab fab-skip hide" id="skipBtn" data-action="skip" aria-label="تسريع المرحلة (للتجربة)"></button>
 
+    <div class="scrim" id="scrim" data-action="collapse-sheet"></div>
     <section class="sheet" id="sheet" aria-live="polite">
-      <div class="sheet-handle"></div>
-      <div class="sheet-body" id="sheetBody"></div>
+      <div class="sheet-grab" id="sheetGrab"><div class="sheet-handle"></div></div>
+      <div class="sheet-scroll" id="sheetScroll"><div class="sheet-body" id="sheetBody"></div></div>
     </section>
+    <div class="sheet-foot" id="sheetFoot"></div>
 
     <div class="pages" id="pages"></div>
     <div class="modal-root" id="modalRoot"></div>
@@ -55,6 +57,7 @@
 </div>
 
 <script src="js/assets.js"></script>
+<script src="js/icon-set.js"></script>
 <script src="js/data.js"></script>
 <script src="js/icons.js"></script>
 <script src="js/map.js"></script>

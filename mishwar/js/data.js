@@ -6,22 +6,22 @@
   window.MW = window.MW || {};
 
   MW.data = {
-    me: { id: 'me', title: 'موقعك الحالي', sub: 'شارع النصر، مدينة نصر', i: 8, j: 9, img: 'round_pushpin', icon: 'nav' },
+    me: { id: 'me', title: 'موقعك الحالي', sub: 'شارع النصر، مدينة نصر', i: 8, j: 9, ic: 'map-pin' },
 
     places: [
-      { id: 'home', title: 'البيت', sub: '١٤ شارع مكرم عبيد، مدينة نصر', i: 9, j: 11, img: 'house', icon: 'home', saved: true },
-      { id: 'work', title: 'الشغل', sub: 'برج الأطباء، مصر الجديدة', i: 10, j: 4, img: 'office_building', icon: 'briefcase', saved: true },
-      { id: 'airport', title: 'مطار القاهرة الدولي', sub: 'صالة ٣، مصر الجديدة', i: 15, j: 2, img: 'airplane', icon: 'plane' },
-      { id: 'citystars', title: 'سيتي ستارز', sub: 'شارع عمر بن الخطاب، مدينة نصر', i: 11, j: 7, img: 'shopping_bags', icon: 'bag' },
-      { id: 'cfc', title: 'كايرو فستيفال سيتي', sub: 'التجمع الخامس، القاهرة الجديدة', i: 15, j: 12, img: 'shopping_bags', icon: 'bag' },
-      { id: 'tahrir', title: 'ميدان التحرير', sub: 'وسط البلد، القاهرة', i: 1, j: 8, img: 'classical_building', icon: 'pin' },
-      { id: 'tower', title: 'برج القاهرة', sub: 'كورنيش النيل، القاهرة', i: 0, j: 5, img: 'round_pushpin', icon: 'building' },
-      { id: 'auc', title: 'الجامعة الأمريكية', sub: 'التجمع الخامس، القاهرة الجديدة', i: 16, j: 15, img: 'graduation_cap', icon: 'building' },
-      { id: 'azhar', title: 'حديقة الأزهر', sub: 'صلاح سالم، الدرب الأحمر', i: 4, j: 9, img: 'mosque', icon: 'tree' },
-      { id: 'maadi', title: 'كورنيش المعادي', sub: 'المعادي، القاهرة', i: 2, j: 16, img: 'national_park', icon: 'pin' },
-      { id: 'salam', title: 'مستشفى السلام الدولي', sub: 'كورنيش المعادي، القاهرة', i: 1, j: 14, img: 'hospital', icon: 'building' },
-      { id: 'korba', title: 'الكوربة', sub: 'شارع بغداد، مصر الجديدة', i: 8, j: 3, img: 'round_pushpin', icon: 'pin' },
-      { id: 'stadium', title: 'استاد القاهرة الدولي', sub: 'صلاح سالم، مدينة نصر', i: 7, j: 6, img: 'stadium', icon: 'building' },
+      { id: 'home', title: 'البيت', sub: '١٤ شارع مكرم عبيد، مدينة نصر', i: 9, j: 11, ic: 'house', saved: true },
+      { id: 'work', title: 'الشغل', sub: 'برج الأطباء، مصر الجديدة', i: 10, j: 4, ic: 'briefcase', saved: true },
+      { id: 'airport', title: 'مطار القاهرة الدولي', sub: 'صالة ٣، مصر الجديدة', i: 15, j: 2, ic: 'airplane-tilt' },
+      { id: 'citystars', title: 'سيتي ستارز', sub: 'شارع عمر بن الخطاب، مدينة نصر', i: 11, j: 7, ic: 'shopping-bag' },
+      { id: 'cfc', title: 'كايرو فستيفال سيتي', sub: 'التجمع الخامس، القاهرة الجديدة', i: 15, j: 12, ic: 'shopping-bag' },
+      { id: 'tahrir', title: 'ميدان التحرير', sub: 'وسط البلد، القاهرة', i: 1, j: 8, ic: 'bank' },
+      { id: 'tower', title: 'برج القاهرة', sub: 'كورنيش النيل، القاهرة', i: 0, j: 5, ic: 'map-pin' },
+      { id: 'auc', title: 'الجامعة الأمريكية', sub: 'التجمع الخامس، القاهرة الجديدة', i: 16, j: 15, ic: 'graduation-cap' },
+      { id: 'azhar', title: 'حديقة الأزهر', sub: 'صلاح سالم، الدرب الأحمر', i: 4, j: 9, ic: 'mosque' },
+      { id: 'maadi', title: 'كورنيش المعادي', sub: 'المعادي، القاهرة', i: 2, j: 16, ic: 'tree' },
+      { id: 'salam', title: 'مستشفى السلام الدولي', sub: 'كورنيش المعادي، القاهرة', i: 1, j: 14, ic: 'first-aid' },
+      { id: 'korba', title: 'الكوربة', sub: 'شارع بغداد، مصر الجديدة', i: 8, j: 3, ic: 'map-pin' },
+      { id: 'stadium', title: 'استاد القاهرة الدولي', sub: 'صلاح سالم، مدينة نصر', i: 7, j: 6, ic: 'soccer-ball' },
     ],
 
     recentIds: ['citystars', 'airport', 'tahrir'],
