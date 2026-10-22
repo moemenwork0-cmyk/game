@@ -105,10 +105,10 @@ def grade(card):
 		"colorbalance=rs=-0.04:gs=-0.01:bs=0.05:rh=0.05:gh=0.01:bh=-0.04,vignette=PI/5,")
 
 
-def video(clips, out, res, tmp):
+def video(clips, out, res, tmp, edl, vertical=False):
 	w, h = map(int, res.split("x"))
 	parts = []
-	for i, (start, shot, off, ln, opt) in enumerate(EDL):
+	for i, (start, shot, off, ln, opt) in enumerate(edl):
 		seg = os.path.join(tmp, f"s{i:03d}.mp4")
 		src = os.path.join(clips, shot + ".mp4")
 		flash = f",fade=t=in:st=0:d={opt['flash']}:color=white" if opt.get("flash") else ""
@@ -118,7 +118,13 @@ def video(clips, out, res, tmp):
 			sh(f"ffmpeg -y -loglevel error -f lavfi -i color=c={col}:s={w}x{h}:r=24:d={ln:.3f} "
 				f"-vf \"format=yuv420p{label}{flash}\" -c:v libx264 -crf 12 -preset fast {seg}")
 		else:
-			sh(f"ffmpeg -y -loglevel error -ss {off:.3f} -i {src} -t {ln:.3f} -vf \"scale={w}:{h}:flags=lanczos,"
+			if vertical and opt.get("card"):
+				fit = f"scale={w}:-2:flags=lanczos,pad={w}:{h}:0:(oh-ih)/2:black"
+			elif vertical:
+				fit = f"crop=ih*9/16:ih,scale={w}:{h}:flags=lanczos"
+			else:
+				fit = f"scale={w}:{h}:flags=lanczos"
+			sh(f"ffmpeg -y -loglevel error -ss {off:.3f} -i {src} -t {ln:.3f} -vf \"{fit},"
 				f"tpad=stop_mode=clone:stop_duration={ln:.3f},{grade(opt.get('card'))}fps=24,format=yuv420p{flash}\" "
 				f"-t {ln:.3f} -an -c:v libx264 -crf 12 -preset fast {seg}")
 		parts.append(seg)
@@ -129,7 +135,7 @@ def video(clips, out, res, tmp):
 	return body
 
 
-def sound(score_path, tmp):
+def sound(score_path, tmp, edl=EDL):
 	n = int((LEN + 1) * S.SR)
 	fx = np.zeros((n, 2), np.float32)
 
@@ -140,7 +146,7 @@ def sound(score_path, tmp):
 		j = min(n, i + len(clip))
 		fx[i:j] += clip[: j - i] * g
 
-	for start, shot, off, ln, _ in EDL:
+	for start, shot, off, ln, _ in edl:
 		for kind, at, g in SOUND.get(shot, []):
 			if at is None:
 				d = ln + 0.4
@@ -153,7 +159,7 @@ def sound(score_path, tmp):
 					"ring": X.ring, "fall": X.creak_fall, "ignite": X.ignite}[kind]()
 				add(t + (0.25 if kind == "thunder" else 0.0), clip, g)
 	# a whoosh into every hard cut of the montage and the big transitions
-	for start, shot, off, ln, opt in EDL:
+	for start, shot, off, ln, opt in edl:
 		if 36.0 <= start <= 55.2 or opt.get("flash"):
 			add(start - 0.45, S.whoosh(0.6, int(start * 10)), 0.35)
 	score, sr = sf.read(score_path, dtype="float32", always_2d=True)
@@ -187,13 +193,31 @@ def limit(x, ceiling):
 def main():
 	clips, score, out = sys.argv[1:4]
 	res = sys.argv[sys.argv.index("--res") + 1] if "--res" in sys.argv else "1920x1080"
+	vertical = "--vertical" in sys.argv
+	short = "--short" in sys.argv
+	if vertical and "--res" not in sys.argv:
+		res = "1080x1920"
 	w, h = map(int, res.split("x"))
-	bar = int((h - w / 2.39) / 2)
 	tmp = tempfile.mkdtemp(prefix="cut_")
-	body = video(clips, out, res, tmp)
-	wav = sound(score, tmp)
-	sh(f"ffmpeg -y -loglevel error -i {body} -i {wav} -vf \"noise=alls=5:allf=t,drawbox=x=0:y=0:w=iw:h={bar}:color=black:t=fill,"
-		f"drawbox=x=0:y=ih-{bar}:w=iw:h={bar}:color=black:t=fill,format=yuv420p\" -c:v libx264 -crf 16 -preset slow "
+	edl = EDL
+	t0, t1 = 0.0, LEN
+	if short:  # the drop to the title: ~33 s for socials and the store page
+		t0, t1 = 35.6, 69.0
+		edl = [(st - t0, sh_, off, ln, opt) for st, sh_, off, ln, opt in EDL if t0 <= st < t1]
+		edl.insert(0, (0.0, "black", 0, 0.4, {}))
+	body = video(clips, out, res, tmp, edl, vertical)
+	wav = sound(score, tmp, EDL)
+	if short:
+		d, sr = sf.read(wav, dtype="float32")
+		d = d[int(t0 * sr): int(t1 * sr)]
+		d[: int(0.4 * sr)] *= np.linspace(0, 1, int(0.4 * sr))[:, None]
+		d[-int(1.0 * sr):] *= np.linspace(1, 0, int(1.0 * sr))[:, None]
+		sf.write(wav, d, sr, subtype="PCM_24")
+	bars = ""
+	if not vertical:
+		bar = int((h - w / 2.39) / 2)
+		bars = f"drawbox=x=0:y=0:w=iw:h={bar}:color=black:t=fill,drawbox=x=0:y=ih-{bar}:w=iw:h={bar}:color=black:t=fill,"
+	sh(f"ffmpeg -y -loglevel error -i {body} -i {wav} -vf \"noise=alls=5:allf=t,{bars}format=yuv420p\" -c:v libx264 -crf 16 -preset slow "
 		f"-c:a aac -b:a 320k -shortest -movflags +faststart {out}")
 	print("wrote", out)
 
