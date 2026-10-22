@@ -7,7 +7,7 @@ var decal: Decal
 
 func build(tr: Trailer) -> void:
 	duration = 5.0
-	tr.sky.hour = 18.2
+	tr.sky.hour = 17.3
 	var at := Vector3(30, 0, 440)
 	await tr.add_island(at, 140.0, 0.9)
 	at.y = tr.ground(at.x, at.z)
@@ -59,9 +59,9 @@ func _print_tex(normal: bool) -> ImageTexture:
 			if normal:
 				var dx := h[y * n + mini(x + 1, n - 1)] - h[y * n + maxi(x - 1, 0)]
 				var dy := h[mini(y + 1, n - 1) * n + x] - h[maxi(y - 1, 0) * n + x]
-				var nv := Vector3(dx * 3.0, dy * 3.0, 1.0).normalized()
+				var nv := Vector3(dx * 7.0, dy * 7.0, 1.0).normalized()
 				img.set_pixel(x, y, Color(nv.x * 0.5 + 0.5, nv.y * 0.5 + 0.5, nv.z * 0.5 + 0.5, minf(d * 3.0, 1.0)))
 			else:
-				img.set_pixel(x, y, Color(0.32, 0.25, 0.18, d * 0.7))
+				img.set_pixel(x, y, Color(0.16, 0.11, 0.07, minf(d * 1.2, 0.92)))
 	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)

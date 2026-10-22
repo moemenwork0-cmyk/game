@@ -12,9 +12,9 @@ void vertex() {
 }
 void fragment() {
 	float belly = smoothstep(0.02, -0.08, lp.y);
-	vec3 top = vec3(0.24, 0.27, 0.28);
+	vec3 top = vec3(0.12, 0.14, 0.15);
 	float bars = smoothstep(0.6, 0.9, sin(lp.z * 9.0 + sin(lp.x * 3.0) * 0.6)) * step(0.02, lp.y) * 0.35;
-	ALBEDO = mix(top * (1.0 - bars), vec3(0.78, 0.78, 0.74), belly);
+	ALBEDO = mix(top * (1.0 - bars), vec3(0.5, 0.5, 0.47), belly);
 	ROUGHNESS = 0.55;
 	SPECULAR = 0.4;
 }

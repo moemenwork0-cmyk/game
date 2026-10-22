@@ -10,7 +10,7 @@ func build(tr: Trailer) -> void:
 	duration = 3.2
 	sky = tr.sky
 	sky.hour = 7.0
-	var at := Vector3(-60, 0, 432)
+	var at := Vector3(-60, 0, 446)
 	await tr.add_island(at, 140.0, 1.0)
 	at.y = tr.ground(at.x, at.z)
 	boat = BoatFrame.new()
@@ -18,10 +18,10 @@ func build(tr: Trailer) -> void:
 	boat.global_position = at
 	boat.rotation.y = 1.2
 	boat.progress = 0.0
-	var c := at + Vector3(9, 4.5, -6)
+	var c := at + Vector3(8, 4.0, 9)
 	keys = [
 		[0.0, c, at + Vector3(0, 1.2, 0), 40.0, 0.0],
-		[3.2, c + Vector3(-1.0, 0.5, -2.0), at + Vector3(0, 1.4, 0), 38.0, 0.0],
+		[3.2, c + Vector3(-1.5, 0.4, -1.0), at + Vector3(0, 1.4, 0), 38.0, 0.0],
 	]
 
 

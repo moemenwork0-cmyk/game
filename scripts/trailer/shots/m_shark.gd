@@ -44,10 +44,10 @@ func build(tr: Trailer) -> void:
 		r.scale = Vector3.ONE * randf_range(0.8, 2.2)
 		r.rotation.y = randf() * TAU
 	shark = Shark.new()
-	shark.length = 3.8
+	shark.length = 4.6
 	shark.speed = 2.6
 	tr.add_child(shark)
-	shark.position = Vector3(-7, 3.2, -6)
+	shark.position = Vector3(-6, 2.2, -3.5)
 	shark.rotation.y = -PI * 0.42   # gliding across, left to right
 	spear = Node3D.new()
 	var shaft := MeshInstance3D.new()
