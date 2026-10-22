@@ -27,7 +27,7 @@ func build(tr: Trailer) -> void:
 	tr.add_child(layla)
 	# laid on her back, head up the beach, then handed to physics to settle into the sand
 	layla.global_position = spot + Vector3(0, 0.25, 0)
-	layla.rotation = Vector3(-PI * 0.5, 0.35, 0)
+	layla.rotation = Vector3(PI * 0.5, 0.35, 0)
 	layla.play("idle", 0.0)
 	await get_tree().physics_frame
 	await get_tree().physics_frame

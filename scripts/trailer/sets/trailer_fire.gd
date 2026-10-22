@@ -82,6 +82,6 @@ func _process(delta: float) -> void:
 	var fl := 0.75 + 0.15 * sin(_t * 17.0) + 0.1 * sin(_t * 31.0 + 1.3) + 0.08 * sin(_t * 7.0)
 	light.light_energy = 2.2 * size * fl * blaze
 	flames.amount_ratio = clampf(blaze, 0.05, 1.0)
-	embers.amount_ratio = clampf(blaze, 0.0, 1.0)
+	embers.amount_ratio = clampf(blaze, 0.0, 1.0) * (1.0 if size > 0.6 else 0.25)
 	smoke.amount_ratio = clampf(blaze, 0.1, 1.0)
 	flames.scale = Vector3.ONE * lerpf(0.3, 1.0, blaze)

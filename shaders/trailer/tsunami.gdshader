@@ -46,6 +46,7 @@ void fragment() {
 	ALBEDO = mix(col, vec3(0.7, 0.76, 0.78), foam * 0.85);
 	ROUGHNESS = mix(0.05, 0.85, foam);
 	SPECULAR = 0.6;
+	EMISSION = vec3(0.03, 0.16, 0.14) * thin + vec3(0.12) * foam * crest;
 	BACKLIGHT = mix(vec3(0.05, 0.45, 0.35) * thin, vec3(0.6), foam * 0.5);
 	vec3 nm = vec3(fbm(p * 2.0) - 0.5, fbm(p * 2.0 + 13.1) - 0.5, 0.0);
 	NORMAL_MAP = normalize(vec3(nm.xy * 1.2, 1.0)) * 0.5 + 0.5;

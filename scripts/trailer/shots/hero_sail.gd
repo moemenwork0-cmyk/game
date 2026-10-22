@@ -7,7 +7,7 @@ var ship: Murjan
 
 func build(tr: Trailer) -> void:
 	duration = 4.8
-	tr.sky.hour = 6.45
+	tr.sky.hour = 7.2
 	tr.sky.storm = 0.0
 	tr.sky.cloudiness = 0.35
 	var sea := tr.add_ocean(1.25)
@@ -18,6 +18,6 @@ func build(tr: Trailer) -> void:
 	ship.speed = 6.5
 	shake = 0.04
 	keys = [
-		[0.0, Vector3(-12, 3.0, 96), Vector3(0, 9, 40), 38.0, 0.0],
-		[4.8, Vector3(-18, 6.5, 104), Vector3(0, 12, 66), 44.0, 0.0],
+		[0.0, Vector3(-16, 8.0, 100), Vector3(0, 9, 40), 38.0, 0.0],
+		[4.8, Vector3(-22, 11.0, 108), Vector3(0, 12, 66), 44.0, 0.0],
 	]
