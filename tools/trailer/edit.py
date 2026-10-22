@@ -40,22 +40,22 @@ EDL = [
 	(26.6, "white", 0, 0.12, {}),
 	(26.72, "black", 0, 0.6, {}),
 	(27.32, "card_survived", 0.0, 2.2, {"card": True}),
-	(29.52, "wake_eye", 1.0, 3.5, {}),
+	(29.52, "wake_eye", 1.0, 3.5, {"rot": True}),
 	(33.02, "wake_wide", 2.2, 2.98, {}),
 	(36.0, "card_notdone", 0.3, 2.4, {"card": True, "flash": 0.08}),
 	(38.4, "m_fire", 0.0, 2.4, {}),
 	(40.8, "m_tree", 0.9, 1.8, {"flash": 0.06}),
 	(42.6, "m_build", 0.2, 2.4, {}),
 	(45.0, "m_shark", 0.3, 1.8, {"flash": 0.06}),
-	(46.8, "m_torch", 0.4, 1.8, {}),
-	(48.6, "storm_bow", 1.5, 1.2, {}),
+	(46.8, "m_torch", 0.0, 1.5, {}),
+	(48.3, "storm_bow", 1.2, 1.5, {}),
 	(49.8, "m_fire", 1.4, 0.6, {}),
 	(50.4, "city_street", 2.2, 0.6, {"flash": 0.06}),
 	(51.0, "m_tree", 1.6, 0.6, {}),
 	(51.6, "storm_sailor", 1.2, 0.6, {}),
 	(52.2, "m_shark", 1.6, 0.6, {}),
 	(52.8, "crash", 1.9, 0.6, {}),
-	(53.4, "m_torch", 1.6, 0.6, {}),
+	(53.4, "m_torch", 0.7, 0.6, {}),
 	(54.0, "storm_wide", 3.0, 0.6, {}),
 	(54.6, "black", 0, 0.6, {}),
 	(55.2, "hero_sail", 0.4, 4.2, {"flash": 0.15}),
@@ -124,6 +124,8 @@ def video(clips, out, res, tmp, edl, vertical=False):
 				fit = f"crop=ih*9/16:ih,scale={w}:{h}:flags=lanczos"
 			else:
 				fit = f"scale={w}:{h}:flags=lanczos"
+			if opt.get("rot"):
+				fit = "hflip,vflip," + fit
 			sh(f"ffmpeg -y -loglevel error -ss {off:.3f} -i {src} -t {ln:.3f} -vf \"{fit},"
 				f"tpad=stop_mode=clone:stop_duration={ln:.3f},{grade(opt.get('card'))}fps=24,format=yuv420p{flash}\" "
 				f"-t {ln:.3f} -an -c:v libx264 -crf 12 -preset fast {seg}")
