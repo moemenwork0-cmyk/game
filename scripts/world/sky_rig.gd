@@ -34,6 +34,8 @@ var _ambient := 1.0
 var _flash := 0.0
 ## cinematic: the camera is under the sea (murky green-blue fog, shafts of light)
 var underwater := false
+var underwater_tint := Color(0.05, 0.24, 0.27)
+var underwater_density := 0.03
 var _next_flash := 6.0
 
 
@@ -261,8 +263,8 @@ func _update_sun() -> void:
 	RenderingServer.global_shader_parameter_set(&"wind_strength", lerpf(0.5, 1.6, storm))
 	if underwater:
 		env.fog_mode = Environment.FOG_MODE_EXPONENTIAL
-		env.fog_density = 0.03
-		env.fog_light_color = Color(0.05, 0.24, 0.27)
+		env.fog_density = underwater_density
+		env.fog_light_color = underwater_tint
 		env.fog_light_energy = 0.9
 		env.fog_sky_affect = 1.0
 		env.fog_aerial_perspective = 0.0
