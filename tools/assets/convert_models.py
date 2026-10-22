@@ -29,6 +29,8 @@ BUDGET = {
 	"pachira_aquatica_01": (25000, 1024), "fern_02": (6232, 1024), "grass_medium_01": (8000, 1024),
 	"grass_medium_02": (5000, 1024), "grass_bermuda_01": (2000, 512), "nettle_plant": (8000, 512),
 	"weed_plant_02": (8000, 512),
+	# Murjan, the survivors' ship (trailer and prologue)
+	"dutch_ship_large_01": (120000, 2048),
 }
 
 

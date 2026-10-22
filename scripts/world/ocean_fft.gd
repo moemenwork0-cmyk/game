@@ -120,13 +120,72 @@ func _process(delta: float) -> void:
 			c.foam_decay_rate = d * maxf(0.5, 10.0 - c.foam_amount) * 1.15
 		_gen.pass_parameters = _cascades
 		_gen.pass_num_cascades_remaining = _cascades.size()
+	if readback:
+		_readback()
 
 
-## Approximate surface height for gameplay (buoyancy uses its own swell model until the
-## GPU read-back lands): calm lagoon ~0, long swell from the largest cascade.
+## When true, the wave cascades are read back from the GPU every frame so get_height()
+## matches the rendered sea exactly (ships riding real waves in cinematics).
+var readback := false
+var _cpu_layers: Array[PackedFloat32Array] = []
+var _cpu_size := 0
+
+
+## Surface height at a world point. With readback: the real FFT surface (choppy waves
+## shift the surface sideways, so the lookup is iterated); otherwise a gentle swell.
 func get_height(x: float, z: float) -> float:
+	if readback and not _cpu_layers.is_empty():
+		var p := Vector2(x, z)
+		var q := p
+		var d := Vector3.ZERO
+		for it in 3:
+			d = _sample_disp(q)
+			q = p - Vector2(d.x, d.z)
+		return d.y
 	var t := time
 	return (sin(x * 0.025 + t * 0.6) * 0.35 + sin(z * 0.031 - t * 0.5 + 1.3) * 0.25) * wave_scale * clampf(sea_state, 0.0, 3.0) * 0.6
+
+
+func _sample_disp(xz: Vector2) -> Vector3:
+	var sum := Vector3.ZERO
+	for i in _cascades.size():
+		var c := _cascades[i]
+		var uv := Vector2(xz.x / c.tile_length.x, xz.y / c.tile_length.y)
+		sum += _bilinear(i, uv) * c.displacement_scale
+	return sum * wave_scale
+
+
+func _bilinear(layer: int, uv: Vector2) -> Vector3:
+	var n := _cpu_size
+	var data := _cpu_layers[layer]
+	var fx := fposmod(uv.x, 1.0) * n - 0.5
+	var fy := fposmod(uv.y, 1.0) * n - 0.5
+	var x0 := int(floor(fx))
+	var y0 := int(floor(fy))
+	var tx := fx - x0
+	var ty := fy - y0
+	var r := Vector3.ZERO
+	for j in 2:
+		for i in 2:
+			var xi := posmod(x0 + i, n)
+			var yi := posmod(y0 + j, n)
+			var o := (yi * n + xi) * 4
+			var w := (tx if i == 1 else 1.0 - tx) * (ty if j == 1 else 1.0 - ty)
+			r += Vector3(data[o], data[o + 1], data[o + 2]) * w
+	return r
+
+
+func _readback() -> void:
+	var rd := RenderingServer.get_rendering_device()
+	var rid: RID = _gen.descriptors[&"displacement_map"].rid
+	_cpu_size = _gen.map_size
+	_cpu_layers.clear()
+	for i in _cascades.size():
+		var bytes := rd.texture_get_data(rid, i)
+		# RGBA16F -> floats
+		var img := Image.create_from_data(_cpu_size, _cpu_size, false, Image.FORMAT_RGBAH, bytes)
+		img.convert(Image.FORMAT_RGBAF)
+		_cpu_layers.append(img.get_data().to_float32_array())
 
 
 func _build_mesh() -> ArrayMesh:
