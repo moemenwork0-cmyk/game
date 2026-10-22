@@ -13,12 +13,12 @@ func build(tr: Trailer) -> void:
 	var at := Vector3(-5, 0, 432)
 	await tr.add_island(at, 140.0, 1.4)
 	at.y = tr.ground(at.x, at.z)
-	layla = Actor.create("layla", {"look": "m_idle_look_around_01"})
+	layla = Actor.create("layla", {"look": "f_idle_nervous_01"})
 	tr.add_child(layla)
 	layla.global_position = at
 	layla.rotation.y = PI  # facing +Z, the sea
 	layla.when_ready(func() -> void:
-		layla.play("look", 0.0, 0.6, 2.0)
+		layla.play("look", 0.0, 0.7)
 		layla.feel({"fear": 0.5}, 0.1)
 		var ba := BoneAttachment3D.new()
 		ba.bone_name = "Bip01 R Hand"

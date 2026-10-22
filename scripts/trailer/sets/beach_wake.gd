@@ -38,6 +38,11 @@ func build(tr: Trailer) -> void:
 
 
 func head() -> Vector3:
+	# the ragdoll's head body is where the head really is once physics has it
+	if layla.ragdoll:
+		for b in layla.ragdoll.get_children():
+			if b is PhysicalBone3D and (b as PhysicalBone3D).bone_name == "Bip01 Head":
+				return (b as Node3D).global_position
 	var hb := layla.skel.find_bone("Bip01 Head")
 	return (layla.skel.global_transform * layla.skel.get_bone_global_pose(hb)).origin
 

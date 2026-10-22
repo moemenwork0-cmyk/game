@@ -29,6 +29,8 @@ func setup_card(tr: Trailer) -> void:
 		var lb := Label.new()
 		lb.text = l[0]
 		lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		if String(l[0]).unicode_at(String(l[0]).length() - 1) >= 0x0600 or String(l[0]).contains("ا"):
+			lb.text_direction = Control.TEXT_DIRECTION_RTL
 		var f := FontVariation.new()
 		f.base_font = load(l[1])
 		lb.add_theme_font_override("font", f)

@@ -22,7 +22,7 @@ func _ready() -> void:
 	flames = _particles(160, 0.6, 0.16 * size, Vector3.UP, 1.1 * size, 0.0, 0.26 * size, true,
 		[Color(1, 0.85, 0.5, 0.7), Color(1, 0.42, 0.08, 0.5), Color(0.5, 0.08, 0.02, 0.0)], 1.0)
 	embers = _particles(60, 2.2, 0.25 * size, Vector3.UP, 2.5 * size, -0.4, 0.03 * size, true,
-		[Color(1, 0.7, 0.3, 1), Color(1, 0.35, 0.05, 0.8), Color(1, 0.2, 0, 0)], 6.0)
+		[Color(1, 0.7, 0.3, 1), Color(1, 0.35, 0.05, 0.8), Color(1, 0.2, 0, 0)], 2.5)
 	(embers.process_material as ParticleProcessMaterial).turbulence_enabled = true
 	(embers.process_material as ParticleProcessMaterial).turbulence_noise_strength = 1.5
 	smoke = _particles(40, 4.0, 0.3 * size, Vector3.UP, 1.0 * size, -0.1, 1.2 * size, false,
