@@ -1,3 +1,4 @@
+class_name BeachSlice
 extends Node3D
 ## Phase 1 vertical slice: the wake-up cove at final visual quality.
 ## Free camera (WASD + mouse, Shift fast, Q/E down/up, T time of day, 1-9 viewpoints).
@@ -105,7 +106,7 @@ func _ready() -> void:
 	scatter.name = "Scatter"
 	add_child(scatter)
 	scatter.setup(terrain, shore_tex.get_image(), Rect2(-1024, -1024, 2048, 2048))
-	_hero_rocks()
+	hero_rocks(scatter)
 	_set_view(0)
 	await get_tree().process_frame
 	var shooting := false
@@ -142,7 +143,7 @@ func _ready() -> void:
 ## Full-screen cover with a progress line while the island is planted.
 ## Big sandstone stacks placed by hand where the cove's composition wants them:
 ## standing in the shallows and at the back of the beach (cf. the reference shots).
-func _hero_rocks() -> void:
+static func hero_rocks(scatter: Scatter) -> void:
 	var M := "res://assets/env/models/%s.glb"
 	var sand := {"tint": Color(1.5, 1.08, 0.72), "moss": 0.7}
 	# [model, position, scale, yaw, stand up]

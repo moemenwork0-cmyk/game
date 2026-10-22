@@ -176,6 +176,8 @@ class FaceRig extends SkeletonModifier3D:
 	var talk_energy := 1.0
 	var look_target: Variant = null
 	var limp := false
+	## when >= 0, holds the eyelids (1 = shut, 0 = open) over blinking and limpness
+	var lids := -1.0
 	var cur := {"fear": 0.0, "anger": 0.0, "sad": 0.0, "pain": 0.0, "shock": 0.0}
 	var _sk: Skeleton3D
 	var _b := {}
@@ -213,6 +215,8 @@ class FaceRig extends SkeletonModifier3D:
 		var lid := sin(_blink * PI) if _blink > 0.0 else 0.0
 		if limp:
 			lid = 0.85
+		if lids >= 0.0:
+			lid = lids * 1.15
 		# speaking: syllable-rate noise on the jaw
 		var jaw_target := 0.0
 		if talk_t > 0.0 and not limp:
@@ -245,7 +249,7 @@ class FaceRig extends SkeletonModifier3D:
 		_move("LMouthCorner", Vector3(corner, 0, 0))
 		_move("MUpperLip", Vector3((anger * 0.6 + pain * 0.8) * 0.004, 0, 0))
 		# gaze: the eyes drop when sad, roll up when limp
-		var gaze := sad * 0.15 - fear * 0.05 + (-0.25 if limp else 0.0)
+		var gaze := sad * 0.15 - fear * 0.05 + (-0.25 if limp and lids < 0.0 else 0.0)
 		if look_target is Vector3 and not limp:
 			var hb: int = _b["Head"]
 			var g := _sk.global_transform * _sk.get_bone_global_pose(hb)

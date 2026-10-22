@@ -59,7 +59,11 @@ for shot in SHOTS:
        f"res://scenes/trailer.tscn -- --shot={shot} --preroll={PRE} --quality={QUALITY} > {W}/{shot}.log 2>&1; echo exit=$?")
     n = len(os.listdir(fr))
     print(f"{shot}: {n} frames in {time.time()-t0:.0f}s", flush=True)
-    skip = int(PRE * FPS * SUB)
+    # the shot's set may take frames to build (island, jungle): count back from the end
+    import re
+    m = re.search(r"duration=([0-9.]+)", open(f"{W}/{shot}.log", errors="ignore").read())
+    dur = float(m.group(1)) if m else 0.0
+    skip = max(int(PRE * FPS * SUB), n - int(dur * FPS * SUB) - 1) if dur else int(PRE * FPS * SUB)
     # sub-frame blend = motion blur with a ~180 degree shutter, then keep every SUB-th frame
     blend = max(1, SUB // 2 + (SUB % 2))
     sh(f"ffmpeg -y -loglevel error -framerate {FPS * SUB} -start_number {skip} -i {fr}/f%08d.png "

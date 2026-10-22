@@ -7,11 +7,6 @@ extends Node3D
 ## Extra: --preroll=S (seconds rendered before the shot clock starts, trimmed later),
 ##        --quality=N, --preview (play in a window)
 
-const SHOTS := {
-	"storm_wide": preload("res://scripts/trailer/shots/storm_wide.gd"),
-	"storm_wheel": preload("res://scripts/trailer/shots/storm_wheel.gd"),
-	"storm_bow": preload("res://scripts/trailer/shots/storm_bow.gd"),
-}
 
 var sky: SkyRig
 var ocean: OceanFFT
@@ -22,6 +17,9 @@ var preroll := 1.0
 var clock := -1.0      # shot clock; negative during pre-roll
 var _noise := FastNoiseLite.new()
 var _flash_light: OmniLight3D
+var terrain: Terrain3D
+var scatter: Scatter
+var _built := false
 
 
 func _ready() -> void:
@@ -59,14 +57,16 @@ func _ready() -> void:
 	vp.msaa_3d = Viewport.MSAA_4X
 	vp.mesh_lod_threshold = 0.5
 
-	if not SHOTS.has(shot_name):
+	var path := "res://scripts/trailer/shots/%s.gd" % shot_name
+	if not ResourceLoader.exists(path):
 		push_error("trailer: unknown shot " + shot_name)
 		get_tree().quit(2)
 		return
-	shot = (SHOTS[shot_name] as GDScript).new()
+	shot = (load(path) as GDScript).new()
 	add_child(shot)
 	shot.t = self
-	shot.build(self)
+	await shot.build(self)
+	_built = true
 	print("TRAILER shot=%s duration=%.2f speed=%.2f preroll=%.2f" % [shot_name, shot.duration, shot.speed, preroll])
 
 
@@ -75,9 +75,54 @@ func add_ocean(state: float) -> OceanFFT:
 	ocean = OceanFFT.new()
 	add_child(ocean)
 	ocean.sea_state = state
+	ocean.foam_scale = 0.4
 	ocean.readback = true
 	ocean.set_shore(ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGBF)), -1e6, -1e6, 1.0)
 	return ocean
+
+
+## The island (terrain, shore-aware sea, river and lake, jungle planted around `center`).
+func add_island(center: Vector3, radius := 220.0, sea_state := 1.0) -> void:
+	const ISLAND := "res://assets/env/island"
+	cam.global_position = center + Vector3(0, 2, 0)  # dynamic collision is built around the camera
+	terrain = Terrain3D.new()
+	add_child(terrain)
+	await get_tree().process_frame
+	terrain.mesh_size = 48
+	terrain.mesh_lods = 7
+	terrain.vertex_spacing = 1.0
+	terrain.cast_shadows = RenderingServer.SHADOW_CASTING_SETTING_ON
+	terrain.collision.mode = Terrain3DCollision.DYNAMIC_GAME
+	terrain.material.world_background = Terrain3DMaterial.NONE
+	terrain.material.auto_shader_enabled = false
+	terrain.material.dual_scaling_enabled = true
+	terrain.material.macro_variation_enabled = true
+	terrain.data_directory = ISLAND + "/data"
+	terrain.assets = load(ISLAND + "/assets.tres")
+	terrain.set_camera(cam)
+	var shore_tex: Texture2D = load(ISLAND + "/shore.res")
+	ocean = OceanFFT.new()
+	add_child(ocean)
+	ocean.sea_state = sea_state
+	ocean.readback = true
+	ocean.set_shore(shore_tex, -1024, -1024, 2048)
+	var fresh := FreshWater.new()
+	fresh.name = "FreshWater"
+	add_child(fresh)
+	fresh.setup(ISLAND + "/water.json")
+	scatter = Scatter.new()
+	add_child(scatter)
+	scatter.setup(terrain, shore_tex.get_image(), Rect2(-1024, -1024, 2048, 2048))
+	scatter.set_process(false)
+	BeachSlice.hero_rocks(scatter)
+	await get_tree().process_frame
+	await scatter.build_static(center, radius, Callable(), true)
+
+
+## Ground height of the island at (x, z) (0 when off the terrain).
+func ground(x: float, z: float) -> float:
+	var h := terrain.data.get_height(Vector3(x, 0, z)) if terrain and terrain.data else 0.0
+	return 0.0 if is_nan(h) else h
 
 
 ## A lightning strike: a blinding flash in the sky plus a bolt-lit fill light.
@@ -94,7 +139,7 @@ func lightning(at: Vector3, power := 1.0) -> void:
 
 
 func _process(delta: float) -> void:
-	if shot == null:
+	if shot == null or not _built:
 		return
 	# Engine.time_scale scales delta; the shot clock runs in real (footage) time
 	var dt := delta / maxf(Engine.time_scale, 0.0001)
@@ -114,6 +159,9 @@ func _process(delta: float) -> void:
 		if shot.shake > 0.0:
 			var n := clock
 			p += Vector3(_noise.get_noise_2d(n * 40.0, 0.0), _noise.get_noise_2d(0.0, n * 40.0), _noise.get_noise_2d(n * 40.0, 99.0)) * shot.shake
+		# never dip under the waves (unless the shot is meant to be under water)
+		if ocean and not sky.underwater:
+			p.y = maxf(p.y, ocean.get_height(p.x, p.z) + 0.9)
 		cam.global_position = p
 		if not p.is_equal_approx(look):
 			cam.look_at(look, Vector3.UP)

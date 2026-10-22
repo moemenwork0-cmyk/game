@@ -32,6 +32,8 @@ var _cloud_drift := Vector2.ZERO
 var rain: GPUParticles3D
 var _ambient := 1.0
 var _flash := 0.0
+## cinematic: the camera is under the sea (murky green-blue fog, shafts of light)
+var underwater := false
 var _next_flash := 6.0
 
 
@@ -257,3 +259,17 @@ func _update_sun() -> void:
 	env.fog_density = lerpf(0.12, 0.6, storm)
 	env.fog_depth_begin = lerpf(900.0, 150.0, storm)
 	RenderingServer.global_shader_parameter_set(&"wind_strength", lerpf(0.5, 1.6, storm))
+	if underwater:
+		env.fog_mode = Environment.FOG_MODE_EXPONENTIAL
+		env.fog_density = 0.03
+		env.fog_light_color = Color(0.05, 0.24, 0.27)
+		env.fog_light_energy = 0.9
+		env.fog_sky_affect = 1.0
+		env.fog_aerial_perspective = 0.0
+		env.volumetric_fog_enabled = true
+		env.volumetric_fog_density = 0.02
+		env.volumetric_fog_albedo = Color(0.45, 0.8, 0.82)
+		env.volumetric_fog_anisotropy = 0.7
+		env.volumetric_fog_length = 80.0
+		env.ambient_light_energy = 0.5
+		_ambient = 0.5

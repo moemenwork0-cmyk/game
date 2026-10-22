@@ -11,7 +11,7 @@ func build(tr: Trailer) -> void:
 	speed = 0.3
 	tr.sky.hour = 18.7
 	tr.sky.storm = 1.0
-	var sea := tr.add_ocean(3.0)
+	var sea := tr.add_ocean(2.4)
 	ship = Murjan.new()
 	tr.add_child(ship)
 	ship.ocean = sea
@@ -23,8 +23,8 @@ func build(tr: Trailer) -> void:
 	follow = ship
 	shake = 0.03
 	keys = [
-		[0.0, Vector3(1.6, ship.deck_y + 2.2, -ship.length * 0.12), Vector3(0, ship.deck_y + 1.5, -ship.length * 0.5), 62.0, 0.0],
-		[3.0, Vector3(1.1, ship.deck_y + 1.9, -ship.length * 0.2), Vector3(0, ship.deck_y + 2.5, -ship.length * 0.6), 58.0, 0.0],
+		[0.0, Vector3(1.4, ship.deck_y + 1.7, -ship.length * 0.3), Vector3(0, ship.deck_y + 0.6, -ship.length * 0.75), 60.0, 0.0],
+		[3.0, Vector3(1.0, ship.deck_y + 1.5, -ship.length * 0.34), Vector3(0, ship.deck_y + 1.8, -ship.length * 0.8), 56.0, 0.0],
 	]
 	events = [
 		[0.6, func() -> void: spray.restart(); spray.emitting = true],

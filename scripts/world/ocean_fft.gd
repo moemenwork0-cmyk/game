@@ -88,6 +88,13 @@ func set_shore(tex: Texture2D, x0: float, z0: float, size: float) -> void:
 	mat.set_shader_parameter("shore_rect", Vector4(x0, z0, size, 0))
 
 
+## multiplies whitecap foam (cinematics keep storm seas dark and glassy between crests)
+var foam_scale := 1.0:
+	set(v):
+		foam_scale = v
+		_apply_sea_state()
+
+
 func _apply_sea_state() -> void:
 	var s := clampf(sea_state, 0.0, 3.0)
 	for i in _cascades.size():
@@ -99,7 +106,8 @@ func _apply_sea_state() -> void:
 		c.spread = 0.25
 		c.detail = 1.0
 		c.whitecap = lerpf(0.9, 0.45, minf(s / 2.0, 1.0))
-		c.foam_amount = lerpf(1.5, 6.0, minf(s / 2.0, 1.0))
+		c.foam_amount = lerpf(1.5, 6.0, minf(s / 2.0, 1.0)) * foam_scale
+		c.whitecap = lerpf(c.whitecap, 1.0, clampf(1.0 - foam_scale, 0.0, 1.0) * 0.5)
 
 
 func _process(delta: float) -> void:
@@ -182,6 +190,9 @@ func _readback() -> void:
 	_cpu_layers.clear()
 	for i in _cascades.size():
 		var bytes := rd.texture_get_data(rid, i)
+		if bytes.size() < _cpu_size * _cpu_size * 8:
+			_cpu_layers.clear()
+			return
 		# RGBA16F -> floats
 		var img := Image.create_from_data(_cpu_size, _cpu_size, false, Image.FORMAT_RGBAH, bytes)
 		img.convert(Image.FORMAT_RGBAF)
