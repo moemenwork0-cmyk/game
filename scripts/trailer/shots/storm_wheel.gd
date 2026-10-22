@@ -10,7 +10,7 @@ func build(tr: Trailer) -> void:
 	duration = 3.2
 	tr.sky.hour = 18.8
 	tr.sky.storm = 1.0
-	var sea := tr.add_ocean(2.2)
+	var sea := tr.add_ocean(1.7)
 	ship = Murjan.new()
 	tr.add_child(ship)
 	ship.ocean = sea
@@ -20,7 +20,7 @@ func build(tr: Trailer) -> void:
 	ship.add_child(captain)
 	captain.position = Vector3(0, ship.deck_y, ship.length * 0.22)
 	captain.rotation.y = 0.0
-	captain.ready.connect(func() -> void:
+	captain.when_ready(func() -> void:
 		captain.play("talk", 0.0, 1.15)
 		captain.feel({"anger": 1.0, "fear": 0.45}, 0.1)
 		captain.talk(3.0, 1.6)

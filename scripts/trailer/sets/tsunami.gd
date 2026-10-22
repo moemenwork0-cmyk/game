@@ -20,10 +20,10 @@ var mist: GPUParticles3D
 func build(p_width: float, p_height: float) -> void:
 	width = p_width
 	height = p_height
-	var nx := 260
-	var ns := 140
+	var nx := 700
+	var ns := 220
 	var noise := FastNoiseLite.new()
-	noise.frequency = 0.004
+	noise.frequency = 0.0015
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var crest_s := 0.0
@@ -34,7 +34,7 @@ func build(p_width: float, p_height: float) -> void:
 	for i in nx + 1:
 		var u := float(i) / nx
 		var x := (u - 0.5) * width
-		var hk := 1.0 + noise.get_noise_1d(x) * 0.35
+		var hk := 1.0 + noise.get_noise_1d(x) * 0.18
 		var lead := noise.get_noise_1d(x + 999.0) * height * 0.6
 		for j in ns + 1:
 			var s := float(j) / ns

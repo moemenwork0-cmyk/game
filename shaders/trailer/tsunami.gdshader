@@ -37,13 +37,13 @@ void fragment() {
 	float toe = smoothstep(0.82, 0.92, vs);
 	// foam: thick at the lip and the toe, torn streaks pouring down the face
 	float streak = fbm(vec3(vuv.x * 0.09, vuv.y * 0.012 - t * 0.6, t * 0.05));
-	float foam = clamp(crest * smoothstep(0.35, 0.6, n) * 1.6 + face * smoothstep(0.55, 0.75, streak) + toe * smoothstep(0.3, 0.55, n) * 1.3, 0.0, 1.0);
+	float foam = clamp(crest * smoothstep(0.4, 0.65, n) * 1.4 + face * smoothstep(0.62, 0.8, streak) * 0.7 + toe * smoothstep(0.35, 0.6, n) * 1.2, 0.0, 1.0);
 	// glassy translucent body below the lip
 	float thin = (1.0 - smoothstep(crest_s, crest_s + 0.18, vs)) * smoothstep(crest_s - 0.25, crest_s, vs);
 	vec3 deep = vec3(0.012, 0.05, 0.055);
 	vec3 glass = vec3(0.05, 0.22, 0.19);
 	vec3 col = mix(deep, glass, thin * 0.8);
-	ALBEDO = mix(col, vec3(0.86, 0.9, 0.9), foam);
+	ALBEDO = mix(col, vec3(0.7, 0.76, 0.78), foam * 0.85);
 	ROUGHNESS = mix(0.05, 0.85, foam);
 	SPECULAR = 0.6;
 	BACKLIGHT = mix(vec3(0.05, 0.45, 0.35) * thin, vec3(0.6), foam * 0.5);

@@ -22,6 +22,9 @@ var _h := 0.0
 var _pitch := 0.0
 var _roll := 0.0
 var lanterns: Array[OmniLight3D] = []
+## extra trim on top of the waves (run aground: bow up, heeled over)
+var trim_pitch := 0.0
+var trim_roll := 0.0
 
 
 func _ready() -> void:
@@ -99,7 +102,7 @@ func _physics_process(delta: float) -> void:
 	_pitch = lerpf(_pitch, atan2(bow - stern, length * 0.8), k)
 	_roll = lerpf(_roll, atan2(star - port, beam * 1.2) * 1.3, k)
 	position = Vector3(_pos.x, _h - draft, _pos.z)
-	basis = Basis(Vector3.UP, -heading) * Basis(Vector3.RIGHT, _pitch) * Basis(Vector3.FORWARD, _roll)
+	basis = Basis(Vector3.UP, -heading) * Basis(Vector3.RIGHT, _pitch + trim_pitch) * Basis(Vector3.FORWARD, _roll + trim_roll)
 	var t := Time.get_ticks_msec() * 0.001
 	for i in lanterns.size():
 		lanterns[i].light_energy = 2.0 + 0.5 * sin(t * 7.0 + i * 2.1) + 0.3 * sin(t * 13.0 + i)

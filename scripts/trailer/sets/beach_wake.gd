@@ -19,7 +19,7 @@ func build(tr: Trailer) -> void:
 	spot = Vector3(-20, tr.ground(-20, z - 1.5), z - 1.5)
 	wreck = Murjan.new()
 	tr.add_child(wreck)
-	wreck.position = Vector3(70, -4.5, 640)
+	wreck.position = Vector3(10, -3.8, 540)
 	wreck.rotation = Vector3(0.06, 2.3, 0.42)
 	for l in wreck.lanterns:
 		l.visible = false

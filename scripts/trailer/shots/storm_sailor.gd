@@ -12,7 +12,7 @@ func build(tr: Trailer) -> void:
 	speed = 0.6
 	tr.sky.hour = 19.2
 	tr.sky.storm = 1.0
-	var sea := tr.add_ocean(2.3)
+	var sea := tr.add_ocean(1.7)
 	ship = Murjan.new()
 	tr.add_child(ship)
 	ship.ocean = sea
@@ -23,7 +23,7 @@ func build(tr: Trailer) -> void:
 	var rail_x := -ship.beam * 0.36
 	sailor.position = Vector3(rail_x + 0.5, ship.deck_y, -2.0)
 	sailor.rotation.y = -PI * 0.5   # facing the port rail
-	sailor.ready.connect(func() -> void:
+	sailor.when_ready(func() -> void:
 		sailor.play("hold", 0.0, 1.4)
 		sailor.feel({"fear": 1.0}, 0.1))
 	spray = _spray()

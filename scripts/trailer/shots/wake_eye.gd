@@ -15,11 +15,9 @@ func build(tr: Trailer) -> void:
 
 func _frame() -> void:
 	var h := set_.head()
-	var up := set_.face_dir()
-	var side := up.cross(Vector3.FORWARD).normalized()
 	keys = [
-		[0.0, h + up * 0.42 + side * 0.12, h + up * 0.05, 26.0, 0.42],
-		[4.8, h + up * 0.3 + side * 0.08, h + up * 0.06, 24.0, 0.3],
+		[0.0, h + Vector3(0.12, 0.62, 0.18), h + Vector3(0, 0.04, 0), 30.0, 0.62],
+		[4.8, h + Vector3(0.06, 0.42, 0.1), h + Vector3(0, 0.05, 0), 28.0, 0.42],
 	]
 
 

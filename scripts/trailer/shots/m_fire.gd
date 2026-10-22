@@ -35,13 +35,13 @@ func build(tr: Trailer) -> void:
 	tr.add_child(layla)
 	layla.global_position = at + Vector3(0, 0, -0.95)
 	layla.rotation.y = PI  # facing the fire (+Z)
-	layla.ready.connect(func() -> void:
+	layla.when_ready(func() -> void:
 		layla.play("crouch", 0.0, 0.8)
 		layla.feel({"fear": 0.3, "sad": 0.3}, 0.1)
 		layla.look_at_point(at + Vector3(0, 0.3, 0)))
 	keys = [
-		[0.0, at + Vector3(0.35, 0.35, 1.6), at + Vector3(0, 0.7, -0.9), 32.0, 1.8],
-		[2.6, at + Vector3(0.15, 0.4, 1.35), at + Vector3(0, 0.85, -0.9), 30.0, 2.0],
+		[0.0, at + Vector3(0.6, 0.45, 2.4), at + Vector3(0, 0.75, -0.9), 30.0, 2.6],
+		[2.6, at + Vector3(0.3, 0.5, 2.0), at + Vector3(0, 0.85, -0.9), 28.0, 2.3],
 	]
 
 

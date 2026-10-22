@@ -12,7 +12,7 @@ func build(tr: Trailer) -> void:
 	tr.sky.storm = 0.6
 	city = DrownedCity.new()
 	tr.add_child(city)
-	city.build(0.0, -1000.0, 0.3, 0.6, 6)
+	city.build(0.0, -1000.0, 0.12, 0.6, 6)
 	wave = Tsunami.new()
 	tr.add_child(wave)
 	wave.build(3000.0, 190.0)

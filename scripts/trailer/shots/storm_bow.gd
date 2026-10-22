@@ -11,7 +11,7 @@ func build(tr: Trailer) -> void:
 	speed = 0.3
 	tr.sky.hour = 18.7
 	tr.sky.storm = 1.0
-	var sea := tr.add_ocean(2.4)
+	var sea := tr.add_ocean(1.8)
 	ship = Murjan.new()
 	tr.add_child(ship)
 	ship.ocean = sea

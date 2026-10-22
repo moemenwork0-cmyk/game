@@ -13,16 +13,20 @@ func build(tr: Trailer) -> void:
 	tr.sky.hour = 10.5
 	tr.sky.storm = 0.0
 	tr.sky.underwater = true
+	tr.sky.underwater_density = 0.016
+	tr.sky.underwater_tint = Color(0.06, 0.3, 0.32)
 	city = DrownedCity.new()
 	tr.add_child(city)
 	city.build(-80.0, 0.0, 0.0, 0.0, 4)
 	_surface(tr)
+	for q in city.clock_faces:
+		(q.material_override as ShaderMaterial).set_shader_parameter("glow", 0.25)
 	var cp := city.clock_point()
 	layla = Actor.create("layla", {"float": "f_idle_drunk_01"})
 	tr.add_child(layla)
 	layla.global_position = cp + Vector3(1.2, -1.75, 5.5)
 	layla.rotation = Vector3(0.25, PI + 0.3, 0.1)
-	layla.ready.connect(func() -> void:
+	layla.when_ready(func() -> void:
 		layla.play("float", 0.0, 0.25)
 		layla.face.lids = 1.0
 		layla.feel({"sad": 0.4}, 0.1))

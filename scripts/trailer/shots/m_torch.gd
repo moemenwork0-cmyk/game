@@ -17,7 +17,7 @@ func build(tr: Trailer) -> void:
 	tr.add_child(layla)
 	layla.global_position = at
 	layla.rotation.y = PI  # facing +Z, the sea
-	layla.ready.connect(func() -> void:
+	layla.when_ready(func() -> void:
 		layla.play("look", 0.0, 0.6, 2.0)
 		layla.feel({"fear": 0.5}, 0.1)
 		var ba := BoneAttachment3D.new()

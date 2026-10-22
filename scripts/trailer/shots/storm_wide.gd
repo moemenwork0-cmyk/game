@@ -9,7 +9,7 @@ func build(tr: Trailer) -> void:
 	duration = 4.5
 	tr.sky.hour = 18.7
 	tr.sky.storm = 1.0
-	var sea := tr.add_ocean(2.3)
+	var sea := tr.add_ocean(1.75)
 	ship = Murjan.new()
 	tr.add_child(ship)
 	ship.ocean = sea
@@ -17,9 +17,9 @@ func build(tr: Trailer) -> void:
 	ship.speed = 5.0
 	shake = 0.18
 	keys = [
-		[0.0, Vector3(34, 2.6, -46), Vector3(0, 7, -4), 52.0, 0.0],
-		[2.2, Vector3(31, 3.4, -18), Vector3(0, 8, 2), 48.0, 0.0],
-		[4.5, Vector3(27, 5.0, 8), Vector3(-2, 9, 10), 44.0, 0.0],
+		[0.0, Vector3(40, 6.0, -50), Vector3(0, 8, -4), 50.0, 0.0],
+		[2.2, Vector3(37, 7.0, -20), Vector3(0, 9, 2), 46.0, 0.0],
+		[4.5, Vector3(33, 8.5, 8), Vector3(-2, 10, 10), 42.0, 0.0],
 	]
 	events = [
 		[1.35, func() -> void: tr.lightning(Vector3(-220, 260, -380), 1.0)],

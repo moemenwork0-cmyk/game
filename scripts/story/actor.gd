@@ -67,6 +67,14 @@ func _materials(mi: MeshInstance3D) -> void:
 		mi.set_surface_override_material(i, m)
 
 
+## Runs `cb` once the avatar is loaded (immediately if it already is).
+func when_ready(cb: Callable) -> void:
+	if is_node_ready():
+		cb.call()
+	else:
+		ready.connect(cb, CONNECT_ONE_SHOT)
+
+
 func play(clip: String, blend: float = 0.4, speed: float = 1.0, from: float = -1.0) -> void:
 	anim.play("c/" + clip, blend, speed)
 	if from >= 0.0:

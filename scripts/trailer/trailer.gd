@@ -161,7 +161,16 @@ func _process(delta: float) -> void:
 			p += Vector3(_noise.get_noise_2d(n * 40.0, 0.0), _noise.get_noise_2d(0.0, n * 40.0), _noise.get_noise_2d(n * 40.0, 99.0)) * shot.shake
 		# never dip under the waves (unless the shot is meant to be under water)
 		if ocean and not sky.underwater:
-			p.y = maxf(p.y, ocean.get_height(p.x, p.z) + 0.9)
+			var fwd := (look - p)
+			fwd.y = 0.0
+			fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
+			var top := ocean.get_height(p.x, p.z)
+			for d in [2.0, 5.0, 9.0]:
+				var q: Vector3 = p + fwd * d
+				top = maxf(top, ocean.get_height(q.x, q.z) - d * 0.12)
+			p.y = maxf(p.y, top + 1.6)
+			if Engine.get_process_frames() % 48 == 0:
+				print("CAMDBG y=%.2f sea=%.2f" % [p.y, ocean.get_height(p.x, p.z)])
 		cam.global_position = p
 		if not p.is_equal_approx(look):
 			cam.look_at(look, Vector3.UP)

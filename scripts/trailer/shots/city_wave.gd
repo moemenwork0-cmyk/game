@@ -12,14 +12,14 @@ func build(tr: Trailer) -> void:
 	tr.sky.storm = 0.55
 	city = DrownedCity.new()
 	tr.add_child(city)
-	city.build(0.0, -1000.0, 0.35, 0.25, 8)
+	city.build(0.0, -1000.0, 0.14, 0.25, 8)
 	wave = Tsunami.new()
 	tr.add_child(wave)
-	wave.build(4200.0, 170.0)
+	wave.build(4200.0, 230.0)
 	wave.position = Vector3(0, 0, -780)
 	wave.speed = 48.0
 	shake = 0.0
 	keys = [
-		[0.0, Vector3(70, 96, 420), Vector3(10, 70, -300), 34.0, 0.0],
-		[4.2, Vector3(62, 92, 380), Vector3(10, 95, -300), 30.0, 0.0],
+		[0.0, Vector3(70, 150, 520), Vector3(10, 90, -300), 34.0, 0.0],
+		[4.2, Vector3(62, 140, 480), Vector3(10, 120, -300), 30.0, 0.0],
 	]

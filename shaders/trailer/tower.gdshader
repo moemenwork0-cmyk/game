@@ -50,7 +50,7 @@ void fragment() {
 		col = mix(col, isbroken > 0.5 ? vec3(0.02) : g, frame);
 		rough = mix(rough, isbroken > 0.5 ? 1.0 : 0.06, frame);
 		metal = mix(0.0, isbroken > 0.5 ? 0.0 : 0.6, frame);
-		emit = lc * on * frame * (0.6 + 0.8 * h21(id + 3.0)) * 4.0;
+		emit = lc * on * frame * (0.4 + 0.6 * h21(id + 3.0)) * 1.6;
 		// rain streaks and soot under the slabs
 		float streak = n2(vec2(u * 1.3, v * 0.08)) * (1.0 - smoothstep(0.0, 0.25, f.y));
 		col *= 1.0 - streak * 0.35;

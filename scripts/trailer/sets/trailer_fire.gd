@@ -19,8 +19,8 @@ static func create(p_size: float) -> TrailerFire:
 
 
 func _ready() -> void:
-	flames = _particles(140, 0.7, 0.2 * size, Vector3.UP, 1.2 * size, 0.0, 0.5 * size, true,
-		[Color(1, 0.9, 0.6, 0.9), Color(1, 0.45, 0.1, 0.7), Color(0.6, 0.1, 0.02, 0.0)], 2.0)
+	flames = _particles(160, 0.6, 0.16 * size, Vector3.UP, 1.1 * size, 0.0, 0.26 * size, true,
+		[Color(1, 0.85, 0.5, 0.7), Color(1, 0.42, 0.08, 0.5), Color(0.5, 0.08, 0.02, 0.0)], 1.0)
 	embers = _particles(60, 2.2, 0.25 * size, Vector3.UP, 2.5 * size, -0.4, 0.03 * size, true,
 		[Color(1, 0.7, 0.3, 1), Color(1, 0.35, 0.05, 0.8), Color(1, 0.2, 0, 0)], 6.0)
 	(embers.process_material as ParticleProcessMaterial).turbulence_enabled = true
@@ -80,7 +80,7 @@ func _particles(n: int, life: float, radius: float, dir: Vector3, vel: float, gr
 func _process(delta: float) -> void:
 	_t += delta
 	var fl := 0.75 + 0.15 * sin(_t * 17.0) + 0.1 * sin(_t * 31.0 + 1.3) + 0.08 * sin(_t * 7.0)
-	light.light_energy = 3.2 * size * fl * blaze
+	light.light_energy = 2.2 * size * fl * blaze
 	flames.amount_ratio = clampf(blaze, 0.05, 1.0)
 	embers.amount_ratio = clampf(blaze, 0.0, 1.0)
 	smoke.amount_ratio = clampf(blaze, 0.1, 1.0)
