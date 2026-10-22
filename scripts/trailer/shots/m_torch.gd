@@ -40,7 +40,7 @@ func build(tr: Trailer) -> void:
 		fire.position.y = 0.38)
 	var head := at + Vector3(0, 1.62, 0)
 	keys = [
-		[0.0, head + Vector3(-0.9, -0.05, -1.3), head + Vector3(0.2, 0.0, 0), 36.0, 1.6],
-		[2.6, head + Vector3(-0.7, 0.0, -1.0), head + Vector3(0.2, 0.0, 0), 33.0, 1.2],
+		[0.0, head + Vector3(-0.8, -0.1, 1.5), head + Vector3(0.1, 0.0, 0), 34.0, 1.7],
+		[2.6, head + Vector3(-0.6, -0.05, 1.15), head + Vector3(0.1, 0.0, 0), 31.0, 1.3],
 	]
 	events = [[1.4, func() -> void: tr.lightning(at + Vector3(-200, 150, 900), 0.6)]]

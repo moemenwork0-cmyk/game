@@ -21,7 +21,7 @@ func build(tr: Trailer) -> void:
 	sailor = Actor.create("sailor", {"hold": "m_idle_nervous_02"})
 	ship.add_child(sailor)
 	var rail_x := -ship.beam * 0.36
-	sailor.position = Vector3(rail_x + 0.5, ship.deck_y, -2.0)
+	sailor.position = Vector3(rail_x + 1.3, ship.deck_y, -2.0)
 	sailor.rotation.y = -PI * 0.5   # facing the port rail
 	sailor.when_ready(func() -> void:
 		sailor.play("hold", 0.0, 1.4)
