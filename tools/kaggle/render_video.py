@@ -48,6 +48,9 @@ os.chdir("/tmp/game")
 sh("git log -1 --format='%h %s'")
 sh("godot --headless --import > /tmp/import.log 2>&1; tail -2 /tmp/import.log")
 sh("godot --headless --import > /tmp/import2.log 2>&1; true")
+# the movie maker records the project's base viewport: render at the requested size
+w_, h_ = RES.split("x")
+open("override.cfg", "w").write(f"[display]\nwindow/size/viewport_width={w_}\nwindow/size/viewport_height={h_}\n")
 FPS = 24
 PRE = 1.5
 os.makedirs(f"{W}/clips", exist_ok=True)
