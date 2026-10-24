@@ -21,6 +21,7 @@ var _cam_look := Vector3.ZERO
 var _path: Array[Vector3] = []
 var _walk_d := 0.0
 var _hud_t := 0.0
+var _lid_rect: ColorRect
 
 
 func build(tr: Trailer) -> void:
@@ -29,11 +30,18 @@ func build(tr: Trailer) -> void:
 	tr.sky.hour = 7.4
 	tr.sky.storm = 0.0
 	tr.sky.cloudiness = 0.4
-	await tr.add_island(Vector3(-20, 0, 440), 220.0, 1.1)
-	var z := 430.0
-	while z < 500.0 and tr.ground(-20, z) > 0.35:
-		z += 0.5
-	spot = Vector3(-20, tr.ground(-20, z - 2.0), z - 2.0)
+	# the beach is found before planting so the walk can be kept clear of plants
+	await tr.add_island(Vector3(-20, 0, 440), 0.0, 1.1)
+	spot = _sand(-20.0, 2.0)
+	for p in [spot, _sand(-27.0, 3.0), _sand(-34.0, 3.5), _sand(-40.0, 4.0), _sand(-43.0, 9.0)]:
+		_path.append(p)
+	var clear: Array[Vector3] = []
+	for i in _path.size() - 1:
+		for k in 6:
+			var q := _path[i].lerp(_path[i + 1], k / 6.0)
+			clear.append(Vector3(q.x, q.z, 5.5))
+	tr.scatter.clearings = clear
+	await tr.scatter.build_static(Vector3(-20, 0, 440), 220.0, Callable(), true)
 	wreck = Murjan.new()
 	tr.add_child(wreck)
 	wreck.position = Vector3(10, -3.8, 540)
@@ -45,9 +53,6 @@ func build(tr: Trailer) -> void:
 	layla.global_position = spot
 	layla.visible = false
 	layla.when_ready(func() -> void: layla.play("idle", 0.0))
-	# the walk: along the waterline, then up the beach towards the jungle edge
-	for p in [spot, spot + Vector3(-6, 0, -2), spot + Vector3(-14, 0, -8), spot + Vector3(-20, 0, -18), spot + Vector3(-22, 0, -30)]:
-		_path.append(Vector3(p.x, tr.ground(p.x, p.z), p.z))
 	_overlays()
 	tr.attr.dof_blur_far_enabled = false
 	tr.attr.dof_blur_near_enabled = false
@@ -62,6 +67,7 @@ func _overlays() -> void:
 	var lr := ColorRect.new()
 	lr.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	lr.material = lids
+	_lid_rect = lr
 	lr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cl.add_child(lr)
 	lids.set_shader_parameter("open", 0.0)
@@ -97,7 +103,7 @@ func _make_hud() -> Control:
 	for v in [["HEALTH", 0.62, Color(0.85, 0.32, 0.28)], ["THIRST", 0.28, Color(0.35, 0.65, 0.95)], ["HUNGER", 0.55, Color(0.92, 0.66, 0.3)], ["MIND", 0.8, Color(0.7, 0.6, 0.95)]]:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 12)
-		var l := UiKit.label(v[0], 14, Color(1, 1, 1, 0.75))
+		var l := UiKit.label(v[0], 17, Color(1, 1, 1, 0.8))
 		l.add_theme_font_override("font", UiKit.display_font(700))
 		l.custom_minimum_size.x = 80
 		row.add_child(l)
@@ -119,15 +125,15 @@ func _make_hud() -> Control:
 	obj.offset_top = 48
 	obj.offset_bottom = 160
 	root.add_child(obj)
-	var oh := UiKit.label("OBJECTIVE", 14, UiKit.ACCENT)
+	var oh := UiKit.label("OBJECTIVE", 17, UiKit.ACCENT)
 	oh.add_theme_font_override("font", UiKit.display_font(700))
 	oh.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	obj.add_child(oh)
-	var ot := UiKit.label("Find fresh water before nightfall", 24, UiKit.SALT)
+	var ot := UiKit.label("Find fresh water before nightfall", 30, UiKit.SALT)
 	ot.add_theme_font_override("font", UiKit.story_font(500))
 	ot.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	obj.add_child(ot)
-	var oa := UiKit.label("ابحث عن ماءٍ عذب قبل حلول الليل", 22, Color(1, 1, 1, 0.7))
+	var oa := UiKit.label("ابحث عن ماءٍ عذب قبل حلول الليل", 26, Color(1, 1, 1, 0.75))
 	oa.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	oa.text_direction = Control.TEXT_DIRECTION_RTL
 	obj.add_child(oa)
@@ -172,9 +178,7 @@ func tick(time: float, dt: float) -> void:
 		_cam_look = look
 	elif time < STAND_END:
 		# --- 4. getting up: the view lifts, sways and settles on the wreck
-		lids.set_shader_parameter("open", 1.0)
-		lids.set_shader_parameter("blur", 0.0)
-		lids.set_shader_parameter("tint", 0.0)
+		_lid_rect.visible = false
 		var u := (time - EYES_END) / (STAND_END - EYES_END)
 		var up := smoothstep(0.05, 0.45, u) * 0.75 + smoothstep(0.55, 0.85, u) * 0.68
 		var sway := Vector3(sin(time * 2.1) * 0.08, 0, cos(time * 1.7) * 0.05) * (1.0 - u)
@@ -219,6 +223,15 @@ func tick(time: float, dt: float) -> void:
 	var tg := _tr.ground(_cam_pos.x, _cam_pos.z)
 	if cam.global_position.y < tg + 0.15:
 		cam.global_position.y = tg + 0.15
+
+
+## A point on the sand `up` metres up the beach from the waterline at x.
+func _sand(x: float, up: float) -> Vector3:
+	var z := 420.0
+	while z < 520.0 and _tr.ground(x, z) > 0.35:
+		z += 0.5
+	z -= up
+	return Vector3(x, _tr.ground(x, z), z)
 
 
 func _face(target: Vector3, dt := -1.0) -> void:

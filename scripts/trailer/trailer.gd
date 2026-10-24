@@ -82,7 +82,7 @@ func add_ocean(state: float) -> OceanFFT:
 
 
 ## The island (terrain, shore-aware sea, river and lake, jungle planted around `center`).
-func add_island(center: Vector3, radius := 220.0, sea_state := 1.0) -> void:
+func add_island(center: Vector3, radius := 220.0, sea_state := 1.0, clearings: Array[Vector3] = []) -> void:
 	const ISLAND := "res://assets/env/island"
 	cam.global_position = center + Vector3(0, 2, 0)  # dynamic collision is built around the camera
 	terrain = Terrain3D.new()
@@ -114,9 +114,11 @@ func add_island(center: Vector3, radius := 220.0, sea_state := 1.0) -> void:
 	add_child(scatter)
 	scatter.setup(terrain, shore_tex.get_image(), Rect2(-1024, -1024, 2048, 2048))
 	scatter.set_process(false)
+	scatter.clearings = clearings
 	BeachSlice.hero_rocks(scatter)
 	await get_tree().process_frame
-	await scatter.build_static(center, radius, Callable(), true)
+	if radius > 0.0:
+		await scatter.build_static(center, radius, Callable(), true)
 
 
 ## Ground height of the island at (x, z) (0 when off the terrain).

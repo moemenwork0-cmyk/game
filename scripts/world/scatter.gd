@@ -17,6 +17,8 @@ var _cells := {}             # "rule:cx:cz" -> Node3D
 var _stream_t := 0.0
 var _density_scale := 1.0
 var _clump_noise := FastNoiseLite.new()
+## spots kept clear of plants and rocks: Vector3(x, z, radius) (cinematic paths)
+var clearings: Array[Vector3] = []
 
 
 func setup(t: Terrain3D, shore_img: Image, rect: Rect2) -> void:
@@ -272,6 +274,13 @@ func _build_cell(ri: int, cx: int, cz: int) -> void:
 		var z := (cz + rng.randf()) * CELL
 		var y := data.get_height(Vector3(x, 0, z))
 		if is_nan(y):
+			continue
+		var blocked := false
+		for c in clearings:
+			if Vector2(x - c.x, z - c.y).length() < c.z:
+				blocked = true
+				break
+		if blocked:
 			continue
 		if rule.has("height"):
 			var hr: Vector2 = rule["height"]
