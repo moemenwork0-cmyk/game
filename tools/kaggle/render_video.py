@@ -55,7 +55,7 @@ for shot in SHOTS:
     fr = f"/tmp/frames_{shot}"
     os.makedirs(fr, exist_ok=True)
     t0 = time.time()
-    sh(f"timeout 3000 xvfb-run -a -s '-screen 0 {RES}x24' godot --resolution {RES} --write-movie {fr}/f.png --fixed-fps {FPS * SUB} "
+    sh(f"timeout 9000 xvfb-run -a -s '-screen 0 {RES}x24' godot --resolution {RES} --write-movie {fr}/f.png --fixed-fps {FPS * SUB} "
        f"res://scenes/trailer.tscn -- --shot={shot} --preroll={PRE} --quality={QUALITY} > {W}/{shot}.log 2>&1; echo exit=$?")
     n = len(os.listdir(fr))
     print(f"{shot}: {n} frames in {time.time()-t0:.0f}s", flush=True)

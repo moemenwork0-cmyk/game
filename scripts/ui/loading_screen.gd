@@ -112,12 +112,12 @@ func _ready() -> void:
 	_stage_l.offset_right = 900
 	_stage_l.offset_bottom = -62
 	add_child(_stage_l)
-	_pct = UiKit.label("0%", 16, UiKit.ACCENT)
+	_pct = UiKit.label("0%", 30, UiKit.ACCENT)
 	_pct.add_theme_font_override("font", UiKit.display_font(600))
 	_pct.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	_pct.offset_left = -300
 	_pct.offset_right = -90
-	_pct.offset_top = -88
+	_pct.offset_top = -100
 	_pct.offset_bottom = -62
 	_pct.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	add_child(_pct)
@@ -125,7 +125,7 @@ func _ready() -> void:
 	_bar.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	_bar.offset_left = 90
 	_bar.offset_right = -90
-	_bar.offset_top = -52
+	_bar.offset_top = -56
 	_bar.offset_bottom = -46
 	_bar.draw.connect(_draw_bar)
 	add_child(_bar)
@@ -180,7 +180,7 @@ func _process(delta: float) -> void:
 	_stage_l.text = tr(_stage).to_upper() if _stage != "" else tr("LOADING")
 	# slow push-in on the cover, like the opening of a film
 	var z := 1.0 + minf(_t / 40.0, 1.0) * 0.08
-	_cover.pivot_offset = _cover.size * Vector2(0.62, 0.45)
+	_cover.pivot_offset = _cover.size * Vector2(0.69, 0.42)
 	_cover.scale = Vector2(z, z)
 	_tip_t += delta
 	if _tip_t > 6.5:
@@ -196,16 +196,49 @@ func _process(delta: float) -> void:
 
 func _draw_bar() -> void:
 	var w := _bar.size.x
-	_bar.draw_rect(Rect2(0, 2, w, 1), Color(1, 1, 1, 0.16))
-	var x := w * _shown
-	_bar.draw_rect(Rect2(0, 1.5, x, 2), UiKit.ACCENT)
-	# a glowing head on the line
-	for i in 6:
-		_bar.draw_circle(Vector2(x, 2.5), 7.0 - i, Color(1.0, 0.8, 0.5, 0.05 + i * 0.03))
-	_bar.draw_circle(Vector2(x, 2.5), 2.0, Color(1, 0.95, 0.85))
-	# quarter ticks
-	for k in range(1, 4):
-		_bar.draw_rect(Rect2(w * k / 4.0, -2, 1, 9), Color(1, 1, 1, 0.25))
+	var h := _bar.size.y
+	var r := h * 0.5
+	# recessed track with a hairline rim
+	_bar.draw_style_box(_round(Color(0, 0, 0, 0.45), Color(1, 1, 1, 0.14), r), Rect2(0, 0, w, h))
+	# notches every 10 %
+	for k in range(1, 10):
+		_bar.draw_rect(Rect2(w * k / 10.0, h * 0.25, 1, h * 0.5), Color(1, 1, 1, 0.1))
+	var x := maxf(w * _shown, h)
+	if _shown <= 0.001:
+		return
+	# soft bloom under the filled part
+	for i in 4:
+		var g := float(4 - i) * 2.5
+		_bar.draw_style_box(_round(Color(1.0, 0.72, 0.35, 0.035), Color(0, 0, 0, 0), r + g), Rect2(-g, -g, x + g * 2, h + g * 2))
+	# the fill: deep amber to bright gold
+	var steps := 48
+	for i in steps:
+		var u0 := float(i) / steps
+		var col := Color(0.62, 0.36, 0.12).lerp(UiKit.ACCENT, u0).lerp(Color(1.0, 0.9, 0.7), pow(u0, 6.0))
+		_bar.draw_rect(Rect2(x * u0 + (r if i == 0 else 0.0), 1, x / steps + 1.0 - (r if i == 0 else 0.0), h - 2), col)
+	_bar.draw_circle(Vector2(r, h * 0.5), r - 1, Color(0.62, 0.36, 0.12))
+	# a highlight along the top edge
+	_bar.draw_rect(Rect2(r, 1, x - r * 2, 1), Color(1, 1, 1, 0.35))
+	# shimmer sweeping through the fill
+	var sx := fposmod(_t * 0.45, 1.4) - 0.2
+	for i in 10:
+		var bx := (sx + (i - 5) * 0.012) * x
+		if bx > r and bx < x - r:
+			_bar.draw_rect(Rect2(bx, 1, x * 0.012, h - 2), Color(1, 1, 1, 0.18 * (1.0 - absf(i - 4.5) / 5.0)))
+	# glowing head
+	for i in 7:
+		_bar.draw_circle(Vector2(x - r, h * 0.5), 14.0 - i * 1.8, Color(1.0, 0.8, 0.5, 0.04 + i * 0.025))
+	_bar.draw_circle(Vector2(x - r, h * 0.5), r * 0.9, Color(1, 0.97, 0.9))
+
+
+func _round(bg: Color, border: Color, radius: float) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.border_color = border
+	sb.set_border_width_all(1 if border.a > 0.0 else 0)
+	sb.set_corner_radius_all(int(radius))
+	sb.anti_aliasing = true
+	return sb
 
 
 func _draw_spin() -> void:
