@@ -1,7 +1,7 @@
 """Turn an AI-generated GLB (TRELLIS.2 / Meshy) into a game-ready asset.
 
 blender -b -P gen/ingest.py -- <in.glb> <out.glb> --kind vehicle|prop --size <metres> [--axis length|height]
-        [--tris N] [--tex 1024] [--wheels 3|4|2] [--turn 0|90|180|270] [--preview out.png]
+        [--tris N] [--tex 1024] [--wheels 3|4|2] [--wheel_r 0.22] [--wheel_w 0.07] [--turn 0|90|180|270] [--preview out.png]
 
 Steps: join meshes, drop loose crumbs, put it on the ground centred, scale to real size, turn it so
 the front faces -Y in Blender (= +Z in Godot), decimate to the triangle budget, shrink the baked
@@ -13,7 +13,8 @@ from mathutils import Vector, Matrix
 
 argv = sys.argv[sys.argv.index("--") + 1:]
 SRC, OUT = argv[0], argv[1]
-opt = {"kind": "prop", "size": "1.0", "axis": "", "tris": "", "tex": "", "wheels": "", "turn": "0", "preview": ""}
+opt = {"kind": "prop", "size": "1.0", "axis": "", "tris": "", "tex": "", "wheels": "", "turn": "0", "preview": "",
+       "wheel_r": "", "wheel_w": ""}
 for i, a in enumerate(argv):
     if a.startswith("--") and a[2:] in opt:
         opt[a[2:]] = argv[i + 1]
@@ -102,29 +103,23 @@ tris = sum(len(p.vertices) - 2 for p in ob.data.polygons)
 wheels = []
 if KIND == "vehicle" and NWHEELS:
     vs = [v.co.copy() for v in ob.data.vertices]
-    low = [v for v in vs if v.z < dims.z * 0.16]
+    # tyre contact patches: the vertices touching the ground (bodies hide most of the wheel, contacts never lie)
+    low = [v for v in vs if v.z < 0.04]
     # seed clusters: for 3 wheels (tuk-tuk) one front centre + two rear corners; 2 = moto; 4 = car
     L, Wd = dims.y / 2, dims.x / 2
-    seeds = {2: [(0, -L * 0.7), (0, L * 0.7)], 3: [(0, -L * 0.75), (-Wd * 0.8, L * 0.6), (Wd * 0.8, L * 0.6)],
+    seeds = {2: [(0, -L * 0.7), (0, L * 0.7)], 3: [(0, -L * 0.7), (-Wd * 0.6, L * 0.5), (Wd * 0.6, L * 0.5)],
              4: [(-Wd * 0.8, -L * 0.65), (Wd * 0.8, -L * 0.65), (-Wd * 0.8, L * 0.65), (Wd * 0.8, L * 0.65)]}[NWHEELS]
     cents = [Vector((x, y, 0)) for x, y in seeds]
-    for _ in range(12):   # k-means in the ground plane
+    for _ in range(15):   # k-means in the ground plane
         groups = [[] for _ in cents]
         for v in low:
             k = min(range(len(cents)), key=lambda i: (v.x - cents[i].x) ** 2 + (v.y - cents[i].y) ** 2)
             groups[k].append(v)
         cents = [Vector((sum(v.x for v in g) / len(g), sum(v.y for v in g) / len(g), 0)) if g else c for g, c in zip(groups, cents)]
+    r = float(opt["wheel_r"] or 0.25)
+    half_w = float(opt["wheel_w"] or 0.07)
     for c in cents:
-        near = [v for v in vs if abs(v.y - c.y) < dims.z * 0.35 and abs(v.x - c.x) < dims.x * 0.3 and v.z < dims.z * 0.45]
-        r = max(0.12, (max(v.z for v in near) if near else dims.z * 0.3) / 2.0 * 0.95)
-        hub = Vector((c.x, c.y, r))
-        # lateral extent: only vertices in the wheel disc and in the outer band on this side
-        xs = [v.x for v in near if (Vector((0, v.y, v.z)) - Vector((0, hub.y, hub.z))).length < r * 1.05
-              and abs(v.x - c.x) < dims.x * 0.16]
-        half_w = min(dims.x * 0.14, max(0.04, (max(xs) - min(xs)) / 2 if xs else 0.08))
-        if xs:
-            hub.x = (max(xs) + min(xs)) / 2
-        wheels.append({"hub": [hub.x, hub.y, hub.z], "radius": r, "half_width": half_w})
+        wheels.append({"hub": [c.x, c.y, r], "radius": r, "half_width": half_w})
     # separate faces fully inside each wheel cylinder (axis along X)
     for i, w in enumerate(wheels):
         hub = Vector(w["hub"])

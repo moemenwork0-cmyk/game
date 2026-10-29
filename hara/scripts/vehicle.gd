@@ -15,7 +15,9 @@ func _ready() -> void:
 	add_to_group("vehicles")
 	info = JSON.parse_string(FileAccess.get_file_as_string("res://assets/vehicles/%s.json" % asset))
 	var size: Array = info.size_m
-	mass = 900.0 if info.wheels.size() >= 4 else 350.0
+	mass = 900.0 if info.wheels.size() >= 4 else 420.0
+	if info.wheels.size() < 4:
+		max_engine = 900.0   # light three-wheelers and bikes would wheelie with a car's engine
 	var model: Node3D = load("res://assets/vehicles/%s.glb" % asset).instantiate()
 	add_child(model)
 	# collision: a box for the body above the wheels (Godot axes: x = width, y = up, z = length)
@@ -28,7 +30,7 @@ func _ready() -> void:
 	cs.position.y = clearance + bs.size.y / 2
 	add_child(cs)
 	center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM
-	center_of_mass = Vector3(0, clearance + 0.25, 0)
+	center_of_mass = Vector3(0, clearance + 0.1, 0)
 	for i in info.wheels.size():
 		var wd: Dictionary = info.wheels[i]
 		var hub := Vector3(wd.hub[0], wd.hub[2], -wd.hub[1])     # Blender (x, y, z) -> Godot (x, z, -y)
