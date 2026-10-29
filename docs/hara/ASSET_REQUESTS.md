@@ -115,3 +115,46 @@ Seamless tileable texture, flat straight-on orthographic view, perfectly even fl
 - **التكسترات:** يصلّح التكرار، ويعمل normal و roughness، ويضغطها.
 - **الشارع الأول:** المباني والأرض والإضاءة (شمس العصر) والكاميرا والشخصية، مع الحاجات دي.
 - **الـ credits:** أي حاجة جاية من Meshy تتكتب في `CREDITS.md`.
+
+---
+
+## 6. المباني: قطع صغيرة بدل واجهة كاملة (بدل القسم بتاع "الواجهات الخمسة")
+صورة واجهة كاملة طلعت مقصوصة أو تفاصيلها بايظة. مولّد الصور بيبوّظ أي حاجة فيها تفاصيل متكررة كتير (20 شباك).
+الحل: كل صورة فيها **قطعة واحدة بس**، يعني دور واحد في شباك واحد، وأنا أركّب منها المباني (modular facades).
+
+**ابدأ كل مجموعة في شات جديد بالجملة دي:**
+`I will ask you for several pieces of the SAME building facade, one piece per image. Keep exactly the same wall colour, plaster texture, window style and scale in every image.`
+
+**السطر الثابت لكل قطعة:**
+```
+Straight-on orthographic front view of exactly ONE piece of a building facade, perfectly flat with no perspective. The wall surface continues to all four edges of the image: tightly cropped, no building corners, no sky, no ground, no neighbouring windows or balconies, the main element centered. Soft overcast daylight, no hard shadows, no people, no text or letters, photorealistic, sharp, square image.
+```
+
+### المجموعة A: عمارة أهالي بلون بمبي باهت
+| الاسم | الطلب |
+|---|---|
+| `modA_window` | `One storey high and one window wide: faded dusty pink painted concrete wall with one aluminium window with dusty glass, a small outdoor AC unit under it, a few stains.` |
+| `modA_balcony` | `One storey high and one bay wide: faded dusty pink wall with a balcony enclosed by aluminium frames and glass, seen straight from the front.` |
+| `modA_shop` | `One ground-floor shop bay from the pavement line (bottom edge) to the top of the ground floor: grey rolling metal shutter half open showing a dim shop inside, a blank sign board above it, concrete pillars at both sides.` |
+| `modA_top` | `Wide horizontal strip: the top edge of the same building, the roof parapet wall with a few rusty steel bars sticking up and a satellite dish edge, landscape image.` |
+
+### المجموعة B: عمارة قديمة من التلاتينات بلون أوكر
+| الاسم | الطلب |
+|---|---|
+| `modB_window` | `One storey high and one window wide: old faded ochre plaster wall with cracks, one tall window with dark green wooden louvered shutters half open, a moulded frame around the window.` |
+| `modB_balcony` | `One storey high and one bay wide: same ochre wall with a tall door-window and a small wrought-iron balcony with laundry hanging on it.` |
+| `modB_shop` | `One ground-floor bay from the pavement line to the top of the ground floor: an old coffeehouse (ahwa) opening with a worn wooden frame, warm light inside, limestone base.` |
+| `modB_door` | `One ground-floor bay: a big old wooden double entrance door with an arched top inside a limestone frame, two steps at the bottom.` |
+| `modB_cornice` | `Wide horizontal strip: the carved plaster cornice at the top of the same old ochre building, landscape image.` |
+
+### المجموعة C: طوب أحمر مش متشطب
+| الاسم | الطلب |
+|---|---|
+| `modC_window` | `One storey high and one bay wide: exposed red brick wall with rough grey mortar between grey concrete columns and a concrete slab edge, one simple window opening with a plain metal frame.` |
+| `modC_shop` | `One ground-floor bay from the pavement line: a car mechanic workshop with a wide dark opening, grease stains, exposed red brick around it.` |
+
+### بالـ 3D في TRELLIS (حاجات بارزة من المبنى)
+| الاسم | الطلب (+ السطر الثابت بتاع الموديلات) |
+|---|---|
+| `prop_mashrabiya_v01` | `A single projecting dark wooden mashrabiya bay window with fine lattice, as a separate object, not attached to a wall.` |
+| `prop_balcony_iron_v01` | `A single small wrought-iron balcony railing with a thin concrete floor slab, as a separate object.` |
