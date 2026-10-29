@@ -1,0 +1,5 @@
+node_modules/
+dist/
+assets_src/
+android/build/
+*.part
