@@ -41,8 +41,19 @@ func _ready() -> void:
 		layout.z0 = 55.0
 		layout.z1 = -55.0
 	else:
-		_ground()
+		# buildings made by the text-to-3D model replace the generated ones on their stretch of street
+		var ai_end := {"L": INF, "R": INF}
+		for ab in AI_BUILDINGS:
+			ai_end[ab.side] = minf(ai_end[ab.side], _ai_building(ab))
+		if args.get("ground", "mine") == "ai" and ResourceLoader.exists("res://assets/ai/street1_ground.glb"):
+			_ai_ground()
+		else:
+			_ground()
 		for b in layout.buildings:
+			if float(b.z) - float(b.w) < ai_end[b.side] - 0.5 and float(b.z) > ai_end[b.side] + 0.5:
+				continue   # straddles the end of the AI stretch: leave a gap like a side alley
+			if float(b.z) > ai_end[b.side]:
+				continue
 			_building(b)
 		_merge_static()
 		_mosque()
@@ -138,6 +149,13 @@ func _ground() -> void:
 		_slab("sidewalk", Vector3(minf(x_out, x_in), 0.0, z1), Vector3(maxf(x_out, x_in), 0.15, z0))
 		var cx: float = x_in
 		_slab("concrete", Vector3(minf(cx, cx - s * 0.18), 0.0, z1), Vector3(maxf(cx, cx - s * 0.18), 0.17, z0))
+	# ground and a back wall behind the rows, so gaps between buildings read as alleys, never as void
+	for side in [-1, 1]:
+		var xa: float = side * half
+		var xb: float = side * (half + 16.0)
+		_slab("sidewalk", Vector3(minf(xa, xb), -0.05, z1), Vector3(maxf(xa, xb), 0.1, z0))
+		var xw: float = side * (half + 16.0)
+		_slab("brick", Vector3(minf(xw, xw + side * 0.5), 0.0, z1), Vector3(maxf(xw, xw + side * 0.5), 14.0, z0))
 	# collision floor
 	var body := StaticBody3D.new()
 	var cs := CollisionShape3D.new()
@@ -172,6 +190,58 @@ func _slab(mat: String, a: Vector3, b: Vector3) -> MeshInstance3D:
 	mi.material_override = Mats.get_mat(mat)
 	add_child(mi)
 	return mi
+
+
+# --------------------------------------------------------------------------- AI-made assets
+## Buildings from the text-to-3D model, in street order per side (z where the building starts).
+const AI_BUILDINGS := [
+	{"file": "bld_L1", "side": "L", "z": 14.0},
+	{"file": "bld_L2", "side": "L", "z": 3.6},
+]
+
+
+## Place one ingested building with its facade on the street line; returns where it ends along the street.
+func _ai_building(ab: Dictionary) -> float:
+	var info: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://assets/buildings/%s.json" % ab.file))
+	var w := float(info.size_m[0])
+	var d := float(info.size_m[1])
+	var h := float(info.size_m[2])
+	var node: Node3D = load("res://assets/buildings/%s.glb" % ab.file).instantiate()
+	add_child(node)
+	var left: bool = ab.side == "L"
+	node.rotation.y = PI / 2 if left else -PI / 2
+	var x := float(layout.half) + d / 2
+	node.position = Vector3(-x if left else x, 0, float(ab.z) - w / 2)
+	var body := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(w * 0.98, h, d * 0.98)
+	cs.shape = bs
+	cs.position.y = h / 2
+	body.add_child(cs)
+	node.add_child(body)
+	var lh := 5.5   # cable hooks on the facade for wires across the street
+	for k in 3:
+		(hooks_l if left else hooks_r).append(node.to_global(Vector3(-w / 2 + 0.3 + k * (w - 0.6) / 2, lh + k * 1.1, d / 2)))
+	return float(ab.z) - w
+
+
+## The street surface cut out of the whole-street AI model (110 m, axis along Z, centred at z = -49).
+func _ai_ground() -> void:
+	var g: Node3D = load("res://assets/ai/street1_ground.glb").instantiate()
+	add_child(g)
+	g.position = Vector3(0.5, 0.0, -49.0)
+	for mi: MeshInstance3D in g.find_children("*", "MeshInstance3D", true, false):
+		mi.create_trimesh_collision()
+	# fall-back floor under everything
+	var body := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(60, 1, 300)
+	cs.shape = bs
+	cs.position = Vector3(0, -0.6, -50)
+	body.add_child(cs)
+	add_child(body)
 
 
 # --------------------------------------------------------------------------- buildings
@@ -373,6 +443,11 @@ func _process(dt: float) -> void:
 			if h.get_meta("walk"):
 				h.set_speed(1.3)
 				h.position += h.basis.z * 1.3 * dt
+				# keep feet on whatever surface is under them (sidewalk steps, uneven AI ground)
+				var q := PhysicsRayQueryParameters3D.create(h.global_position + Vector3.UP * 1.5, h.global_position + Vector3.DOWN * 2.0)
+				var hit := get_world_3d().direct_space_state.intersect_ray(q)
+				if hit:
+					h.global_position.y = hit.position.y
 				if h.position.z < float(layout.z1) or h.position.z > float(layout.z0):
 					h.rotation.y += PI
 			else:

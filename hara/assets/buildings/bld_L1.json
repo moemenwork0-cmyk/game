@@ -1,0 +1,12 @@
+{
+ "kind": "prop",
+ "size_m": [
+  10.224,
+  9.648,
+  16.0
+ ],
+ "tris": 24999,
+ "source_tris": 40000,
+ "wheels": [],
+ "front": "-Y blender / +Z godot"
+}
