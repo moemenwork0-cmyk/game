@@ -48,7 +48,7 @@ func _ready() -> void:
 
 func _setup_input() -> void:
 	var keys := {"fwd": KEY_W, "back": KEY_S, "left": KEY_A, "right": KEY_D, "run": KEY_SHIFT, "jump": KEY_SPACE,
-		"use": KEY_F}
+		"use": KEY_F, "horn": KEY_H, "reset": KEY_R}
 	for a in keys:
 		if not InputMap.has_action(a):
 			InputMap.add_action(a)
@@ -74,6 +74,10 @@ func toggle_vehicle() -> void:
 		vehicle.driver = null
 		vehicle = null
 		global_position = out + Vector3.UP * 0.2
+		# the driver climbs out: back on our own feet
+		human.reparent(self, false)
+		human.transform = Transform3D(Basis(Vector3.UP, human.rotation.y), Vector3.ZERO)
+		human.sit(false)
 		human.visible = true
 		process_mode = Node.PROCESS_MODE_INHERIT
 		$CollisionShape3D.disabled = false
@@ -87,9 +91,12 @@ func toggle_vehicle() -> void:
 	if best:
 		vehicle = best
 		vehicle.driver = self
-		human.visible = false
+		# sit in the driver's seat; the body rides with the vehicle
+		human.reparent(vehicle, false)
+		human.transform = Transform3D(Basis.IDENTITY, vehicle.seat)
+		human.sit(true)
 		$CollisionShape3D.disabled = true
-		arm.spring_length = 6.5
+		arm.spring_length = 5.0 if vehicle.three_wheeler else 6.5
 		cam_yaw = vehicle.global_rotation.y + PI
 
 
@@ -100,7 +107,7 @@ func _physics_process(dt: float) -> void:
 		global_position = vehicle.global_position
 		velocity = Vector3.ZERO
 		# camera swings back behind the car when the mouse is left alone
-		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED or vehicle.linear_velocity.length() > 3.0:
+		if not frozen and (Input.mouse_mode != Input.MOUSE_MODE_CAPTURED or vehicle.linear_velocity.length() > 3.0):
 			cam_yaw = lerp_angle(cam_yaw, vehicle.global_rotation.y + PI, minf(1.0, 2.0 * dt))
 		return
 	var inp := Vector2.ZERO

@@ -3,7 +3,8 @@ extends Node3D
 ## A Rocketbox avatar (MIT) with idle / walk / run clips. Root motion is stripped so the parent's
 ## velocity moves the body; `set_speed()` picks and cross-fades the clip and matches its playback rate.
 
-const ANIMS := {"idle": "m_idle_breathe_01", "walk": "m_walk_neutral_01", "run": "m_run_neutral_01"}
+const ANIMS := {"idle": "m_idle_breathe_01", "walk": "m_walk_neutral_01", "run": "m_run_neutral_01",
+	"sit": "m_sit_breathe"}
 const CLIP_SPEED := {"idle": 0.0, "walk": 1.35, "run": 3.6}
 
 @export var avatar := "castaway"
@@ -30,7 +31,22 @@ func _ready() -> void:
 	set_speed(0.0)
 
 
+var sitting := false
+
+
+func sit(on: bool) -> void:
+	sitting = on
+	_state = "sit" if on else ""
+	if on:
+		anim.play("h/sit", 0.2)
+		anim.speed_scale = 1.0
+	else:
+		set_speed(0.0)
+
+
 func set_speed(v: float) -> void:
+	if sitting:
+		return
 	var s := "idle" if v < 0.3 else ("walk" if v < 2.4 else "run")
 	if s != _state:
 		_state = s
