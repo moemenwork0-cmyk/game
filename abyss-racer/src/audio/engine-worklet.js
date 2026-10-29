@@ -82,7 +82,9 @@ class EngineProcessor extends AudioWorkletProcessor {
       this.load += (this.tLoad - this.load) * 0.004;
       this.gain += (this.tGain - this.gain) * 0.002;
       this.turbo += (this.tTurbo - this.turbo) * 0.0004;
-      const rpm = Math.max(300, this.rpm);
+      this.lope = (this.lope || 0) + 1.3 / sr;
+      const idleLope = this.rpm < 1600 ? 1 + Math.sin(this.lope * 6.2832) * 0.018 + Math.sin(this.lope * 2.1 * 6.2832) * 0.01 : 1;
+      const rpm = Math.max(300, this.rpm * idleLope);
       const cycleHz = rpm / 120;         // full 4-stroke cycles per second
       const prev = this.phase;
       this.phase += cycleHz / sr;
@@ -96,17 +98,20 @@ class EngineProcessor extends AudioWorkletProcessor {
         if (crossed) {
           const ld = this.cut > 0 ? 0.05 : this.load;
           const varAmt = p.rough * (1.4 - ld) * (rpm < 1500 ? 1.8 : 1);
-          let amp = this.cylGain[c] * (0.22 + ld * 0.95) * (1 + (Math.random() - 0.5) * 2 * varAmt);
+          let amp = this.cylGain[c] * (0.34 + ld * 0.85) * (1 + (Math.random() - 0.5) * 2 * varAmt);
           // misfire-ish lope at idle
           if (rpm < 1300 && Math.random() < 0.03) amp *= 0.3;
           const len = Math.max(8, Math.floor(sr * (0.0009 + 0.0022 * (1 - Math.min(1, rpm / 9000)))));
-          this.pulses.push({ t: 0, amp, len });
+          // combustion timing jitter (~±1.5 % of a firing interval) keeps it organic
+          const interval = sr / (cycleHz * offs.length);
+          this.pulses.push({ t: -Math.floor(Math.random() * interval * 0.03), amp, len });
         }
       }
       // combustion excitation
       let ex = 0;
       for (let k = this.pulses.length - 1; k >= 0; k--) {
         const pu = this.pulses[k];
+        if (pu.t < 0) { pu.t++; continue; }
         const x = pu.t / pu.len;
         // sharp pressure rise + noisy decay
         const env = x < 0.12 ? x / 0.12 : Math.exp(-(x - 0.12) * 4.2);

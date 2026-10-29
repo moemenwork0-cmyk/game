@@ -45,7 +45,7 @@ export class GodRays {
           float flick = 0.6 + 0.4 * sin(uTime * (0.6 + vSeed) + vSeed * 40.0 + vU * 3.0);
           float along = smoothstep(0.0, 0.15, vV) * (1.0 - smoothstep(0.35, 1.0, vV));
           float depthK = exp(-max(uSurfaceY - uCam.y - 15.0, 0.0) * 0.04);
-          float a = edge * flick * along * vFade * 0.055 * uStrength * depthK;
+          float a = edge * flick * along * vFade * 0.11 * uStrength * depthK;
           gl_FragColor = vec4(vec3(0.75, 0.95, 1.0) * a, 1.0);
         }`,
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
@@ -152,8 +152,10 @@ void main() {
   } else {                      // glow
     a *= pow(1.0 - smoothstep(0.0, 1.0, r), 2.0);
   }
+  float camD = length(vW - cameraPosition);
+  a *= smoothstep(0.8, 3.5, camD);
   if (uAdd > 0.5) {
-    float d = length(vW - cameraPosition);
+    float d = camD;
     gl_FragColor = vec4(col * a * exp(-d * 0.01), 1.0);
   } else {
     vec3 fc = uwApplyFog(col, vW, cameraPosition);

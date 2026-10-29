@@ -1,0 +1,36 @@
+// Clicks through the menus: title -> garage -> race -> pause -> settings -> quit. Screenshots each step.
+const { chromium } = require('playwright');
+(async () => {
+  const out = process.argv[2] || '.';
+  const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, hasTouch: true, isMobile: true });
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(e.message));
+  page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
+  await page.goto(`${process.env.BASE || 'http://127.0.0.1:5173/'}?still`);
+  await page.waitForFunction('window.__ready === true', null, { timeout: 120000 });
+  await page.waitForTimeout(1500);
+  const shot = async (n) => { await page.evaluate(() => { const g = window.__abyss; g.frame(1 / 60); g.render(); }); return page.screenshot({ path: `${out}/ui_${n}.png`, timeout: 120000 }); };
+  await shot('1_title');
+  await page.click('button:text-is("RACE")');
+  await page.waitForTimeout(1200);
+  await shot('2_garage');
+  await page.click('button:text-is("▶")');
+  await page.waitForTimeout(800);
+  await page.click('button:text-is("START RACE")');
+  await page.waitForTimeout(2500);
+  await shot('3_race');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(800);
+  await shot('4_pause');
+  await page.click('button:text-is("SETTINGS")');
+  await page.waitForTimeout(800);
+  await shot('5_settings');
+  await page.click('button:text-is("BACK")');
+  await page.waitForTimeout(500);
+  await page.click('button:text-is("QUIT TO MENU")');
+  await page.waitForTimeout(1500);
+  await shot('6_menu_again');
+  console.log('errors:', JSON.stringify(errs.slice(0, 10)));
+  await browser.close();
+})();

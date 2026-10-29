@@ -43,8 +43,9 @@ export class Race {
     const m = new THREE.Matrix4().lookAt(new THREE.Vector3(), t.T(k).negate(), t.U(k));
     e.v.teleport(p, new THREE.Quaternion().setFromRotationMatrix(m));
     e.v.setSpeed(Math.min(26, t.lineSpeed[k] * 0.7));
+    const wasWrecked = e.v.wrecked;
     e.v.wrecked = false; e.v.engineOn = true;
-    if (e.v.health <= 0.05) e.v.health = 0.35;
+    if (wasWrecked) e.v.health = 0;
     e.v.setGhost(true); e.ghostT = 2.5;
     e.k = k; e.offT = e.flipT = e.wreckT = e.stuckT = 0;
     if (e.ai) e.ai.k = k;

@@ -52,7 +52,8 @@ export class DamageSystem {
       if (otherCar) vRel.sub(otherCar.linvel);
       const n = info ? info.normal : new THREE.Vector3(0, 1, 0);
       const tang = vRel.clone().addScaledVector(n, -vRel.dot(n)).length();
-      const dv = rec.dv;
+      // a hit is resolved over several substeps: the frame's summed impulse is the true speed change
+      const dv = Math.max(rec.dv, rec.sum * 0.75);
       const hard = dv > 2.2;
       // ---- scraping: sustained contact while sliding fast ----
       if (rec.sum > 0.25 && tang > 6 && !hard) {

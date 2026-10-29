@@ -12,9 +12,9 @@ const JOBS = {
   dutch_ship_large_01: [0.35, 1024, /sails|Plane/],
   bronze_shark_statue: [1, 512], bronze_whale_statue: [1, 512], bronze_ray_statue: [1, 512],
   namaqualand_boulder_02: [0.03, 512, null, 0.08], namaqualand_boulder_05: [0.03, 512, null, 0.08],
-  rock_moss_set_01: [0.08, 512, null, 0.08], cannon_01: [0.25, 512], treasure_chest: [0.08, 512], wooden_barrels_01: [0.3, 512],
-  Barrel_01: [1, 512], old_tyre: [1, 256], wooden_crate_01: [1, 512], lion_head: [0.2, 512], gothic_statue: [0.3, 512],
-  marble_bust_01: [0.4, 512], ocean_buoy: [0.6, 512], old_military_crate: [0.5, 512], concrete_road_barrier: [0.15, 512],
+  rock_moss_set_01: [0.035, 512, null, 0.12], cannon_01: [0.12, 512, null, 0.01], treasure_chest: [0.08, 512], wooden_barrels_01: [0.15, 512, null, 0.01],
+  Barrel_01: [0.5, 512, null, 0.01], old_tyre: [1, 256], wooden_crate_01: [0.4, 512, null, 0.01], lion_head: [0.2, 512], gothic_statue: [0.3, 512],
+  marble_bust_01: [0.4, 512], ocean_buoy: [0.15, 512, null, 0.02], old_military_crate: [0.5, 512], concrete_road_barrier: [0.15, 512],
   rusted_wheel_rim_01: [0.4, 256], horse_statue_01: [0.4, 512],
 };
 await MeshoptSimplifier.ready;

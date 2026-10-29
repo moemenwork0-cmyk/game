@@ -2,7 +2,7 @@
  "marlin": {
   "length": 4.62,
   "width": 2.0,
-  "height": 1.13999470025286,
+  "height": 1.1399702545106676,
   "wheelbase": 2.72,
   "zoff": 0.06,
   "wheels": [
@@ -137,7 +137,7 @@
  "orca": {
   "length": 4.78,
   "width": 2.06,
-  "height": 1.219985077961251,
+  "height": 1.2199975459699202,
   "wheelbase": 2.8,
   "zoff": 0.0,
   "wheels": [
@@ -272,7 +272,7 @@
  "barracuda": {
   "length": 4.7,
   "width": 1.96,
-  "height": 1.174445079510201,
+  "height": 1.1773072059223484,
   "wheelbase": 2.8,
   "zoff": 0.0,
   "wheels": [

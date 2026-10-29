@@ -11,7 +11,7 @@ export const UW = {
   uSunDir: { value: new THREE.Vector3(0.25, 1, 0.18).normalize() },   // direction TOWARDS the light
   uSurfaceY: { value: 0 },
   uAbsorb: { value: new THREE.Vector3(0.020, 0.0075, 0.0052) },  // per-metre spectral absorption (r, g, b)
-  uScatterTop: { value: new THREE.Color(0.15, 0.47, 0.58) },     // in-scatter colour near the surface
+  uScatterTop: { value: new THREE.Color(0.05, 0.27, 0.48) },     // in-scatter colour near the surface
   uScatterDeep: { value: new THREE.Color(0.006, 0.030, 0.060) }, // in-scatter colour in the abyss
   uDepthRange: { value: new THREE.Vector2(15, 120) },             // depth (m) where top -> deep blend
   uCausticStrength: { value: 1.2 },

@@ -1,4 +1,6 @@
 import './ui/style.css';
+import * as THREE from 'three';
+window.__THREE = THREE;
 const params = new URLSearchParams(location.search);
 const canvas = document.getElementById('gl');
 if (params.get('view') === 'car') {

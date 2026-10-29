@@ -2,7 +2,7 @@
 // distance culling skip whole cells; each source mesh part becomes one InstancedMesh per cell.
 import * as THREE from 'three';
 
-const CELL = 80;
+const CELL = 140;
 
 export class InstanceBank {
   constructor(scene) {

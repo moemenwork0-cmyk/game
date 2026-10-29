@@ -37,6 +37,9 @@ export class Scenery {
     for (const [name, root] of Object.entries(this.models)) {
       root.traverse((o) => {
         if (!o.isMesh) return;
+        // morph targets are unused and break instanced rendering
+        o.geometry.morphAttributes = {};
+        o.morphTargetInfluences = undefined; o.morphTargetDictionary = undefined;
         const mats = Array.isArray(o.material) ? o.material : [o.material];
         mats.forEach((m) => {
           if (m.userData.uw) return;
@@ -80,13 +83,13 @@ export class Scenery {
     const coralMat = F.materials.coral();
     const softMat = F.materials.soft();
     const staghorn = [0, 1, 2].map((v) => F.staghornGeometry(v));
-    staghorn.forEach((g, i) => B.define('stag' + i, [{ geometry: g, material: coralMat }]));
-    B.define('brain', [{ geometry: F.brainCoralGeometry(), material: coralMat }]);
-    B.define('table', [{ geometry: F.tableCoralGeometry(), material: coralMat }]);
-    B.define('sponge', [{ geometry: F.tubeSpongeGeometry(), material: coralMat }]);
-    B.define('fan', [{ geometry: F.seaFanGeometry(), material: softMat }]);
-    B.define('anemone', [{ geometry: F.anemoneGeometry(), material: F.materials.anemone() }]);
-    B.define('kelp', [{ geometry: F.kelpGeometry(), material: F.kelpMaterial() }], { cullDist: 200 });
+    staghorn.forEach((g, i) => B.define('stag' + i, [{ geometry: g, material: coralMat }], { cullDist: 120 }));
+    B.define('brain', [{ geometry: F.brainCoralGeometry(), material: coralMat }], { cullDist: 130 });
+    B.define('table', [{ geometry: F.tableCoralGeometry(), material: coralMat }], { cullDist: 140 });
+    B.define('sponge', [{ geometry: F.tubeSpongeGeometry(), material: coralMat }], { cullDist: 120 });
+    B.define('fan', [{ geometry: F.seaFanGeometry(), material: softMat }], { cullDist: 120 });
+    B.define('anemone', [{ geometry: F.anemoneGeometry(), material: F.materials.anemone() }], { cullDist: 110 });
+    B.define('kelp', [{ geometry: F.kelpGeometry(), material: F.kelpMaterial() }], { cullDist: 170 });
     B.define('worms', [{ geometry: F.tubeWormGeometry(), material: F.materials.worm() }]);
     const rockMatHook = (m) => m;
     B.defineFromGLTF('rockA', this.models.namaqualand_boulder_02, { cullDist: 260 }, rockMatHook);
@@ -110,10 +113,10 @@ export class Scenery {
     const Y = new THREE.Vector3(0, 1, 0);
 
     // ---------- everywhere: rocks framing the road ----------
-    for (let k = 0; k < t.N; k += Math.round(9 / dens)) {
+    for (let k = 0; k < t.N; k += Math.round(12 / dens)) {
       if (t.gap[k]) continue;
       const trench = this.inZone(k, 'trench');
-      const n = trench ? 2 : 1;
+      const n = 1;
       for (let i = 0; i < n; i++) {
         const p = this.spot(k, 1, trench ? 22 : 45);
         if (!p) continue;
@@ -128,7 +131,7 @@ export class Scenery {
     for (let k = 0; k < t.N; k += 1) {
       if (!this.inZone(k, 'reef', 'climb', 'city') || t.gap[k]) continue;
       const reef = this.inZone(k, 'reef');
-      const chance = (reef ? 2.6 : 0.5) * dens;
+      const chance = (reef ? 1.5 : 0.35) * dens;
       let c = chance;
       while (c > 0) {
         if (this.rand() > c) break;
@@ -150,7 +153,7 @@ export class Scenery {
     for (let k = 0; k < t.N; k += 1) {
       if (!this.inZone(k, 'kelp', 'canyon') || t.gap[k]) continue;
       const kelpZone = this.inZone(k, 'kelp');
-      let c = (kelpZone ? 3.2 : 0.6) * dens;
+      let c = (kelpZone ? 1.7 : 0.4) * dens;
       while (c > 0) {
         if (this.rand() > c) break;
         c -= 1;
@@ -360,8 +363,9 @@ export class Scenery {
     this.drumMat = stone;
   }
 
-  update(dt, time, threats) {
-    for (const s of this.schools) s.update(dt, threats);
+  update(dt, time, threats, cam) {
+    for (const s of this.schools) { s.cam = cam; s.update(dt, threats); }
+    for (const j of this.jellies.meshes) j.visible = !cam || cam.distanceTo(j.boundingSphere.center) - j.boundingSphere.radius < 160;
     this.mantas.update(time);
     this.whale.update(time);
   }

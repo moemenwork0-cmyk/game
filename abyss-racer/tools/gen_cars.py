@@ -10,6 +10,7 @@ from scipy.interpolate import PchipInterpolator
 from skimage.measure import marching_cubes
 import trimesh
 import fast_simplification
+from scipy.ndimage import map_coordinates
 
 OUT = os.path.join(os.path.dirname(__file__), '..', 'public', 'assets', 'cars')
 VOX = 0.02
@@ -155,10 +156,25 @@ def build(name, c):
     verts, faces, _, _ = marching_cubes(d, 0.0, spacing=(VOX, VOX, VOX))
     verts += np.array([xs[0], ys[0], zs[0]])
     m = trimesh.Trimesh(verts, faces, process=True)
-    trimesh.smoothing.filter_taubin(m, lamb=0.5, nu=-0.53, iterations=12)
-    v, f = fast_simplification.simplify(m.vertices, m.faces, target_count=14000, agg=7)
+    trimesh.smoothing.filter_taubin(m, lamb=0.5, nu=-0.53, iterations=25)
+    v, f = fast_simplification.simplify(m.vertices, m.faces, target_count=18000, agg=6)
     m = trimesh.Trimesh(v, f, process=True)
     m.fix_normals()
+    # project vertices back onto the iso-surface and take normals from the SDF gradient: perfectly smooth
+    gx, gy, gz = np.gradient(d, VOX)
+    def sample(arr, pts):
+        idx = ((pts - np.array([xs[0], ys[0], zs[0]])) / VOX).T
+        return map_coordinates(arr, idx, order=1, mode='nearest')
+    pts = m.vertices.copy()
+    for _ in range(3):
+        dv = sample(d, pts)
+        g = np.stack([sample(gx, pts), sample(gy, pts), sample(gz, pts)], 1)
+        gl = np.linalg.norm(g, axis=1, keepdims=True) + 1e-9
+        step = np.clip(dv / gl[:, 0], -0.015, 0.015)
+        pts -= (step[:, None] * g / gl) * 0.8
+    g = np.stack([sample(gx, pts), sample(gy, pts), sample(gz, pts)], 1)
+    nrm = g / (np.linalg.norm(g, axis=1, keepdims=True) + 1e-9)
+    m = trimesh.Trimesh(pts, m.faces, vertex_normals=nrm, process=False)
     # glTF: flip winding so normals face out (trimesh.fix_normals already ensures outward)
     os.makedirs(OUT, exist_ok=True)
     m.export(os.path.join(OUT, f'{name}.glb'))

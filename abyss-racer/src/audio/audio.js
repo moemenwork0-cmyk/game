@@ -28,7 +28,8 @@ export class AudioEngine {
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -16; comp.knee.value = 10; comp.ratio.value = 4; comp.attack.value = 0.004; comp.release.value = 0.18;
     this.masterLP = ctx.createBiquadFilter(); this.masterLP.type = 'lowpass'; this.masterLP.frequency.value = 20000;
-    this.master.connect(this.masterLP).connect(comp).connect(ctx.destination);
+    const makeup = ctx.createGain(); makeup.gain.value = 1.5;
+    this.master.connect(this.masterLP).connect(comp).connect(makeup).connect(ctx.destination);
     this.sfx = ctx.createGain(); this.sfx.connect(this.master);
     this.music = ctx.createGain(); this.music.connect(this.master);
     this.amb = ctx.createGain(); this.amb.connect(this.master);

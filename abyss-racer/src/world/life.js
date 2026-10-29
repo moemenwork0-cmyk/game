@@ -97,9 +97,9 @@ export class FishSchool {
     if (h.lengthSq() > 1e-6) this.uniforms.uHeading.value.lerp(h.normalize(), Math.min(1, dt * 2)).normalize();
     this.prev.copy(p);
     this.uniforms.uCenter.value.copy(p);
+    this.mesh.visible = !this.cam || this.cam.distanceTo(p) < 150;
     this.uniforms.uScatter.value = this.scatter;
     this.uniforms.uSpeed.value = this.scatter;
-    this.mesh.visible = true;
   }
 }
 
@@ -165,11 +165,11 @@ export class Mantas {
 
 export class Jellyfish {
   constructor(scene, positions, color = new THREE.Color(0.4, 0.8, 1.6)) {
-    const bell = new THREE.SphereGeometry(0.6, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+    const bell = new THREE.SphereGeometry(0.6, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2);
     const parts = [ni(bell)];
-    for (let i = 0; i < 10; i++) {
-      const a = (i / 10) * Math.PI * 2;
-      const t = new THREE.CylinderGeometry(0.012, 0.004, 2.6, 3, 8, true);
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2;
+      const t = new THREE.CylinderGeometry(0.014, 0.004, 2.6, 3, 5, true);
       t.translate(Math.cos(a) * 0.4, -1.3, Math.sin(a) * 0.4);
       parts.push(ni(t));
     }
@@ -202,12 +202,24 @@ export class Jellyfish {
         }`,
       transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
     });
-    this.mesh = new THREE.InstancedMesh(geo, mat, positions.length);
+    // bucket into 120 m cells so whole groups are culled by the frustum and by distance
+    const cells = new Map();
+    for (const p of positions) {
+      const key = Math.floor(p.x / 120) + ':' + Math.floor(p.z / 120);
+      if (!cells.has(key)) cells.set(key, []);
+      cells.get(key).push(p);
+    }
+    this.meshes = [];
     const m = new THREE.Matrix4();
-    positions.forEach((p, i) => { m.makeScale(p.s, p.s, p.s).setPosition(p.x, p.y, p.z); this.mesh.setMatrixAt(i, m); });
-    this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = 4;
-    scene.add(this.mesh);
+    for (const list of cells.values()) {
+      const im = new THREE.InstancedMesh(geo, mat, list.length);
+      list.forEach((p, i) => { m.makeScale(p.s, p.s, p.s).setPosition(p.x, p.y, p.z); im.setMatrixAt(i, m); });
+      im.computeBoundingSphere();
+      im.boundingSphere.radius += 4;
+      im.renderOrder = 4;
+      scene.add(im);
+      this.meshes.push(im);
+    }
   }
 }
 

@@ -50,7 +50,7 @@ export function staghornGeometry(variant) {
   setSeed(101 + variant * 17);
   const parts = [];
   const branch = (base, dir, len, rad, depth) => {
-    const seg = new THREE.CylinderGeometry(rad * 0.7, rad, len, 6, 1, true);
+    const seg = new THREE.CylinderGeometry(rad * 0.7, rad, len, 5, 1, true);
     seg.translate(0, len / 2, 0);
     const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
     seg.applyQuaternion(q);
@@ -58,7 +58,7 @@ export function staghornGeometry(variant) {
     parts.push(seg);
     const tip = base.clone().addScaledVector(dir, len);
     if (depth <= 0 || rad < 0.025) {
-      const cap = new THREE.SphereGeometry(rad * 0.75, 6, 4);
+      const cap = new THREE.SphereGeometry(rad * 0.75, 5, 3);
       cap.translate(tip.x, tip.y, tip.z);
       parts.push(cap);
       return;
@@ -78,7 +78,7 @@ export function staghornGeometry(variant) {
 }
 
 export function brainCoralGeometry() {
-  const g = new THREE.IcosahedronGeometry(1, 5);
+  const g = new THREE.IcosahedronGeometry(1, 4);
   const p = g.attributes.position;
   const v = new THREE.Vector3();
   for (let i = 0; i < p.count; i++) {
@@ -139,10 +139,10 @@ export function anemoneGeometry() {
   const base = new THREE.CylinderGeometry(0.22, 0.3, 0.25, 12);
   base.translate(0, 0.12, 0);
   parts.push(ni(base));
-  for (let i = 0; i < 46; i++) {
+  for (let i = 0; i < 26; i++) {
     const a = rnd() * Math.PI * 2, rr = rnd() * 0.2;
     const len = 0.35 + rnd() * 0.3;
-    const t = new THREE.ConeGeometry(0.025, len, 4, 3);
+    const t = new THREE.ConeGeometry(0.03, len, 3, 2);
     t.translate(0, len / 2, 0);
     t.rotateZ(Math.cos(a) * (0.3 + rr * 2)); t.rotateX(Math.sin(a) * (0.3 + rr * 2));
     t.translate(Math.cos(a) * rr, 0.22, Math.sin(a) * rr);
@@ -177,7 +177,7 @@ export function seaFanGeometry() {
       grow(q, ang + 0.35 + rnd() * 0.2, len * 0.78, w * 0.8, depth - 1);
     }
   };
-  grow(new THREE.Vector3(0, 0.38, 0), 0, 0.35, 0.03, 5);
+  grow(new THREE.Vector3(0, 0.38, 0), 0, 0.4, 0.035, 4);
   const g = mergeGeometries(parts);
   g.computeVertexNormals();
   return colorize(g, (x, y) => { const t = 0.55 + Math.min(1, y / 1.6) * 0.45; return [t, t, t]; });

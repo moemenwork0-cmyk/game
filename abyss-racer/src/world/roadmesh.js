@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { TRACK } from './trackdef.js';
 import { patchMaterial } from '../render/underwater.js';
 
-const CHUNK = 60; // samples per render chunk (frustum culling granularity)
+const CHUNK = 120; // samples per render chunk (frustum culling granularity)
 
 /**
  * Generic swept strip along the track: profile = [[lat, h, v], ...] (v = texture coord across).
@@ -141,11 +141,8 @@ export function buildRoad(track, tex) {
   for (const t of [tex.gravel.map, tex.gravel.normalMap]) t.repeat.set(1, 1);
   const runProfile = (s) => [[s * (hw + 0.9), 0.0, 0], [s * (hw + sh), -0.12, 0.6], [s * (hw + sh + 1.4), -1.7, 1]];
   const runOpts = { vScale: 1 / 4 };
-  const r1 = sweep(track, runProfile(1), runOpts), r2 = sweep(track, runProfile(-1).reverse(), runOpts);
-  for (const g of [r1, r2]) {
-    // world-ish UVs: across 0..1 maps to ~4.5 m
-    const m = new THREE.Mesh(g, runMat); m.receiveShadow = true; group.add(m);
-  }
+  chunked(track, runProfile(1), runOpts, runMat, group, 'runoff');
+  chunked(track, runProfile(-1).reverse(), runOpts, runMat, group, 'runoff');
 
   // --- barriers: Jersey profile in old stone, with a glowing guide strip ---
   const barMat = new THREE.MeshStandardMaterial({ map: tex.barrier.map, normalMap: tex.barrier.normalMap, roughnessMap: tex.barrier.arm, roughness: 1 });
@@ -161,22 +158,19 @@ export function buildRoad(track, tex) {
     }
     return s > 0 ? out : out.reverse();
   };
-  const barGeos = [];
   for (const s of [1, -1]) {
-    const g = sweep(track, jersey(s), { vScale: 1 / 2.4 });
-    // swap uv: along-track in u for a horizontal block pattern
-    const uv = g.attributes.uv;
-    for (let i = 0; i < uv.count; i++) { const a = uv.getX(i), b = uv.getY(i); uv.setXY(i, b, a); }
-    barGeos.push(g);
-    const m = new THREE.Mesh(g, barMat); m.receiveShadow = true; m.castShadow = false; group.add(m);
+    for (const m of chunked(track, jersey(s), { vScale: 1 / 2.4 }, barMat, group, 'barrier')) {
+      // swap uv: along-track in u for a horizontal block pattern
+      const uv = m.geometry.attributes.uv;
+      for (let i = 0; i < uv.count; i++) { const a = uv.getX(i), b = uv.getY(i); uv.setXY(i, b, a); }
+    }
   }
   const glowMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.2, 1.6, 2.2) });
   patchMaterial(glowMat, { key: 'glow', caustics: false });
   for (const s of [1, -1]) {
     const o = hw + sh;
     const prof = s > 0 ? [[o + 0.28, 0.82, 0], [o + 0.33, 0.95, 1]] : [[-(o + 0.33), 0.95, 0], [-(o + 0.28), 0.82, 1]];
-    const g = sweep(track, prof, {});
-    group.add(new THREE.Mesh(g, glowMat));
+    chunked(track, prof, {}, glowMat, group, 'glowstrip');
   }
 
   // --- physics: road + run-off as one trimesh; barriers (raised invisibly) as another ---

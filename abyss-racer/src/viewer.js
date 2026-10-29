@@ -6,6 +6,7 @@ import { createWaterSky, createEnvMap } from './render/environment.js';
 import { PostFX } from './render/post.js';
 import { loadCars, loaded, loadTexture, loadPBR } from './core/assets.js';
 import { CarVisual } from './car/carmodel.js';
+import { WheelBank } from './car/wheels.js';
 
 export async function runViewer(canvas, params) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
@@ -41,11 +42,13 @@ export async function runViewer(canvas, params) {
     { paint: 0x0a3d91, accent: 0xf2c200, accent2: 0x0a0a0a, stripe: 2, number: 23, rim: 0xc8a050, caliper: 0xf2c200 },
     { paint: 0xc4161c, accent: 0xffffff, accent2: 0x111111, stripe: 1, number: 3, rim: 0xb0b5bb, caliper: 0xe0e0e0 },
   ];
+  const wheelBank = new WheelBank(scene, env, 16);
   const cars = [];
   (which === 'all' ? ids : [which]).forEach((id, i, arr) => {
-    const v = new CarVisual({ id, meta: loaded.carMeta[id], geo: loaded.cars[id], envMap: env, livery: liveries[ids.indexOf(id)] });
+    const v = new CarVisual({ id, meta: loaded.carMeta[id], geo: loaded.cars[id], envMap: env, livery: liveries[ids.indexOf(id)], wheelBank });
     v.group.position.x = (i - (arr.length - 1) / 2) * 2.8;
     scene.add(v.group);
+    v.updateWheels(v.wheels.map(() => ({ steer: 0, spin: 0, offset: 0 })));
     cars.push(v);
   });
   if (params.get('dent')) {

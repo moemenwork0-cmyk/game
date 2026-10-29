@@ -61,7 +61,7 @@ export class World {
   }
 
   update(dt, time, cam, threats = []) {
-    this.scenery.update(dt, time, threats);
+    this.scenery.update(dt, time, threats, cam);
     this.scenery.bank.cull(cam);
     this.godRays.update(cam);
     const depth = UW.uSurfaceY.value - cam.y;

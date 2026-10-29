@@ -72,7 +72,8 @@ export class Menus {
   setShowcase(id, liveryIdx) {
     const g = this.g;
     if (g.showcase) g.world.scene.remove(g.showcase.visual.group);
-    const visual = new CarVisual({ id, meta: loaded.carMeta[id], geo: loaded.cars[id], envMap: g.world.env, livery: { ...LIVERIES[liveryIdx], number: 7 } });
+    if (g.showcase) g.showcase.visual.dispose();
+    const visual = new CarVisual({ id, meta: loaded.carMeta[id], geo: loaded.cars[id], envMap: g.world.env, livery: { ...LIVERIES[liveryIdx], number: 7 }, wheelBank: g.wheelBank });
     const t = g.world.track;
     const k = t.wrap(60);
     const p = t.lateralPoint(k, -2.5);

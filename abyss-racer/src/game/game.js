@@ -8,6 +8,7 @@ import { Physics, SURF } from '../physics/physics.js';
 import { Vehicle } from '../physics/vehicle.js';
 import { CAR_SPECS } from '../physics/carspecs.js';
 import { CarVisual } from '../car/carmodel.js';
+import { WheelBank } from '../car/wheels.js';
 import { loadCars, loaded } from '../core/assets.js';
 import { AIDriver } from './ai.js';
 import { Race } from './race.js';
@@ -62,6 +63,7 @@ export class Game {
     addEventListener('resize', () => this.resize());
     progress(0.82, 'Building the cars');
     await loadCars(Object.keys(CAR_SPECS));
+    this.wheelBank = new WheelBank(this.world.scene, this.world.env, 48);
     // physics world
     const ph = this.physics = new Physics();
     ph.addTrimesh(this.world.road.physRoad, SURF.ROAD, 1.0);
@@ -81,6 +83,7 @@ export class Game {
     this.keyLight = new THREE.PointLight(0x9fe8ff, 0, 9, 1.5);
     this.world.scene.add(this.keyLight);
     progress(0.95, 'Warming up shaders');
+    try { this.renderer.compile(this.world.scene, this.camera); } catch (_) { /* best effort */ }
     this.state = 'menu';
   }
 
@@ -102,7 +105,7 @@ export class Game {
         wrap.add(obj);
         obj = wrap;
       }
-      obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      obj.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = true; } });
       obj.position.copy(p.pos); obj.quaternion.copy(p.quat);
       this.world.scene.add(obj);
       this.physics.addProp(obj, { shape: p.model === 'drum' || p.model === 'Barrel_01' ? 'cyl' : 'box', half: p.half, mass: p.mass, pos: p.pos, quat: p.quat });
@@ -138,7 +141,7 @@ export class Game {
       let livery = isPlayer ? playerLivery : LIVERIES[(li++ + 3) % LIVERIES.length];
       if (!isPlayer && livery === playerLivery) livery = LIVERIES[(li++ + 3) % LIVERIES.length];
       livery = { ...livery, number: isPlayer ? 7 : [11, 23, 3, 44, 16, 88, 5, 31][i] };
-      const visual = new CarVisual({ id, meta: loaded.carMeta[id], geo: loaded.cars[id], envMap: this.world.env, livery });
+      const visual = new CarVisual({ id, meta: loaded.carMeta[id], geo: loaded.cars[id], envMap: this.world.env, livery, wheelBank: this.wheelBank });
       this.world.scene.add(visual.group);
       entrants.push({ id, visual, isPlayer, name: isPlayer ? 'YOU' : RIVALS[i % RIVALS.length] });
     }
@@ -160,12 +163,15 @@ export class Game {
     this.cameraRig.inited = false;
     this.cameraRig.crash = null;
     this.state = 'race';
+    // compile the new car materials now rather than hitching on the first frames
+    try { this.renderer.compile(this.world.scene, this.camera); } catch (_) { /* best effort */ }
   }
 
   clearRace() {
     if (!this.race) return;
     for (const e of this.race.entrants) {
       this.world.scene.remove(e.visual.group);
+      e.visual.dispose();
       for (const c of e.v.colliders) { this.physics.owner.delete(c.handle); }
       this.physics.world.removeRigidBody(e.v.body);
     }
@@ -221,7 +227,7 @@ export class Game {
   loseWheel(car, i, dv, point) {
     const w = car.wheels[i];
     w.lost = true;
-    this.detachPart(car, car.visual.wheels[i].steer, dv, point);
+    this.detachPart(car, car.visual.tearWheel(i), dv, point);
     car.health = Math.max(0, car.health - 0.25);
   }
 
@@ -250,7 +256,22 @@ export class Game {
     }
   }
 
+  /** After a wreck the team rolls out a fresh car (new body, parts and aero). */
+  rebuildCar(e) {
+    const v = e.v, old = v.visual;
+    const visual = new CarVisual({ id: e.id, meta: loaded.carMeta[e.id], geo: loaded.cars[e.id], envMap: this.world.env, livery: old.spec.livery, wheelBank: this.wheelBank });
+    this.world.scene.remove(old.group);
+    old.dispose();
+    this.world.scene.add(visual.group);
+    e.visual = visual; v.visual = visual;
+    v.spec = CAR_SPECS[e.id];
+    v.health = 1; v.steerBias = 0; v.powerLoss = 0;
+    v.wheels.forEach((w) => { w.lost = false; });
+    v.syncVisual();
+  }
+
   onRespawn(e) {
+    if (e.v.health <= 0.36 || e.v.wheels.some((w) => w.lost)) { this.rebuildCar(e); if (e.isPlayer) this.cameraRig.inited = false; return; }
     // fresh-ish car: repair cosmetics partially? keep dents but restore aero/wheels
     const v = e.v;
     v.wheels.forEach((w, i) => {
@@ -264,6 +285,7 @@ export class Game {
           v.visual.group.add(vw.steer);
           vw.steer.position.copy(vw.rest); vw.steer.quaternion.identity();
           vw.steer.userData.attached = true;
+          v.visual.restoreWheel(i);
         }
       }
     });
@@ -311,7 +333,8 @@ export class Game {
       if (!p.ai) p.ai = new AIDriver(pv, this.world.track, { skill: 0.8 });
     }
     if (this.autopilot && !p.ai) p.ai = new AIDriver(pv, this.world.track, { skill: 1.0 });
-    if (!p.finished && !this.autopilot) {
+    if (this.crashTest) { pv.input.steer = 0; pv.input.throttle = 0.3; pv.input.brake = 0; }
+    else if (!p.finished && !this.autopilot) {
       pv.input.steer = inp.steer;
       pv.input.throttle = started ? inp.throttle : 0;
       pv.input.brake = started ? inp.brake : (inp.throttle > 0 ? 0 : 1);
@@ -357,6 +380,18 @@ export class Game {
     this.skids.update();
     // camera + lighting
     this.cameraRig.update(dtReal * (this.timeScale < 1 ? 0.6 : 1), pv, pv.boost > 0);
+    if (this.shotCam) {
+      // scripted photo camera in the player car's frame: [ox, oy, oz, tx, ty, tz, fov]
+      const c = this.shotCam, g = pv.visual.group;
+      const yawOnly = new THREE.Object3D();
+      yawOnly.position.copy(pv.pos);
+      yawOnly.rotation.y = Math.atan2(pv.fwd.x, pv.fwd.z);
+      yawOnly.updateMatrixWorld();
+      this.camera.position.copy(yawOnly.localToWorld(new THREE.Vector3(c[0], c[1], c[2])));
+      this.camera.up.set(0, 1, 0);
+      this.camera.lookAt(yawOnly.localToWorld(new THREE.Vector3(c[3], c[4], c[5])));
+      if (c[6]) { this.camera.fov = c[6]; this.camera.updateProjectionMatrix(); }
+    }
     this.world.updateLighting(this.camera.position, pv.pos);
     this.updateHeadlight(pv);
     this.world.update(dt, this.time, this.camera.position, this.cars.map((v) => v.pos));
@@ -398,14 +433,16 @@ export class Game {
     const tmp = new THREE.Vector3();
     for (const v of this.cars) {
       const vis = v.visual;
-      const near = v.pos.distanceToSquared(this.camera.position) < 120 * 120;
+      const d2 = v.pos.distanceToSquared(this.camera.position);
+      vis.setDetail(d2 < 45 * 45);
+      const near = d2 < 120 * 120;
       if (!near) continue;
       // exhaust bubbles
-      const rate = (0.3 + v.throttle * 1.5 + (v.boost ? 6 : 0)) * dt * 30;
+      const rate = (0.15 + v.throttle * 0.6 + (v.boost ? 5 : 0)) * dt * 30;
       for (const ex of vis.exhausts) {
         if (Math.random() < rate) {
           const wp = vis.group.localToWorld(tmp.copy(ex));
-          P.bubbles(wp, v.boost ? 3 : 1, 0.1, 0.8, v.boost ? 0.09 : 0.045);
+          P.bubbles(wp, v.boost ? 3 : 1, 0.1, 0.8, v.boost ? 0.07 : 0.03);
         }
         if (v.boost) { const wp = vis.group.localToWorld(tmp.copy(ex)); P.glow(wp, [0.3, 1.6, 2.2], 0.6, 0.08); }
       }

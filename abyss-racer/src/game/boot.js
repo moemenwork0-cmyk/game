@@ -32,7 +32,7 @@ export async function boot(canvas, params) {
 
   function startRace(car, livery) {
     menus.clear();
-    if (game.showcase) { game.world.scene.remove(game.showcase.visual.group); game.showcase = null; }
+    if (game.showcase) { game.world.scene.remove(game.showcase.visual.group); game.showcase.visual.dispose(); game.showcase = null; }
     game.setupRace(car, livery, settings.opponents);
     game.player.v.assist = { tcs: settings.tcs, abs: settings.abs, steer: settings.steerAssist };
     hud.show(true);
@@ -56,10 +56,48 @@ export async function boot(canvas, params) {
   menus.title();
   loading.hide();
   // debug / automation hooks
+  if (params.get('audio')) await game.audio.unlock();
   if (params.get('race')) {
     startRace(params.get('car') || settings.car, LIVERIES[Number(params.get('livery') ?? settings.livery)]);
     if (params.get('auto')) game.autopilot = true;
+    if (params.get('startk')) {
+      const t = game.world.track, k0 = Number(params.get('startk'));
+      game.race.entrants.forEach((e, i) => {
+        const slot = game.race.gridSlot(i);
+        const k = t.wrap(k0 + (slot.k - t.N));
+        const p = t.lateralPoint(k, i % 2 === 0 ? -3.4 : 3.4).addScaledVector(t.U(k), 0.3);
+        const m = new (p.constructor === Object ? Object : window.__THREE.Matrix4)().lookAt(new window.__THREE.Vector3(), t.T(k).negate(), t.U(k));
+        e.v.teleport(p, new window.__THREE.Quaternion().setFromRotationMatrix(m));
+        e.v.setSpeed(Number(params.get('v0') ?? 30));
+        e.k = k; e.started = true; if (e.ai) e.ai.k = k;
+      });
+      game.race.countdown = 1.01;
+    }
     if (params.get('cam')) game.cameraRig.mode = Number(params.get('cam'));
+    if (params.get('shotcam')) game.shotCam = params.get('shotcam').split(',').map(Number);
+    if (params.get('hidehud')) game.hud.show(false);
+    if (params.get('crash')) {
+      // debug: fire the player at the barrier (or into a rival) for damage testing
+      const T3 = window.__THREE, t = game.world.track, e = game.player, k = t.wrap(Number(params.get('ck') ?? 300));
+      const p = t.lateralPoint(k, Number(params.get('clat') ?? 0)).addScaledVector(t.U(k), 0.3);
+      const m = new T3.Matrix4().lookAt(new T3.Vector3(), t.T(k).negate(), t.U(k));
+      const q = new T3.Quaternion().setFromRotationMatrix(m).multiply(new T3.Quaternion().setFromAxisAngle(new T3.Vector3(0, 1, 0), Number(params.get('cyaw') ?? -0.45)));
+      game.race.countdown = 1.01;
+      game.simulate(0.05);
+      e.v.teleport(p, q); e.v.setSpeed(Number(params.get('cv') ?? 45));
+      e.k = k; e.started = true;
+      game.crashTest = true;
+      if (params.get('victim')) {
+        // a rival cruising across the player's path (T-bone / takedown test)
+        const vk = t.wrap(k + Number(params.get('vk') ?? 14));
+        const ve = game.race.entrants.find((x) => !x.isPlayer);
+        const vp = t.lateralPoint(vk, Number(params.get('vlat') ?? 4)).addScaledVector(t.U(vk), 0.3);
+        const vm = new T3.Matrix4().lookAt(new T3.Vector3(), t.T(vk).negate(), t.U(vk));
+        ve.v.teleport(vp, new T3.Quaternion().setFromRotationMatrix(vm));
+        ve.v.setSpeed(Number(params.get('vv') ?? 18));
+        ve.k = vk; ve.started = true; if (ve.ai) ve.ai.k = vk;
+      }
+    }
     if (params.get('sim')) {
       game.simulate(Number(params.get('sim')));
       if (params.get('nitro')) { game.player.nitroOn = true; game.player.nitro = 1; game.simulate(0.5); }

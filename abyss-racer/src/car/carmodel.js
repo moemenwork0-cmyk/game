@@ -2,6 +2,7 @@
 // procedurally modelled wheels (tyre, multi-spoke rim, brake disc, caliper) and detachable aero parts.
 import * as THREE from 'three';
 import { patchMaterial } from '../render/underwater.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const lerpTable = (zs, vs, z) => {
   if (z <= zs[0]) return vs[0];
@@ -76,7 +77,7 @@ float ax = abs(P.x);
 float tubTop = tbl12(P.z, uTubZ, uTubT);
 float roofY = tbl8(P.z, uCabZ, uCabT);
 float cabW = tbl8(P.z, uCabZ, uCabW);
-float inCab = aaStep(uCabZ[0] + 0.15, P.z) * (1.0 - aaStep(uCabZ[7] + 0.02, P.z)) * (1.0 - aaStep(cabW + 0.03, ax));
+float inCab = aaStep(uCabZ[0] + 0.15, P.z) * (1.0 - aaStep(uCabZ[7] + 0.02, P.z)) * (1.0 - aaStep(cabW + 0.14, ax));
 float above = aaStep(tubTop + 0.05, P.y);
 float roofM = aaStep(0.62, PN.y) * aaStep(roofY - 0.11, P.y) * inCab * (1.0 - aaStep(cabW * 0.62, ax));
 float wsM = aaStep(0.24, PN.z);
@@ -106,7 +107,7 @@ float sideBand = smoothstep(0.35, 0.6, abs(PN.x)) * (1.0 - aaStep(0.33 + P.z * 0
 paint = mix(paint, uAccent, max(stripes, sideBand * step(1.5, uStripe)));
 paint = mix(paint, uAccent2, roofM * step(0.5, uStripe));
 // door number roundel
-vec2 nuv = vec2((P.z - uDoor.x) * sign(P.x), P.y - uDoor.y) / (uDoor.z * 2.0) + 0.5;
+vec2 nuv = vec2((P.z - uDoor.x) * -sign(P.x), P.y - uDoor.y) / (uDoor.z * 2.0) + 0.5;
 float side = smoothstep(0.55, 0.7, abs(PN.x));
 if (side > 0.0 && nuv.x > 0.0 && nuv.x < 1.0 && nuv.y > 0.0 && nuv.y < 1.0) {
   vec4 nt = texture2D(uNumTex, nuv);
@@ -227,94 +228,70 @@ export class CarVisual {
     const m = this.meta;
     const zr = -m.length / 2, zf = m.length / 2;
     const rearTop = lerpTable(m.tub.zs, m.tub.yt, zr + 0.35);
-    // rear wing: cambered airfoil extruded across the car
+    const xf = (g, pos, rot) => { if (rot) g.rotateX(rot); g.translate(pos[0], pos[1], pos[2]); return g.index ? g.toNonIndexed() : g; };
+    const clean = (g) => { for (const k of Object.keys(g.attributes)) if (!['position', 'normal'].includes(k)) g.deleteAttribute(k); return g; };
+    const merge = (list) => mergeGeometries(list.map(clean));
+    // rear wing: cambered airfoil + end plates + swan-neck struts, one mesh
     const foil = new THREE.Shape();
     const chord = 0.34, thick = 0.045;
     const pts = [];
-    for (let i = 0; i <= 16; i++) {
-      const t = i / 16, x = (1 - Math.cos(t * Math.PI)) / 2;
+    for (let i = 0; i <= 12; i++) {
+      const t = i / 12, x = (1 - Math.cos(t * Math.PI)) / 2;
       const yt = 5 * thick * (0.2969 * Math.sqrt(x) - 0.126 * x - 0.3516 * x * x + 0.2843 * x ** 3 - 0.1036 * x ** 4);
-      const camber = 0.06 * x * (1 - x) * 4 * 0.5;
-      pts.push([x, camber + yt]);
+      pts.push([x, 0.06 * x * (1 - x) * 2 + yt]);
     }
     foil.moveTo(0, 0);
     pts.forEach(([x, y]) => foil.lineTo(-x * chord, -y * chord * 1.2));
-    for (let i = pts.length - 1; i >= 0; i--) { const [x, y] = pts[i]; const yt2 = 0.06 * x * (1 - x) * 2 - (y - 0.06 * x * (1 - x) * 2); foil.lineTo(-x * chord, -yt2 * chord * 0.5); }
+    for (let i = pts.length - 1; i >= 0; i--) { const [x, y] = pts[i]; const c = 0.06 * x * (1 - x) * 2; foil.lineTo(-x * chord, -(2 * c - y) * chord * 0.5); }
     const span = m.width * 0.86;
-    const wingGeo = new THREE.ExtrudeGeometry(foil, { depth: span, bevelEnabled: false, steps: 1 });
-    wingGeo.translate(0, 0, -span / 2);
-    wingGeo.rotateY(Math.PI / 2);
-    wingGeo.rotateX(-0.12);
-    const wing = new THREE.Group();
-    const blade = new THREE.Mesh(wingGeo, this.carbonMat);
-    blade.castShadow = true;
-    wing.add(blade);
-    const plateGeo = new THREE.BoxGeometry(0.014, 0.17, 0.36);
+    const blade = new THREE.ExtrudeGeometry(foil, { depth: span, bevelEnabled: false, steps: 1, curveSegments: 4 });
+    blade.translate(0, 0, -span / 2); blade.rotateY(Math.PI / 2); blade.rotateX(-0.12);
+    const wingParts = [xf(blade, [0, 0, 0])];
     for (const s of [-1, 1]) {
-      const p = new THREE.Mesh(plateGeo, this.carbonMat);
-      p.position.set(s * span / 2, -0.03, -0.14);
-      wing.add(p);
-      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.30, 0.14), this.carbonMat);
-      strut.position.set(s * span * 0.28, -0.17, -0.08);
-      strut.rotation.x = 0.25;
-      wing.add(strut);
+      wingParts.push(xf(new THREE.BoxGeometry(0.014, 0.17, 0.36), [s * span / 2, -0.03, -0.14]));
+      wingParts.push(xf(new THREE.BoxGeometry(0.018, 0.30, 0.14), [s * span * 0.28, -0.17, -0.08], 0.25));
     }
+    const wing = new THREE.Mesh(merge(wingParts), this.carbonMat);
     wing.position.set(0, rearTop + 0.27, zr + 0.40);
     this.addPart('wing', wing, 18);
     // front splitter
     const sp = new THREE.Shape();
     const sw = m.width * 0.46, sd = 0.30;
     sp.moveTo(-sw, 0); sp.lineTo(sw, 0); sp.quadraticCurveTo(sw + 0.02, sd * 0.8, sw * 0.7, sd); sp.lineTo(-sw * 0.7, sd); sp.quadraticCurveTo(-sw - 0.02, sd * 0.8, -sw, 0);
-    const splGeo = new THREE.ExtrudeGeometry(sp, { depth: 0.025, bevelEnabled: true, bevelThickness: 0.005, bevelSize: 0.006, bevelSegments: 1 });
+    const splGeo = new THREE.ExtrudeGeometry(sp, { depth: 0.025, bevelEnabled: false, curveSegments: 6 });
     splGeo.rotateX(Math.PI / 2);
     const spl = new THREE.Mesh(splGeo, this.carbonMat);
     spl.position.set(0, 0.125, zf - 0.38);
     this.addPart('splitter', spl, 12);
-    // rear diffuser with strakes
-    const dif = new THREE.Group();
-    const dbase = new THREE.Mesh(new THREE.BoxGeometry(m.width * 0.78, 0.02, 0.5), this.carbonMat);
-    dbase.rotation.x = -0.2;
-    dif.add(dbase);
-    for (let i = -3; i <= 3; i++) {
-      const f = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.16, 0.48), this.carbonMat);
-      f.position.set(i * 0.2, 0.06, 0.0);
-      f.rotation.x = -0.2;
-      dif.add(f);
-    }
+    // rear diffuser with strakes, one mesh
+    const dParts = [xf(new THREE.BoxGeometry(m.width * 0.78, 0.02, 0.5), [0, 0, 0], -0.2)];
+    for (let i = -3; i <= 3; i++) dParts.push(xf(new THREE.BoxGeometry(0.012, 0.16, 0.48), [i * 0.2, 0.06, 0], -0.2));
+    const dif = new THREE.Mesh(merge(dParts), this.carbonMat);
     dif.position.set(0, 0.16, zr + 0.28);
     this.addPart('diffuser', dif, 10);
-    // mirrors at the base of the A-pillars
+    // mirrors at the base of the A-pillars (one mesh each)
     const cz = m.cabin.zs[m.cabin.zs.length - 2] - 0.15;
     const cw = lerpTable(m.cabin.zs, m.cabin.w, cz);
     const belt = lerpTable(m.tub.zs, m.tub.yt, cz) + 0.08;
     for (const s of [-1, 1]) {
-      const mir = new THREE.Group();
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 10), this.paintMat);
-      head.scale.set(0.55, 0.5, 1.0);
-      head.position.set(s * 0.1, 0.04, 0);
-      const glass = new THREE.Mesh(new THREE.CircleGeometry(0.045, 12), new THREE.MeshStandardMaterial({ color: 0x223344, metalness: 1, roughness: 0.05, envMap: this.spec.envMap }));
-      glass.position.set(s * 0.1, 0.04, -0.101);
-      glass.rotation.y = Math.PI;
-      glass.scale.set(1.15, 0.95, 1);
-      const stalk = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.025, 0.05), this.carbonMat);
-      stalk.position.set(s * 0.04, 0.0, 0.02);
-      mir.add(head, glass, stalk);
+      const head = new THREE.SphereGeometry(0.1, 12, 8); head.scale(0.55, 0.5, 1.0);
+      const g = merge([xf(head, [s * 0.1, 0.04, 0]), xf(new THREE.BoxGeometry(0.12, 0.025, 0.05), [s * 0.04, 0, 0.02])]);
+      const mir = new THREE.Mesh(g, this.paintMat);
       mir.position.set(s * (cw + 0.07), belt, cz);
       this.addPart(s < 0 ? 'mirrorL' : 'mirrorR', mir, 2);
     }
-    // exhaust tips
+    // exhaust tips (one mesh)
     const exMat = patchMaterial(new THREE.MeshStandardMaterial({ color: 0x8a7a6a, metalness: 1, roughness: 0.3, envMap: this.spec.envMap }), { key: 'ex' });
     this.exhausts = [];
+    const exParts = [];
     for (const s of [-1, 1]) {
-      const ex = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.16, 18, 1, true), exMat);
-      ex.rotation.x = Math.PI / 2;
-      ex.position.set(s * 0.14, 0.33, zr + 0.02);
-      const inner = new THREE.Mesh(new THREE.CircleGeometry(0.05, 18), new THREE.MeshBasicMaterial({ color: 0x050505 }));
-      inner.position.set(s * 0.14, 0.33, zr + 0.05);
-      inner.rotation.y = Math.PI;
-      this.group.add(ex, inner);
+      const ex = new THREE.CylinderGeometry(0.055, 0.05, 0.16, 14, 1, false);
+      exParts.push(xf(ex, [s * 0.14, 0.33, zr + 0.02], Math.PI / 2));
       this.exhausts.push(new THREE.Vector3(s * 0.14, 0.33, zr - 0.05));
     }
+    const exMesh = new THREE.Mesh(merge(exParts), exMat);
+    this.group.add(exMesh);
+    this.detailMeshes = [exMesh];
   }
 
   addPart(name, obj, mass) {
@@ -327,99 +304,42 @@ export class CarVisual {
 
   buildWheels() {
     this.wheels = [];
-    const env = this.spec.envMap;
     const L = this.spec.livery;
-    const tireMat = patchMaterial(new THREE.MeshStandardMaterial({ color: 0x0c0c0d, roughness: 0.82, metalness: 0.0 }), {
-      key: 'tire',
-      onCompile: (sh) => {
-        sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-          float tread = smoothstep(0.38, 0.42, vUv2t.y) * (1.0 - smoothstep(0.58, 0.62, vUv2t.y));
-          float g1 = step(0.45, abs(fract(vUv2t.x * 120.0) - 0.5) * 2.0);
-          float sideLetter = (smoothstep(0.1, 0.12, vUv2t.y) * (1.0 - smoothstep(0.17, 0.19, vUv2t.y)) + smoothstep(0.81, 0.83, vUv2t.y) * (1.0 - smoothstep(0.88, 0.9, vUv2t.y))) * step(0.8, fract(vUv2t.x * 6.0));
-          diffuseColor.rgb *= 1.0 - tread * g1 * 0.6;
-          diffuseColor.rgb += sideLetter * 0.25;
-          roughnessFactor = mix(roughnessFactor, 0.6, tread);`);
-      },
-      vertDecl: 'varying vec2 vUv2t;\n', vertBody: 'vUv2t = uv;\n', fragDecl: 'varying vec2 vUv2t;\n',
-    });
-    const rimMat = patchMaterial(new THREE.MeshPhysicalMaterial({ color: L.rim ?? 0x9aa0a8, metalness: 1, roughness: 0.22, clearcoat: 0.6, envMap: env, envMapIntensity: 1.4 }), { key: 'rim' });
-    const discMat = patchMaterial(new THREE.MeshStandardMaterial({ color: 0x55585c, metalness: 1, roughness: 0.4, envMap: env, emissive: 0xff3300, emissiveIntensity: 0 }), { key: 'disc' });
-    const caliperMat = patchMaterial(new THREE.MeshPhysicalMaterial({ color: L.caliper ?? 0xd01010, roughness: 0.3, clearcoat: 1, envMap: env }), { key: 'cal' });
-    this.discMat = discMat;
+    const bank = this.spec.wheelBank;
     for (const w of this.meta.wheels) {
       const R = w.r, W = w.w, Rr = R * 0.66;
-      // tyre profile (radius, axial) swept around x
-      const prof = [];
-      const hw = W / 2;
-      prof.push(new THREE.Vector2(Rr - 0.01, -hw + 0.02));
-      prof.push(new THREE.Vector2(Rr + 0.02, -hw));
-      prof.push(new THREE.Vector2(R - 0.05, -hw - 0.006));
-      prof.push(new THREE.Vector2(R - 0.02, -hw + 0.004));
-      prof.push(new THREE.Vector2(R - 0.004, -hw + 0.025));
-      prof.push(new THREE.Vector2(R, -hw + 0.05));
-      prof.push(new THREE.Vector2(R, hw - 0.05));
-      prof.push(new THREE.Vector2(R - 0.004, hw - 0.025));
-      prof.push(new THREE.Vector2(R - 0.02, hw - 0.004));
-      prof.push(new THREE.Vector2(R - 0.05, hw + 0.006));
-      prof.push(new THREE.Vector2(Rr + 0.02, hw));
-      prof.push(new THREE.Vector2(Rr - 0.01, hw - 0.02));
-      const lathe = new THREE.LatheGeometry(prof, 48);
-      // lathe sweeps around y: (r, y) -> rotate so axis becomes x
-      lathe.rotateZ(Math.PI / 2);
-      const tire = new THREE.Mesh(lathe, tireMat);
-      // rim face: disc with spoke holes
-      const side = w.x < 0 ? -1 : 1;
-      const face = new THREE.Shape();
-      face.absarc(0, 0, Rr, 0, Math.PI * 2, false);
-      const spokes = 10;
-      for (let i = 0; i < spokes; i++) {
-        const a0 = (i / spokes) * Math.PI * 2 + 0.11, a1 = ((i + 1) / spokes) * Math.PI * 2 - 0.11;
-        const hole = new THREE.Path();
-        const r0 = Rr * 0.34, r1 = Rr * 0.9;
-        hole.moveTo(Math.cos(a0 + 0.08) * r0, Math.sin(a0 + 0.08) * r0);
-        hole.lineTo(Math.cos(a0) * r1, Math.sin(a0) * r1);
-        hole.absarc(0, 0, r1, a0, a1, false);
-        hole.lineTo(Math.cos(a1 - 0.08) * r0, Math.sin(a1 - 0.08) * r0);
-        hole.absarc(0, 0, r0, a1 - 0.08, a0 + 0.08, true);
-        face.holes.push(hole);
-      }
-      const faceGeo = new THREE.ExtrudeGeometry(face, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.006, bevelSegments: 2, curveSegments: 32 });
-      faceGeo.rotateY(side > 0 ? Math.PI / 2 : -Math.PI / 2);
-      const rimFace = new THREE.Mesh(faceGeo, rimMat);
-      rimFace.position.x = side * (W / 2 - 0.05);
-      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(Rr, Rr, W - 0.04, 32, 1, true), rimMat);
-      barrel.rotation.z = Math.PI / 2;
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(Rr * 0.16, Rr * 0.18, 0.05, 6), new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 1, roughness: 0.3 }));
-      cap.rotation.z = Math.PI / 2;
-      cap.position.x = side * (W / 2 - 0.02);
-      const disc = new THREE.Mesh(new THREE.CylinderGeometry(Rr * 0.86, Rr * 0.86, 0.032, 36), discMat);
-      disc.rotation.z = Math.PI / 2;
-      disc.position.x = side * 0.0;
-      const spin = new THREE.Group();
-      spin.add(tire, rimFace, barrel, cap, disc);
-      const caliper = new THREE.Mesh(new THREE.BoxGeometry(0.07, Rr * 0.5, Rr * 0.32), caliperMat);
-      caliper.position.set(side * 0.03, Rr * 0.52, -Rr * 0.38);
-      caliper.rotation.x = -0.6;
+      const side = w.x < 0 ? 1 : 0;   // instance mesh whose rim face points outwards
+      // invisible pivots keep the transform hierarchy the game logic relies on
       const steer = new THREE.Group();
-      steer.add(spin, caliper);
+      const spin = new THREE.Group();
+      steer.add(spin);
       steer.position.set(w.x, R, w.z);
-      steer.traverse((o) => { if (o.isMesh) o.castShadow = true; });
       steer.userData.mass = 22;
       steer.userData.attached = true;
       this.group.add(steer);
-      this.wheels.push({ steer, spin, radius: R, rest: steer.position.clone(), meta: w });
+      const handle = bank ? bank.alloc(side, L.rim ?? 0x9aa0a8, L.caliper ?? 0xd01010) : null;
+      this.wheels.push({ steer, spin, radius: R, width: W, rest: steer.position.clone(), meta: w, handle, side,
+        calLocal: new THREE.Matrix4().compose(new THREE.Vector3(side ? -0.03 : 0.03, Rr * 0.52, -Rr * 0.38).applyAxisAngle(new THREE.Vector3(1, 0, 0), 0), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -0.6), new THREE.Vector3(0.07, Rr * 0.5, Rr * 0.32)) });
     }
+    this._m = new THREE.Matrix4(); this._s = new THREE.Matrix4(); this._c = new THREE.Matrix4();
   }
 
   buildLights() {
-    // volumetric headlight beams (additive cones)
-    const coneGeo = new THREE.ConeGeometry(2.6, 14, 24, 1, true);
-    coneGeo.translate(0, -7, 0);
-    coneGeo.rotateX(-Math.PI / 2 - 0.04);
+    // volumetric headlight beams (additive cones), both merged into one mesh
+    const zf = this.meta.length / 2;
+    const y = lerpTable(this.meta.tub.zs, this.meta.tub.yt, zf - 0.3) - 0.08;
+    const cones = [];
+    for (const s of [-1, 1]) {
+      const c = new THREE.ConeGeometry(2.6, 14, 18, 1, true);
+      c.translate(0, -7, 0);
+      c.rotateX(-Math.PI / 2 - 0.04);
+      c.translate(s * 0.62, y, zf - 0.25);
+      cones.push(c);
+    }
     const coneMat = new THREE.ShaderMaterial({
       uniforms: { uInt: { value: 1 } },
       vertexShader: `varying float vL; varying vec3 vN; varying vec3 vV;
-        void main(){ vL = -position.z / 14.0; vec4 mv = modelViewMatrix * vec4(position,1.0);
+        void main(){ vL = clamp(-(position.z - ${(zf - 0.25).toFixed(3)}) / 14.0, 0.0, 1.0); vec4 mv = modelViewMatrix * vec4(position,1.0);
         vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
       fragmentShader: `uniform float uInt; varying float vL; varying vec3 vN; varying vec3 vV;
         void main(){ float edge = pow(abs(dot(normalize(vN), normalize(vV))), 1.5);
@@ -428,17 +348,11 @@ export class CarVisual {
       transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
     });
     this.coneMat = coneMat;
-    const zf = this.meta.length / 2;
-    const y = lerpTable(this.meta.tub.zs, this.meta.tub.yt, zf - 0.3) - 0.08;
-    this.beams = [];
-    for (const s of [-1, 1]) {
-      const c = new THREE.Mesh(coneGeo, coneMat);
-      c.position.set(s * 0.62, y, zf - 0.25);
-      c.renderOrder = 5;
-      c.frustumCulled = false;
-      this.group.add(c);
-      this.beams.push(c);
-    }
+    const beams = new THREE.Mesh(mergeGeometries(cones), coneMat);
+    beams.renderOrder = 5;
+    beams.frustumCulled = false;
+    this.group.add(beams);
+    this.beams = [beams];
     this.headlightLocal = new THREE.Vector3(0, y, zf - 0.2);
   }
 
@@ -449,23 +363,57 @@ export class CarVisual {
     this.coneMat.uniforms.uInt.value = head;
   }
 
-  setBrakeGlow(v) { this.discMat.emissiveIntensity = v; }
+  setBrakeGlow(v) { /* discs are instanced; glow handled by particles */ }
+
+  /** Hide small details on distant cars. */
+  setDetail(near) {
+    if (this._near === near) return;
+    this._near = near;
+    for (const n of ['mirrorL', 'mirrorR', 'diffuser']) if (this.parts[n]?.userData.attached) this.parts[n].visible = near;
+    for (const m of this.detailMeshes) m.visible = near;
+  }
 
   /** Update wheel visuals: per wheel {steer (rad), spin (rad), compression offset (m)}. */
   updateWheels(states) {
+    const bank = this.spec.wheelBank;
+    this.group.updateMatrixWorld();
     for (let i = 0; i < this.wheels.length; i++) {
       const w = this.wheels[i], s = states[i];
       if (!w.steer.userData.attached) continue;
       w.steer.position.y = w.rest.y + s.offset;
       w.steer.rotation.y = s.steer;
       w.spin.rotation.x = s.spin;
+      if (!bank || !w.handle) continue;
+      w.steer.updateMatrix();
+      this._m.multiplyMatrices(this.group.matrixWorld, w.steer.matrix);
+      this._c.multiplyMatrices(this._m, w.calLocal);
+      this._s.makeRotationX(s.spin).scale(new THREE.Vector3(w.width, w.radius, w.radius));
+      this._m.multiply(this._s);
+      bank.set(w.handle, this._m, this._c);
     }
   }
 
-  /**
-   * Crumple the body around a local-space point. dir = local push direction (into the car).
-   * Returns how much the geometry actually moved (for audio/FX scaling).
-   */
+  /** Detach wheel i: returns a standalone mesh placed where the wheel was. */
+  tearWheel(i) {
+    const w = this.wheels[i];
+    const bank = this.spec.wheelBank;
+    const mesh = bank.standalone(w.side, this.spec.livery.rim ?? 0x9aa0a8, w.radius, w.width);
+    w.steer.add(mesh);
+    bank.set(w.handle, null, null);
+    w.torn = mesh;
+    return w.steer;
+  }
+
+  restoreWheel(i) {
+    const w = this.wheels[i];
+    if (w.torn) { w.torn.removeFromParent(); w.torn = null; }
+  }
+
+  dispose() {
+    const bank = this.spec.wheelBank;
+    if (bank) for (const w of this.wheels) if (w.handle) bank.release(w.handle);
+  }
+
   deform(point, dir, amount, radius) {
     const pos = this.bodyGeo.attributes.position, rest = this.bodyGeo.attributes.aRest, dmg = this.bodyGeo.attributes.aDmg;
     const n = pos.count;
@@ -496,10 +444,25 @@ export class CarVisual {
     }
     if (moved > 0) {
       pos.needsUpdate = true; dmg.needsUpdate = true;
-      this.bodyGeo.computeVertexNormals();
-      this.bodyGeo.attributes.normal.needsUpdate = true;
+      this.refreshNormals();
     }
     return moved;
+  }
+
+  /** Crumpled areas take mesh normals; untouched areas keep the smooth sculpted normals. */
+  refreshNormals() {
+    const g = this.bodyGeo;
+    const restN = g.attributes.aRestN, dmg = g.attributes.aDmg;
+    g.computeVertexNormals();
+    const n = g.attributes.normal;
+    for (let i = 0; i < n.count; i++) {
+      const w = Math.min(1, dmg.getX(i) * 2.5);
+      if (w >= 1) continue;
+      let x = restN.getX(i) * (1 - w) + n.getX(i) * w, y = restN.getY(i) * (1 - w) + n.getY(i) * w, z = restN.getZ(i) * (1 - w) + n.getZ(i) * w;
+      const l = Math.hypot(x, y, z) || 1;
+      n.setXYZ(i, x / l, y / l, z / l);
+    }
+    n.needsUpdate = true;
   }
 
   /** Paint scrape without denting (sliding along walls). */
@@ -522,6 +485,7 @@ export class CarVisual {
     pos.array.set(rest.array);
     dmg.array.fill(0);
     pos.needsUpdate = true; dmg.needsUpdate = true;
-    this.bodyGeo.computeVertexNormals();
+    this.bodyGeo.attributes.normal.array.set(this.bodyGeo.attributes.aRestN.array);
+    this.bodyGeo.attributes.normal.needsUpdate = true;
   }
 }
