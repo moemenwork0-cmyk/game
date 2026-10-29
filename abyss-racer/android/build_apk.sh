@@ -14,7 +14,7 @@ MAIN="$HERE/app/src/main"
 
 "$BT/aapt2" compile --dir "$MAIN/res" -o "$W/res/res.zip"
 "$BT/aapt2" link -o "$W/base.apk" -I "$JAR" --manifest "$MAIN/AndroidManifest.xml" \
-  --java "$W/gen" --min-sdk-version 26 --target-sdk-version 35 --version-code 1 --version-name 1.0 \
+  --java "$W/gen" --min-sdk-version 26 --target-sdk-version 35 --version-code 2 --version-name 1.0.1 \
   -0 glb -0 bin -0 jpg -0 png -0 ogg -0 wasm "$W/res/res.zip"
 javac -source 17 -target 17 -nowarn -classpath "$JAR" -d "$W/classes" \
   $(find "$MAIN/java" "$W/gen" -name '*.java') 2> >(grep -v "bootstrap classpath" >&2 || true)
@@ -23,8 +23,8 @@ javac -source 17 -target 17 -nowarn -classpath "$JAR" -d "$W/classes" \
 # assemble: resources apk + classes.dex + game files under assets/www (stored, not deflated, for fast streaming)
 cd "$W/apk" && unzip -q "$W/base.apk" && cp "$W/dex/classes.dex" . && mkdir -p assets/www && cp -r "$DIST"/. assets/www/
 rm -f "$W/unsigned.apk"
-zip -q -r -D -X -n .glb:.bin:.jpg:.png:.ogg:.wasm:.webp "$W/unsigned.apk" AndroidManifest.xml resources.arsc classes.dex res assets
-"$BT/zipalign" -f -p 4 "$W/unsigned.apk" "$W/aligned.apk"
-"$BT/apksigner" sign --ks "$HERE/abyss.keystore" --ks-pass pass:abyssracer --key-pass pass:abyssracer \
+zip -q -r -D -X -n .arsc:.glb:.bin:.jpg:.png:.ogg:.wasm:.webp:.woff2:.woff "$W/unsigned.apk" AndroidManifest.xml resources.arsc classes.dex res assets
+"$BT/zipalign" -f -P 16 4 "$W/unsigned.apk" "$W/aligned.apk"
+"$BT/apksigner" sign --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --ks "$HERE/abyss.keystore" --ks-pass pass:abyssracer --key-pass pass:abyssracer \
   --ks-key-alias abyss --out "$OUT" "$W/aligned.apk"
 "$BT/apksigner" verify "$OUT" && ls -la "$OUT"
