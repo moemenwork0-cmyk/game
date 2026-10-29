@@ -1,0 +1,26 @@
+; Engine configuration file.
+config_version=5
+
+[application]
+
+config/name="Hara"
+config/description="Open-world game in an Egyptian neighbourhood, built for weak PCs."
+run/main_scene="res://scenes/street.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=false
+anti_aliasing/quality/screen_space_aa=1
+lights_and_shadows/directional_shadow/size=2048

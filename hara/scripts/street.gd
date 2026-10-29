@@ -1,0 +1,398 @@
+extends Node3D
+## The first street: generated buildings from assets/generated/street1, the street surface and
+## sidewalks, shop signs in Arabic, cables and laundry strung across, the mosque at the end,
+## golden-hour lighting, the player and a few passers-by.
+##
+## Command line (after `--`):  --shot=res://shots/x.png  [--hi]  [--cam=wide|chase|low]
+
+const DIR := "res://assets/generated/street1/"
+const SHOPS := ["كشري التحرير", "حلاق المعلم", "صيدلية الشفاء", "موبايلات النور", "عصير قصب الحاج", "بقالة الأمانة",
+	"ورشة الأسطى سيد", "فول وطعمية", "مكوجي الحارة", "جزارة الحاج محمود", "مكتبة الفجر", "ترزي السعادة",
+	"فاكهة وخضار", "سايبر الأبطال", "عطارة أبو علي", "حلويات الأسطى", "أدوات منزلية", "ستوديو الأمل"]
+const FONTS := ["res://assets/fonts/Cairo.ttf", "res://assets/fonts/ReemKufi.ttf", "res://assets/fonts/ArefRuqaa-Bold.ttf"]
+
+var layout: Dictionary
+var args := {}
+var hi := false
+var rnd := RandomNumberGenerator.new()
+var hooks_l: Array[Vector3] = []
+var hooks_r: Array[Vector3] = []
+var player: Player
+
+
+func _ready() -> void:
+	rnd.seed = 7
+	for a in OS.get_cmdline_user_args():
+		var kv := a.trim_prefix("--").split("=")
+		args[kv[0]] = kv[1] if kv.size() > 1 else ""
+	hi = args.has("hi") or RenderingServer.get_current_rendering_method() != "gl_compatibility"
+	layout = JSON.parse_string(FileAccess.get_file_as_string(DIR + "layout.json"))
+	_environment()
+	_ground()
+	for b in layout.buildings:
+		_building(b)
+	_merge_static()
+	_mosque()
+	_cables()
+	if not args.has("nopeople"):
+		_people()
+	player = Player.new()
+	add_child(player)
+	player.position = Vector3(0.6, 0.05, 6.0)
+	if args.has("shot"):
+		_shot()
+
+
+# --------------------------------------------------------------------------- lighting
+func _environment() -> void:
+	var sky := ProceduralSkyMaterial.new()
+	sky.sky_top_color = Color(0.3, 0.48, 0.72)
+	sky.sky_horizon_color = Color(0.95, 0.78, 0.58)
+	sky.ground_horizon_color = Color(0.8, 0.66, 0.5)
+	sky.ground_bottom_color = Color(0.35, 0.3, 0.25)
+	sky.sun_angle_max = 20.0
+	sky.sun_curve = 0.08
+	var e := Environment.new()
+	e.background_mode = Environment.BG_SKY
+	e.sky = Sky.new()
+	e.sky.sky_material = sky
+	# sky light plus a warm "bounce" colour standing in for light reflected off sunlit walls
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	e.ambient_light_color = Color(0.8, 0.74, 0.6)
+	e.ambient_light_sky_contribution = 0.2
+	e.ambient_light_energy = 0.8
+	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	e.tonemap_mode = Environment.TONE_MAPPER_ACES
+	e.tonemap_exposure = 1.05
+	e.fog_enabled = true
+	e.fog_light_color = Color(0.86, 0.72, 0.55)
+	e.fog_density = 0.0045
+	e.fog_sun_scatter = 0.2
+	e.fog_aerial_perspective = 0.4
+	e.glow_enabled = true
+	e.glow_intensity = 0.6
+	e.glow_bloom = 0.08
+	e.glow_hdr_threshold = 0.9
+	e.adjustment_enabled = true
+	e.adjustment_contrast = 1.08
+	e.adjustment_saturation = 1.12
+	if hi:
+		e.ssao_enabled = true
+		e.ssao_radius = 1.2
+		e.ssao_intensity = 2.5
+		e.ssil_enabled = true
+		e.ssil_intensity = 1.2
+		e.volumetric_fog_enabled = true
+		e.volumetric_fog_density = 0.012
+		e.volumetric_fog_albedo = Color(0.95, 0.85, 0.7)
+		e.volumetric_fog_anisotropy = 0.6
+		e.volumetric_fog_length = 90.0
+	var we := WorldEnvironment.new()
+	we.environment = e
+	add_child(we)
+	var sun := DirectionalLight3D.new()
+	# late afternoon sun low over the far end of the street, so light rakes back toward the camera
+	sun.rotation_degrees = Vector3(-26, 180 + 20, 0)
+	sun.light_color = Color(1.0, 0.78, 0.52)
+	sun.light_energy = 2.2
+	sun.shadow_enabled = true
+	sun.shadow_blur = 1.5
+	sun.directional_shadow_max_distance = 90.0 if hi else 45.0
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if hi else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.light_volumetric_fog_energy = 2.0
+	add_child(sun)
+
+
+# --------------------------------------------------------------------------- street surface
+func _ground() -> void:
+	var half: float = layout.half
+	var z0: float = layout.z0 + 6.0
+	var z1: float = layout.z1 - 40.0
+	var sw := 1.3
+	_slab("street", Vector3(-half, -0.2, z1), Vector3(half, 0.0, z0))
+	for s in [-1, 1]:
+		var x_out: float = s * half
+		var x_in: float = s * (half - sw)
+		_slab("sidewalk", Vector3(minf(x_out, x_in), 0.0, z1), Vector3(maxf(x_out, x_in), 0.15, z0))
+		var cx: float = x_in
+		_slab("concrete", Vector3(minf(cx, cx - s * 0.18), 0.0, z1), Vector3(maxf(cx, cx - s * 0.18), 0.17, z0))
+	# collision floor
+	var body := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(60, 1, 300)
+	cs.shape = bs
+	cs.position = Vector3(0, -0.5, -50)
+	body.add_child(cs)
+	add_child(body)
+
+
+## A box mesh with UVs in metres (top face uses x/z), so tiling textures keep their real scale.
+func _slab(mat: String, a: Vector3, b: Vector3) -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var c := [Vector3(a.x, a.y, a.z), Vector3(b.x, a.y, a.z), Vector3(b.x, a.y, b.z), Vector3(a.x, a.y, b.z),
+		Vector3(a.x, b.y, a.z), Vector3(b.x, b.y, a.z), Vector3(b.x, b.y, b.z), Vector3(a.x, b.y, b.z)]
+	var faces := [[4, 7, 6, 5, Vector3.UP], [0, 1, 2, 3, Vector3.DOWN], [3, 2, 6, 7, Vector3.BACK],
+		[1, 0, 4, 5, Vector3.FORWARD], [0, 3, 7, 4, Vector3.LEFT], [2, 1, 5, 6, Vector3.RIGHT]]
+	for f in faces:
+		var n: Vector3 = f[4]
+		var q := [c[f[0]], c[f[1]], c[f[2]], c[f[3]]]
+		for i in [0, 1, 2, 0, 2, 3]:
+			var p: Vector3 = q[i]
+			st.set_normal(n)
+			st.set_color(Color.WHITE)
+			st.set_uv(Vector2(p.x, p.z) if absf(n.y) > 0.5 else (Vector2(p.z, -p.y) if absf(n.x) > 0.5 else Vector2(p.x, -p.y)))
+			st.add_vertex(p)
+	st.generate_tangents()
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = Mats.get_mat(mat)
+	add_child(mi)
+	return mi
+
+
+# --------------------------------------------------------------------------- buildings
+func _building(b: Dictionary) -> void:
+	var node: Node3D = load(DIR + b.file + ".glb").instantiate()
+	add_child(node)
+	Mats.apply(node)
+	for mi: MeshInstance3D in node.find_children("*", "MeshInstance3D", true, false):
+		mi.set_meta("merge", true)
+	var meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(DIR + b.file + ".json"))
+	var w: float = b.w
+	var left: bool = b.side == "L"
+	var half: float = layout.half + float(b.setback)
+	node.rotation.y = PI / 2 if left else -PI / 2
+	node.position = Vector3(-half if left else half, 0, float(b.z) - w / 2)
+	# collision: the whole block behind the facade
+	var body := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(w, float(meta.height), float(meta.depth))
+	cs.shape = bs
+	cs.position = Vector3(0, float(meta.height) / 2, -float(meta.depth) / 2)
+	body.add_child(cs)
+	node.add_child(body)
+	# Arabic shop signs on the boards the generator left
+	for s in meta.signs:
+		var l := Label3D.new()
+		l.text = SHOPS[rnd.randi() % SHOPS.size()]
+		l.font = load(FONTS[rnd.randi() % FONTS.size()])
+		l.font_size = 96
+		l.outline_size = 18
+		l.outline_modulate = Color(0, 0, 0, 0.55)
+		l.modulate = Color(1, 0.97, 0.9)
+		l.shaded = true
+		l.pixel_size = minf(float(s.h) * 0.62 / 96.0, float(s.w) * 0.85 / (96.0 * 0.62 * maxf(4.0, l.text.length())))
+		l.position = Vector3(float(s.x), float(s.z), -float(s.y) + 0.012)
+		node.add_child(l)
+	# bulbs (merged with the building geometry later)
+	for p in meta.lamps:
+		var bulb := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.06
+		sm.height = 0.12
+		sm.radial_segments = 8
+		sm.rings = 4
+		bulb.mesh = sm
+		bulb.set_surface_override_material(0, _bulb_mat())
+		bulb.set_meta("merge", true)
+		bulb.position = Vector3(p[0], p[2] - 0.08, -p[1])
+		node.add_child(bulb)
+	for h in meta.hooks:
+		var gp := node.to_global(Vector3(h[0], h[2], -h[1]))
+		(hooks_l if left else hooks_r).append(gp)
+
+
+## Bake every building mesh into one mesh per 30 m chunk and material: a few dozen draw calls
+## for the whole street instead of hundreds (and culling still works per chunk).
+func _merge_static() -> void:
+	var tools := {}
+	for mi: MeshInstance3D in find_children("*", "MeshInstance3D", true, false):
+		if not mi.has_meta("merge"):
+			continue
+		var key_z := floori(mi.global_position.z / 30.0)
+		for i in mi.mesh.get_surface_count():
+			var mat := mi.get_surface_override_material(i)
+			var key := "%d|%s" % [key_z, mat.get_instance_id()]
+			if not tools.has(key):
+				var st := SurfaceTool.new()
+				st.begin(Mesh.PRIMITIVE_TRIANGLES)
+				tools[key] = [st, mat]
+			tools[key][0].append_from(mi.mesh, i, mi.global_transform)
+		mi.queue_free()
+	var by_chunk := {}
+	for key in tools:
+		var chunk: String = key.get_slice("|", 0)
+		if not by_chunk.has(chunk):
+			by_chunk[chunk] = ArrayMesh.new()
+		var am: ArrayMesh = by_chunk[chunk]
+		var st: SurfaceTool = tools[key][0]
+		st.commit(am)
+		am.surface_set_material(am.get_surface_count() - 1, tools[key][1])
+	for chunk in by_chunk:
+		var mi := MeshInstance3D.new()
+		mi.mesh = by_chunk[chunk]
+		add_child(mi)
+
+
+var _bulb: StandardMaterial3D
+func _bulb_mat() -> StandardMaterial3D:
+	if not _bulb:
+		_bulb = StandardMaterial3D.new()
+		_bulb.emission_enabled = true
+		_bulb.emission = Color(1.0, 0.8, 0.5)
+		_bulb.emission_energy_multiplier = 4.0
+	return _bulb
+
+
+func _mosque() -> void:
+	var m: Node3D = load("res://assets/generated/minaret.glb").instantiate()
+	add_child(m)
+	Mats.apply(m)
+	m.position = Vector3(-4.0, 0, float(layout.z1) - 22.0)
+	m.rotation.y = PI / 2
+	# buildings closing the far end of the street around the mosque
+	_slab("plaster_c", Vector3(-30, 0, float(layout.z1) - 45), Vector3(-14, 18, float(layout.z1) - 15)).material_override = Mats.get_mat("brick")
+	_slab("plaster_c", Vector3(9, 0, float(layout.z1) - 45), Vector3(30, 22, float(layout.z1) - 12)).material_override = Mats.get_mat("brick")
+
+
+# --------------------------------------------------------------------------- cables and laundry across the street
+func _cables() -> void:
+	var wires := SurfaceTool.new()
+	wires.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var cloth := SurfaceTool.new()
+	cloth.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in mini(hooks_l.size(), hooks_r.size()):
+		if rnd.randf() < 0.55:
+			var a := hooks_l[i]
+			var b := hooks_r[clampi(i + rnd.randi_range(-2, 2), 0, hooks_r.size() - 1)]
+			_wire(wires, a, b, rnd.randf_range(0.4, 1.2), 0.012)
+	# laundry lines with clothes, a few metres up
+	var z: float = layout.z0 - 8.0
+	while z > float(layout.z1) + 10.0:
+		var h := rnd.randf_range(5.5, 8.0)
+		var a := Vector3(-layout.half, h, z)
+		var b := Vector3(layout.half, h + rnd.randf_range(-0.6, 0.6), z + rnd.randf_range(-2.0, 2.0))
+		var sag := 0.5
+		_wire(wires, a, b, sag, 0.008)
+		var side := (b - a).cross(Vector3.UP).normalized()
+		var along := (b - a).normalized()
+		var x := 0.6
+		var length := a.distance_to(b)
+		while x < length - 0.6:
+			var t := x / length
+			var p := a.lerp(b, t) + Vector3.DOWN * sag * 4.0 * t * (1.0 - t)
+			var cw := rnd.randf_range(0.35, 0.8)
+			var ch := rnd.randf_range(0.5, 1.1)
+			var c := Color.from_hsv(rnd.randf(), rnd.randf_range(0.2, 0.75), rnd.randf_range(0.45, 0.95))
+			var sway := side * rnd.randf_range(-0.12, 0.12)
+			var q := [p, p + along * cw, p + along * cw + Vector3.DOWN * ch + sway, p + Vector3.DOWN * ch + sway]
+			var uvs := [Vector2(0, 0), Vector2(cw, 0), Vector2(cw, ch), Vector2(0, ch)]
+			for k in [0, 1, 2, 0, 2, 3]:
+				cloth.set_color(c)
+				cloth.set_uv(uvs[k])
+				cloth.set_normal(side)
+				cloth.add_vertex(q[k])
+			x += cw + rnd.randf_range(0.05, 0.3)
+		z -= rnd.randf_range(9.0, 16.0)
+	var dark := StandardMaterial3D.new()
+	dark.albedo_color = Color(0.03, 0.03, 0.03)
+	dark.roughness = 0.8
+	wires.generate_normals()
+	var wm := MeshInstance3D.new()
+	wm.mesh = wires.commit()
+	wm.material_override = dark
+	add_child(wm)
+	var cm := MeshInstance3D.new()
+	cm.mesh = cloth.commit()
+	cm.material_override = Mats.get_mat("cloth")
+	add_child(cm)
+
+
+## Sagging cable as a thin 4-sided tube, appended to `st`.
+func _wire(st: SurfaceTool, a: Vector3, b: Vector3, sag: float, r: float) -> void:
+	var n := 14
+	var pts: Array[Vector3] = []
+	for i in n + 1:
+		var t := float(i) / n
+		pts.append(a.lerp(b, t) + Vector3.DOWN * sag * 4.0 * t * (1.0 - t))
+	for i in n:
+		var d := (pts[i + 1] - pts[i]).normalized()
+		var u := d.cross(Vector3.UP).normalized() * r
+		var v := d.cross(u).normalized() * r
+		var ring := [u, v, -u, -v]
+		for k in 4:
+			var p0: Vector3 = pts[i] + ring[k]
+			var p1: Vector3 = pts[i] + ring[(k + 1) % 4]
+			var p2: Vector3 = pts[i + 1] + ring[(k + 1) % 4]
+			var p3: Vector3 = pts[i + 1] + ring[k]
+			for p in [p0, p1, p2, p0, p2, p3]:
+				st.add_vertex(p)
+
+
+# --------------------------------------------------------------------------- passers-by (placeholder until the people system)
+func _people() -> void:
+	var spots := [[-2.9, -4.0, 0.0], [3.0, -12.0, PI], [-0.8, -22.0, 0.0], [2.8, -30.0, PI], [-3.0, -40.0, PI], [1.0, -16.0, 0.3]]
+	var avatars := ["captain", "sailor", "captain", "sailor", "captain", "sailor"]
+	for i in spots.size():
+		var h := Human.new()
+		h.avatar = avatars[i]
+		add_child(h)
+		h.position = Vector3(spots[i][0], 0.15 if absf(spots[i][0]) > 2.6 else 0.0, spots[i][1])
+		h.rotation.y = spots[i][2]
+		h.set_meta("walk", i % 3 != 2)
+
+
+func _process(dt: float) -> void:
+	for h in get_children():
+		if h is Human and h.has_meta("walk") and h.anim:
+			if h.get_meta("walk"):
+				h.set_speed(1.3)
+				h.position += h.basis.z * 1.3 * dt
+				if h.position.z < float(layout.z1) or h.position.z > float(layout.z0):
+					h.rotation.y += PI
+			else:
+				h.set_speed(0.0)
+
+
+# --------------------------------------------------------------------------- screenshots
+func _shot() -> void:
+	player.frozen = false
+	match args.get("cam", "chase"):
+		"wide":
+			player.cam_pitch = -0.08
+		"low":
+			player.cam_pitch = 0.05
+		"right":
+			player.cam_yaw = -PI / 2 + 0.5
+			player.cam_pitch = -0.05
+		"left":
+			player.cam_yaw = PI / 2 - 0.5
+			player.cam_pitch = -0.05
+		"back":
+			player.cam_yaw = PI
+			player.cam_pitch = -0.12
+	if args.has("z"):
+		player.position.z = float(args.z)
+	# let the player walk a few steps so the pose and camera settle
+	Input.action_press("fwd")
+	for i in 40:
+		await get_tree().physics_frame
+	Input.action_release("fwd")
+	player.frozen = true
+	for i in 20:
+		await get_tree().process_frame
+	player.pivot.global_position = player.global_position + Vector3(0, 1.65, 0)
+	for i in 4:
+		await get_tree().process_frame
+	var t0 := Time.get_ticks_usec()
+	for i in 10:
+		await get_tree().process_frame
+	var ms := (Time.get_ticks_usec() - t0) / 10000.0
+	get_viewport().get_texture().get_image().save_png(args.shot)
+	print("SHOT %s  %.0f ms/frame (software render)  draw calls %d  primitives %d" % [args.shot, ms,
+		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
+		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)])
+	get_tree().quit()
