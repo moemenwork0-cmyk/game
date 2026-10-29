@@ -1,0 +1,75 @@
+name: Hara build
+
+# Builds the Hara test (Windows) on every push that touches hara/. The street geometry is generated
+# with Blender in CI, then Godot exports the game. Download it from the run's Artifacts ("Hara-Windows").
+# No GitHub release is created, so Jazira's auto-updater is never affected.
+
+on:
+  push:
+    branches: ["claude/busy-volta-4ohozh"]
+    paths: ["hara/**", ".github/workflows/hara.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: hara-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: 4.7.2
+  BLENDER_URL: https://download.blender.org/release/Blender4.2/blender-4.2.3-linux-x64.tar.xz
+
+jobs:
+  windows:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hara
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache tools
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/blender
+            ~/.local/share/godot/export_templates
+          key: hara-tools-${{ env.GODOT_VERSION }}-blender423
+
+      - name: Download Godot, Windows template and Blender
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: /tmp
+        run: |
+          mkdir -p ~/godot ~/blender ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
+          unzip -q Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip && mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 ~/godot/godot
+          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz
+          unzip -q -j Godot_v${GODOT_VERSION}-stable_export_templates.tpz templates/windows_release_x86_64.exe templates/version.txt \
+            -d ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          wget -q "$BLENDER_URL" -O blender.tar.xz && tar xf blender.tar.xz -C ~/blender --strip-components=1
+
+      - name: Generate the street (Blender)
+        run: |
+          python3 gen/build_street.py ~/blender/blender
+          ~/blender/blender -b --python-exit-code 1 -P gen/minaret.py -- assets/generated/minaret.glb
+
+      - name: Import and export
+        run: |
+          ~/godot/godot --headless --import || true
+          ~/godot/godot --headless --import || true
+          mkdir -p build/windows
+          ~/godot/godot --headless --export-release "Windows Desktop" build/windows/Hara.exe
+          test -f build/windows/Hara.pck
+          cat > build/windows/README.txt <<'TXT'
+          Hara - first street test
+          Run Hara.exe. WASD walk, Shift run, Space jump, F get in/out of a car, mouse = camera (click to capture, Esc to release).
+          Low settings by default (OpenGL). For the high-quality renderer start it with:  Hara.exe --rendering-method forward_plus
+          Benchmark: Hara.exe -- --benchmark   (writes benchmark.txt next to the exe)
+          TXT
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hara-Windows
+          path: hara/build/windows
+          retention-days: 30

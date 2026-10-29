@@ -36,11 +36,20 @@ func _ready() -> void:
 	_cables()
 	if not args.has("nopeople"):
 		_people()
+	for v in [["test_sedan", Vector3(-1.6, 0.6, -14.0), PI], ["test_sedan", Vector3(1.7, 0.6, -34.0), 0.0]]:
+		var car := Vehicle.new()
+		car.asset = v[0]
+		add_child(car)
+		car.position = v[1]
+		car.rotation.y = v[2]
 	player = Player.new()
 	add_child(player)
 	player.position = Vector3(0.6, 0.05, 6.0)
+	_hud()
 	if args.has("shot"):
 		_shot()
+	elif args.has("benchmark"):
+		_benchmark()
 
 
 # --------------------------------------------------------------------------- lighting
@@ -357,6 +366,82 @@ func _process(dt: float) -> void:
 				h.set_speed(0.0)
 
 
+# --------------------------------------------------------------------------- HUD and benchmark
+var _fps_label := Label.new()
+
+
+func _hud() -> void:
+	var layer := CanvasLayer.new()
+	add_child(layer)
+	_fps_label.position = Vector2(12, 8)
+	_fps_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	_fps_label.add_theme_constant_override("outline_size", 4)
+	layer.add_child(_fps_label)
+	var help := Label.new()
+	help.text = "WASD  Shift  Space  |  F: ركوب/نزول العربية  |  Esc: الماوس"
+	help.position = Vector2(12, 32)
+	help.add_theme_color_override("font_outline_color", Color.BLACK)
+	help.add_theme_constant_override("outline_size", 4)
+	help.add_theme_font_override("font", load("res://assets/fonts/Cairo.ttf"))
+	layer.add_child(help)
+
+
+func _physics_process(_dt: float) -> void:
+	if Engine.get_physics_frames() % 15 == 0:
+		_fps_label.text = "%d FPS  (%s)" % [Engine.get_frames_per_second(), "High" if hi else "Low"]
+
+
+## Walk the whole street for ~25 s and write the frame times next to the executable.
+func _benchmark() -> void:
+	var times: Array[float] = []
+	player.frozen = false
+	Input.action_press("fwd")
+	Input.action_press("run")
+	for i in 30:
+		await get_tree().process_frame
+	var t_end := Time.get_ticks_msec() + 25000
+	var last := Time.get_ticks_usec()
+	var dc := 0
+	while Time.get_ticks_msec() < t_end:
+		await get_tree().process_frame
+		var now := Time.get_ticks_usec()
+		times.append((now - last) / 1000.0)
+		last = now
+		dc = maxi(dc, RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME))
+		if player.position.z < float(layout.z1) + 5.0:
+			player.cam_yaw = PI
+			Input.action_release("fwd")
+			Input.action_press("back")
+	Input.action_release("fwd")
+	Input.action_release("back")
+	Input.action_release("run")
+	var sorted := times.duplicate()
+	sorted.sort()
+	var avg := 0.0
+	for t in times:
+		avg += t
+	avg /= maxf(1.0, times.size())
+	var p99: float = sorted[int(sorted.size() * 0.99)] if sorted.size() else 0.0
+	var txt := "Hara benchmark\n"
+	txt += "GPU: %s (%s)\n" % [RenderingServer.get_video_adapter_name(), RenderingServer.get_video_adapter_vendor()]
+	txt += "Renderer: %s / %s\n" % [RenderingServer.get_current_rendering_method(), RenderingServer.get_current_rendering_driver_name()]
+	txt += "CPU: %s, %d threads\n" % [OS.get_processor_name(), OS.get_processor_count()]
+	txt += "RAM total: %.1f GB\n" % (OS.get_memory_info().get("physical", 0) / 1073741824.0)
+	txt += "Resolution: %s\n" % str(get_viewport().get_visible_rect().size)
+	txt += "Average FPS: %.1f\n1%% low FPS: %.1f\n" % [1000.0 / avg, 1000.0 / maxf(p99, 0.001)]
+	txt += "Max draw calls: %d\n" % dc
+	txt += "Video memory: %.0f MB\n" % (RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_VIDEO_MEM_USED) / 1048576.0)
+	txt += "Game memory (static): %.0f MB\n" % (OS.get_static_memory_usage() / 1048576.0)
+	var path := OS.get_executable_path().get_base_dir().path_join("benchmark.txt")
+	if OS.has_feature("editor"):
+		path = "user://benchmark.txt"
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f:
+		f.store_string(txt)
+	print(txt)
+	get_tree().quit()
+
+
 # --------------------------------------------------------------------------- screenshots
 func _shot() -> void:
 	player.frozen = false
@@ -376,6 +461,15 @@ func _shot() -> void:
 			player.cam_pitch = -0.12
 	if args.has("z"):
 		player.position.z = float(args.z)
+	if args.has("drive"):   # walk to the first car, get in and drive off
+		player.position = Vector3(-0.2, 0.05, -12.5)
+		for i in 10:
+			await get_tree().physics_frame
+		player.toggle_vehicle()
+		Input.action_press("fwd")
+		for i in 150:
+			await get_tree().physics_frame
+		Input.action_release("fwd")
 	# let the player walk a few steps so the pose and camera settle
 	Input.action_press("fwd")
 	for i in 40:

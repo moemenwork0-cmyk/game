@@ -16,10 +16,12 @@ var pivot := Node3D.new()
 var arm := SpringArm3D.new()
 var cam := Camera3D.new()
 var frozen := false
+var vehicle: Vehicle = null
 
 
 func _ready() -> void:
 	var shape := CollisionShape3D.new()
+	shape.name = "CollisionShape3D"
 	var cap := CapsuleShape3D.new()
 	cap.radius = 0.32
 	cap.height = 1.8
@@ -45,7 +47,8 @@ func _ready() -> void:
 
 
 func _setup_input() -> void:
-	var keys := {"fwd": KEY_W, "back": KEY_S, "left": KEY_A, "right": KEY_D, "run": KEY_SHIFT, "jump": KEY_SPACE}
+	var keys := {"fwd": KEY_W, "back": KEY_S, "left": KEY_A, "right": KEY_D, "run": KEY_SHIFT, "jump": KEY_SPACE,
+		"use": KEY_F}
 	for a in keys:
 		if not InputMap.has_action(a):
 			InputMap.add_action(a)
@@ -64,7 +67,42 @@ func _unhandled_input(e: InputEvent) -> void:
 		cam_pitch = clampf(cam_pitch - e.relative.y * 0.0035, -1.1, 0.5)
 
 
+## F: get into the nearest vehicle, or out of the one we are driving (GTA style).
+func toggle_vehicle() -> void:
+	if vehicle:
+		var out := vehicle.global_position + vehicle.global_basis.x * -(float(vehicle.info.size_m[0]) / 2 + 0.7)
+		vehicle.driver = null
+		vehicle = null
+		global_position = out + Vector3.UP * 0.2
+		human.visible = true
+		process_mode = Node.PROCESS_MODE_INHERIT
+		$CollisionShape3D.disabled = false
+		arm.spring_length = 4.2
+		return
+	var best: Vehicle = null
+	for v in get_tree().get_nodes_in_group("vehicles"):
+		if v.global_position.distance_to(global_position) < 3.5 and (best == null or
+				v.global_position.distance_to(global_position) < best.global_position.distance_to(global_position)):
+			best = v
+	if best:
+		vehicle = best
+		vehicle.driver = self
+		human.visible = false
+		$CollisionShape3D.disabled = true
+		arm.spring_length = 6.5
+		cam_yaw = vehicle.global_rotation.y + PI
+
+
 func _physics_process(dt: float) -> void:
+	if Input.is_action_just_pressed("use") and not frozen:
+		toggle_vehicle()
+	if vehicle:
+		global_position = vehicle.global_position
+		velocity = Vector3.ZERO
+		# camera swings back behind the car when the mouse is left alone
+		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED or vehicle.linear_velocity.length() > 3.0:
+			cam_yaw = lerp_angle(cam_yaw, vehicle.global_rotation.y + PI, minf(1.0, 2.0 * dt))
+		return
 	var inp := Vector2.ZERO
 	if not frozen:
 		inp = Input.get_vector("left", "right", "fwd", "back")
