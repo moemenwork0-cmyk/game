@@ -82,7 +82,7 @@ def sketchfab(name, uid, fmt):
 for name, (uid, fmt) in SKETCHFAB.items():
     sketchfab(name, uid, fmt)
 for a in POLYHAVEN_MODELS:
-    polyhaven(a, "Models", "fbx")
+    polyhaven(a, "Models", "gltf")
 for a in POLYHAVEN_TEXTURES:
     polyhaven(a, "Textures", None)
 for a in POLYHAVEN_HDRIS:

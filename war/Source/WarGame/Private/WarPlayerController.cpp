@@ -8,6 +8,12 @@
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "UnrealClient.h"
+#include "ContentStreaming.h"
+#include "Engine/Engine.h"
+#if WITH_EDITOR
+#include "AssetCompilingManager.h"
+#include "ShaderCompiler.h"
+#endif
 
 AWarPlayerController::AWarPlayerController()
 {
@@ -23,6 +29,14 @@ void AWarPlayerController::BeginPlay()
 	FParse::Value(FCommandLine::Get(), TEXT("-capture="), CaptureDir);
 	FParse::Value(FCommandLine::Get(), TEXT("-captureframes="), CaptureFrames);
 	FParse::Value(FCommandLine::Get(), TEXT("-capturewarmup="), CaptureWarmup);
+	if (!CaptureDir.IsEmpty())
+	{
+		GAreScreenMessagesEnabled = false;
+		int32 ResX = 1920, ResY = 1080;
+		FParse::Value(FCommandLine::Get(), TEXT("-ResX="), ResX);
+		FParse::Value(FCommandLine::Get(), TEXT("-ResY="), ResY);
+		ConsoleCommand(FString::Printf(TEXT("r.SetRes %dx%dw"), ResX, ResY));
+	}
 
 	if (!IsLocalController() || !GetLocalPlayer() || !GetLocalPlayer()->ViewportClient)
 	{
@@ -41,6 +55,21 @@ void AWarPlayerController::Tick(float DeltaSeconds)
 	if (CaptureDir.IsEmpty())
 	{
 		return;
+	}
+	// Hold the capture until every texture and shader has finished compiling (first run, empty DDC).
+	if (!bCaptureReady)
+	{
+		int32 Pending = 0;
+#if WITH_EDITOR
+		Pending = FAssetCompilingManager::Get().GetNumRemainingAssets() + (GShaderCompilingManager ? GShaderCompilingManager->GetNumRemainingJobs() : 0);
+#endif
+		if (Pending > 0)
+		{
+			return;
+		}
+		IStreamingManager::Get().StreamAllResources(5.0f);
+		bCaptureReady = true;
+		UE_LOG(LogTemp, Display, TEXT("Capture: assets ready, warming up %d frames"), CaptureWarmup);
 	}
 	const int32 Frame = FrameCounter++ - CaptureWarmup;
 	if (Frame >= CaptureFrames)

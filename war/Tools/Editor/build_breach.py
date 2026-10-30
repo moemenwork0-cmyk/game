@@ -56,7 +56,7 @@ def import_model(name):
     dest = f"/Game/Env/{name}"
     if not unreal.EditorAssetLibrary.does_directory_exist(dest):
         t = unreal.AssetImportTask()
-        t.filename = os.path.join(folder, f"{name}_2k.fbx")
+        t.filename = os.path.join(folder, f"{name}_2k.gltf")
         t.destination_path = dest
         t.automated = True
         t.save = True
@@ -179,6 +179,14 @@ fog = spawn(unreal.ExponentialHeightFog, label="Haze").get_component_by_class(un
 fog.set_editor_property("fog_density", 0.012)
 fog.set_editor_property("fog_height_falloff", 0.35)
 fog.set_editor_property("fog_inscattering_luminance", unreal.LinearColor(0.95, 0.74, 0.52, 1.0))
+# Exposure held in a daylight range so pale sand and rock do not blow out.
+ppv = spawn(unreal.PostProcessVolume, label="Grade")
+ppv.set_editor_property("unbound", True)
+pp = ppv.get_editor_property("settings")
+for k, v in [("auto_exposure_min_brightness", 0.6), ("auto_exposure_max_brightness", 1.6), ("auto_exposure_bias", -0.5)]:
+    pp.set_editor_property("override_" + k, True)
+    pp.set_editor_property(k, v)
+ppv.set_editor_property("settings", pp)
 
 # --- ground: 2 km of sand
 floor = place(unreal.load_asset("/Engine/BasicShapes/Plane"), (0, 0, 0), scale=1.0, label="Sand", material=sand)

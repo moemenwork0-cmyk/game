@@ -25,4 +25,5 @@ private:
 	int32 CaptureFrames = 1;
 	int32 CaptureWarmup = 90;
 	int32 FrameCounter = 0;
+	bool bCaptureReady = false;
 };
