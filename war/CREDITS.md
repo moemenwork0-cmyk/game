@@ -9,3 +9,5 @@
 | Rifle silhouette | game-icons.net (`ak47`) | Skoll | CC BY 3.0 |
 | Rajdhani, Teko fonts | Google Fonts | Indian Type Foundry | OFL-1.1 |
 | Mock-up backdrop (`Docs/hud_mockup.png` only) | Poly Haven HDRI `goegap` | Greg Zaal | CC0 |
+| Cliffs, boulders, rock faces, crates, desert ground textures, `goegap` sky (fetched by `Tools/Assets/fetch.py`) | Poly Haven | Poly Haven artists | CC0 |
+| Explosion, fireball, smoke and dust flipbooks (fetched by `Tools/Assets/fetch.py`) | Unity Labs VFX image sequences | Unity Technologies | CC0 |

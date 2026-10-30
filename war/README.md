@@ -34,5 +34,8 @@ engine output stays in a private Kaggle kernel: the Unreal EULA does not allow r
 
 - [x] Engine choice, mobile settings, project skeleton
 - [x] Touch HUD: layout, icons from icon libraries (see `CREDITS.md`)
-- [ ] Step 0: engine on Kaggle — blocked on the engine link and on GPU access for the Kaggle account
+- [x] Kaggle GPU access (2× T4)
+- [x] Ready-made CC0 assets fetched by URL: Poly Haven cliffs/rocks/ground/sky, Unity Labs explosion flipbooks (`Tools/Assets/fetch.py`, preview in `Docs/assets_preview.jpg`)
+- [ ] Step 0: engine on Kaggle — waiting for the Unreal Linux download link
+- [ ] Soldiers + animations (Sketchfab CC-BY / Mixamo), rifle, sounds
 - [ ] Desert + mountain + tunnel mouth, wake-up scene, teammates, charges, explosion, entering
