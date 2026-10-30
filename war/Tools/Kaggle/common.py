@@ -15,9 +15,10 @@ def sh(c, check=False, tail=4000):
 
 
 def setup_vulkan():
-    """Kaggle keeps NVIDIA's Vulkan driver outside the loader path and ships no ICD file."""
+    """Kaggle keeps NVIDIA's driver outside the loader path and ships no Vulkan ICD file. The GLX
+    entry point refuses to create an instance there (no display), the EGL one works headless."""
     sh("apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libvulkan1 vulkan-tools zstd ffmpeg libgtk-3-0t64 libnss3 libxss1 libasound2t64 libxkbcommon-x11-0 libgbm1 libsdl2-2.0-0 > /dev/null 2>&1; echo apt=$?")
-    nv = sh("find / -name 'libGLX_nvidia.so.0' 2>/dev/null | head -1").strip().splitlines()
+    nv = sh("find / -name 'libEGL_nvidia.so.0' 2>/dev/null | head -1").strip().splitlines()
     nv = nv[-1] if nv else ""
     if not nv:
         print("no NVIDIA driver found: is the GPU accelerator on?", flush=True)
@@ -30,5 +31,7 @@ def setup_vulkan():
     open("/usr/share/vulkan/icd.d/nvidia_icd.json", "w").write(
         '{"file_format_version":"1.0.1","ICD":{"library_path":"%s","api_version":"1.4.0"}}' % nv)
     os.environ["NVIDIA_DRIVER_CAPABILITIES"] = "all"
-    sh("vulkaninfo --summary 2>&1 | head -40")
+    os.environ["XDG_RUNTIME_DIR"] = "/tmp/xdg"
+    os.makedirs("/tmp/xdg", mode=0o700, exist_ok=True)
+    sh("vulkaninfo --summary 2>&1 | grep -E 'deviceName|apiVersion|ERROR' | head -6")
     return True
