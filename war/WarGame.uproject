@@ -1,0 +1,22 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "",
+	"Category": "",
+	"Description": "Desert breach - first-person mobile shooter slice",
+	"Modules": [
+		{
+			"Name": "WarGame",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [ "Engine", "Slate", "SlateCore" ]
+		}
+	],
+	"Plugins": [
+		{ "Name": "PythonScriptPlugin", "Enabled": true },
+		{ "Name": "EditorScriptingUtilities", "Enabled": true },
+		{ "Name": "MovieRenderPipeline", "Enabled": true },
+		{ "Name": "ChaosNiagara", "Enabled": true },
+		{ "Name": "GeometryCollectionPlugin", "Enabled": true }
+	],
+	"TargetPlatforms": [ "Android", "Linux" ]
+}
