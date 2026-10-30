@@ -9,23 +9,20 @@ USER = "__USER__"
 TOKEN = "__TOKEN__"
 W = "/kaggle/working"
 
-sh("apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq zstd aria2 unzip > /dev/null 2>&1; echo apt=$?")
+sh("apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq zstd libarchive-tools > /dev/null 2>&1; echo apt=$?")
 sh("df -h /tmp /kaggle/working; nproc; free -g")
-os.makedirs("/tmp/ue", exist_ok=True)
-# The link is signed for one hour: open every range request up front (16 big segments).
-sh(f"cd /tmp && aria2c -q -x 16 -s 16 --min-split-size=1024M --max-tries=5 -o ue.zip '{URL}'; ls -la /tmp/ue.zip", check=True)
-sh("cd /tmp/ue && unzip -q /tmp/ue.zip && rm /tmp/ue.zip && ls", check=True)
-root = sh("dirname $(find /tmp/ue -maxdepth 3 -type d -name Engine | head -1)").strip().splitlines()[-1]
-sh(f"du -sh {root}; du -h --max-depth=3 {root} | sort -rh | head -40")
-sh(f"cat {root}/Engine/Build/Build.version")
-# Trim: the editor never needs debug symbols at runtime, and we start from our own project.
-sh(f"cd {root} && find . \\( -name '*.debug' -o -name '*.sym' -o -name '*.pdb' \\) -delete; "
-   f"rm -rf Templates Samples FeaturePacks Engine/Documentation Engine/Extras/Maya Engine/Extras/3dsMax; du -sh .")
-# Parts go into a private dataset (the kernel output is capped at 20 GB).
+# The disk (~70 GB) cannot hold the 40 GB zip and its contents: stream the zip straight into a
+# trimmed tar.zst (bsdtar reads zip entries from the pipe), never storing it. The signed link is
+# only checked when the single request starts.
 D = "/tmp/ds"
 os.makedirs(D, exist_ok=True)
-sh(f"cd {root} && tar -cf - . | zstd -T0 -6 | split -b 3900M - {D}/ue.tar.zst.part-", check=True)
+EXCL = " ".join(f"--exclude '{x}'" for x in ["*.debug", "*.sym", "*.pdb", "*/Templates/*", "*/Samples/*",
+                                             "*/FeaturePacks/*", "*/Engine/Documentation/*"])
+sh(f"set -o pipefail; curl -sS --fail --retry 0 '{URL}' | bsdtar -cf - --format=pax {EXCL} @- "
+   f"| zstd -T0 -6 | split -b 3900M - {D}/ue.tar.zst.part-; echo pipe=$?", check=True)
 sh(f"ls -la {D}; du -sh {D}")
+sh(f"cat {D}/ue.tar.zst.part-* | zstd -dc | tar -tf - | head -20")
+# Parts go into a private dataset (the kernel output is capped at 20 GB).
 open(f"{D}/dataset-metadata.json", "w").write(
     '{"title": "war-engine", "id": "%s/war-engine", "licenses": [{"name": "other"}]}' % USER)
 os.makedirs(os.path.expanduser("~/.kaggle"), exist_ok=True)
