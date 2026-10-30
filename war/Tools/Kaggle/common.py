@@ -16,7 +16,7 @@ def sh(c, check=False, tail=4000):
 
 def setup_vulkan():
     """Kaggle keeps NVIDIA's Vulkan driver outside the loader path and ships no ICD file."""
-    sh("apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libvulkan1 vulkan-tools zstd ffmpeg > /dev/null 2>&1; echo apt=$?")
+    sh("apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libvulkan1 vulkan-tools zstd ffmpeg libgtk-3-0t64 libnss3 libxss1 libasound2t64 libxkbcommon-x11-0 libgbm1 libsdl2-2.0-0 > /dev/null 2>&1; echo apt=$?")
     nv = sh("find / -name 'libGLX_nvidia.so.0' 2>/dev/null | head -1").strip().splitlines()
     nv = nv[-1] if nv else ""
     if not nv:
