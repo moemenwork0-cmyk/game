@@ -6,7 +6,7 @@ T0 = time.time()
 
 def sh(c, check=False, tail=4000):
     print(f"[{time.time()-T0:6.0f}s] $ {c}", flush=True)
-    r = subprocess.run(c, shell=True, capture_output=True, text=True)
+    r = subprocess.run(c, shell=True, executable="/bin/bash", capture_output=True, text=True)
     out = (r.stdout + r.stderr)[-tail:]
     print(out, flush=True)
     if check and r.returncode != 0:
