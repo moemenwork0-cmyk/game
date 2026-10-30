@@ -18,6 +18,7 @@ os.makedirs(UE, exist_ok=True)
 sh(f"cat {' '.join(parts)} | zstd -d -T0 | tar -xf - -C {UE}; du -sh {UE}", check=True)
 sh(f"git clone -q --depth 1 -b {BRANCH} https://github.com/moemenwork0-cmyk/game.git /tmp/game", check=True)
 P = "/tmp/game/war/WarGame.uproject"
+os.environ["SKETCHFAB_API_TOKEN"] = "__SKETCHFAB__"
 sh("python3 /tmp/game/war/Tools/Assets/fetch.py 2>&1 | tail -3", check=True)
 # The engine refuses to run as root.
 sh("useradd -m ue 2>/dev/null; chown -R ue /tmp/ue /tmp/game " + W)

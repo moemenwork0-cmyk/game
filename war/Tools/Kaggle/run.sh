@@ -25,7 +25,8 @@ else
   SLUG=war-render; CODE=render.py; GPU=true; SOURCES='[]'; DATA="[\"$USER_NAME/war-engine\"]"
   BRANCH=$(git -C "$HERE" rev-parse --abbrev-ref HEAD)
   bundle "$HERE/render.py"
-  sed -i -e "s|__BRANCH__|$BRANCH|" -e "s|__FRAMES__|${3:-150}|" -e "s|__RES__|${4:-1920x1080}|" "$K/render.py"
+  SF=${SKETCHFAB_API_TOKEN:-$(cat ~/.sketchfab_token 2>/dev/null || true)}
+  sed -i -e "s|__SKETCHFAB__|$SF|" -e "s|__BRANCH__|$BRANCH|" -e "s|__FRAMES__|${3:-150}|" -e "s|__RES__|${4:-1920x1080}|" "$K/render.py"
 fi
 cat > "$K/kernel-metadata.json" <<JSON
 {"id": "$USER_NAME/$SLUG", "title": "$SLUG", "code_file": "$CODE", "language": "python",

@@ -1,5 +1,6 @@
 # Downloads the free ready-made assets the Breach scene uses into Content/Raw/Downloaded.
-# Everything here is CC0 and fetched by URL (no account): run it on the build machine.
+# Poly Haven and Unity Labs need no account; the Sketchfab models need SKETCHFAB_API_TOKEN
+# (or ~/.sketchfab_token). Run it on the build machine.
 #   python3 Tools/Assets/fetch.py [dest]
 import json, os, sys, urllib.request, zipfile
 
@@ -14,6 +15,13 @@ POLYHAVEN_TEXTURES = ["aerial_sand", "gravelly_sand", "dry_ground_rocks", "cliff
 POLYHAVEN_HDRIS = ["goegap"]
 # Unity Labs VFX flipbooks (CC0, Houdini renders): the breach explosion, fireball, smoke and dust.
 UNITY_VFX = ["Explosion00", "Explosion01", "Explosion02HD", "FireBall02", "WispySmoke02", "DiscSmoke01", "Cloud02"]
+# Sketchfab (CC-BY, credited in CREDITS.md): name -> (uid, format). "gltf" keeps full-res textures.
+SKETCHFAB = {
+    "Bunker": ("e8d5052a3a8e46c3a7eecd89d01cac7f", "gltf"),     # Old Concrete Bunker PBR Scan, Pers Scans
+    "C4": ("617d754683114b6a8244ececbd03365e", "glb"),          # C4 Explosive, _Vadim2020_
+    "Detonator": ("3c8b9fe3d79a428cb70c8b1be27f1d04", "glb"),   # Detonator, BRAIN_ZIP
+    "SoldierKSK": ("110daf3d1884412989e41dc95866c579", "glb"),  # German KSK operator - rigged, 42manako
+}
 RES = "2k"
 
 
@@ -50,6 +58,29 @@ def polyhaven(asset, kind, fmt):
         get(inc["url"], os.path.join(out, rel))
 
 
+def sketchfab(name, uid, fmt):
+    token = os.environ.get("SKETCHFAB_API_TOKEN") or ""
+    path = os.path.expanduser("~/.sketchfab_token")
+    if not token and os.path.exists(path):
+        token = open(path).read().strip()
+    if not token:
+        print(f"skip {name}: no SKETCHFAB_API_TOKEN", flush=True)
+        return
+    out = os.path.join(DEST, "Sketchfab", name)
+    req = urllib.request.Request(f"https://api.sketchfab.com/v3/models/{uid}/download",
+                                 headers={"Authorization": f"Token {token}", "User-Agent": "desert-breach-fetch"})
+    url = json.load(urllib.request.urlopen(req))[fmt]["url"]
+    if fmt == "glb":
+        get(url, os.path.join(out, f"{name}.glb"))
+    else:
+        z = os.path.join(out, f"{name}.zip")
+        get(url, z)
+        with zipfile.ZipFile(z) as zf:
+            zf.extractall(out)
+
+
+for name, (uid, fmt) in SKETCHFAB.items():
+    sketchfab(name, uid, fmt)
 for a in POLYHAVEN_MODELS:
     polyhaven(a, "Models", "fbx")
 for a in POLYHAVEN_TEXTURES:
