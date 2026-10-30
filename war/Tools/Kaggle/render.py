@@ -18,9 +18,10 @@ os.makedirs(UE, exist_ok=True)
 sh(f"cat {' '.join(parts)} | zstd -d -T0 | tar -xf - -C {UE}; du -sh {UE}", check=True)
 sh(f"git clone -q --depth 1 -b {BRANCH} https://github.com/moemenwork0-cmyk/game.git /tmp/game", check=True)
 P = "/tmp/game/war/WarGame.uproject"
+sh("python3 /tmp/game/war/Tools/Assets/fetch.py 2>&1 | tail -3", check=True)
 # The engine refuses to run as root.
 sh("useradd -m ue 2>/dev/null; chown -R ue /tmp/ue /tmp/game " + W)
-U = "sudo -E -u ue"
+U = f"runuser -u ue -- env LD_LIBRARY_PATH={os.environ.get('LD_LIBRARY_PATH', '')} HOME=/home/ue"
 sh(f"{U} {UE}/Engine/Build/BatchFiles/Linux/Build.sh WarGameEditor Linux Development -project={P} -waitmutex > {W}/build.log 2>&1; echo build=$?; tail -30 {W}/build.log")
 sh(f"{U} {UE}/Engine/Binaries/Linux/UnrealEditor-Cmd {P} -run=pythonscript -script=/tmp/game/war/Tools/Editor/build_breach.py "
    f"-unattended -nosplash -nullrhi > {W}/map.log 2>&1; echo map=$?; grep -aE 'Error|build_breach|imported' {W}/map.log | tail -30")
@@ -32,4 +33,6 @@ sh(f"{U} {UE}/Engine/Binaries/Linux/UnrealEditor {P} /Game/Maps/Breach -game -Re
    f"-ResX={x} -ResY={y} -windowed -benchmark -fps=30 -capture={W}/frames -captureframes={FRAMES} "
    f"> {W}/game.log 2>&1; echo game=$?; grep -aE 'Error|Fatal|Vulkan|RHI' {W}/game.log | tail -30")
 sh(f"ls {W}/frames | wc -l")
-sh(f"ffmpeg -y -loglevel error -framerate 30 -i {W}/frames/frame_%05d.png -c:v libx264 -pix_fmt yuv420p -crf 18 {W}/breach.mp4; ls -la {W}")
+# A few stills for review next to the video.
+sh(f"mkdir -p {W}/stills && for f in 00000 00060 00120; do cp {W}/frames/frame_$f.png {W}/stills/ 2>/dev/null; done; ls {W}/stills")
+sh(f"ffmpeg -y -loglevel error -framerate 30 -i {W}/frames/frame_%05d.png -c:v libx264 -pix_fmt yuv420p -crf 18 {W}/breach.mp4 && rm -rf {W}/frames; ls -la {W}")
