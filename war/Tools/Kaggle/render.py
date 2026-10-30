@@ -38,6 +38,7 @@ if not gpu:
     sys.exit("no GPU: the map is built but cannot be rendered")
 x, y = RES.split("x")
 os.makedirs(f"{W}/frames", exist_ok=True)
+sh(f"chown ue {W}/frames")
 sh(f"timeout 14000 {U} {UE}/Engine/Binaries/Linux/UnrealEditor {P} /Game/Maps/Breach -game -RenderOffscreen -unattended -nosound "
    f"-ResX={x} -ResY={y} -windowed -benchmark -fps=30 -capture={W}/frames -captureframes={FRAMES} "
    f"> {W}/game.log 2>&1; echo game=$?; grep -aE 'Error|Fatal|Vulkan|RHI' {W}/game.log | tail -30")
