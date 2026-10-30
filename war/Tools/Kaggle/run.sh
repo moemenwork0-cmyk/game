@@ -22,7 +22,7 @@ s = s.replace("__TOKEN__", open(os.path.expanduser("~/.kaggle/access_token")).re
 open(p, "w").write(s)
 PY
 else
-  SLUG=war-render; CODE=render.py; GPU=true; SOURCES='[]'; DATA="[\"$USER_NAME/war-engine\"]"
+  SLUG=war-render; CODE=render.py; GPU=true; SOURCES='[]'; DATA="[\"$USER_NAME/unreal-engine-linux\"]"
   BRANCH=$(git -C "$HERE" rev-parse --abbrev-ref HEAD)
   bundle "$HERE/render.py"
   SF=${SKETCHFAB_API_TOKEN:-$(cat ~/.sketchfab_token 2>/dev/null || true)}
