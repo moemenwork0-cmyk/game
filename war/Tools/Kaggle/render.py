@@ -15,7 +15,7 @@ parts = sorted(glob.glob("/kaggle/input/**/ue.tar.zst.part-*", recursive=True))
 if not parts:
     sys.exit("engine parts missing: run engine_fetch first and attach its output")
 os.makedirs(UE, exist_ok=True)
-sh(f"cat {' '.join(parts)} | zstd -d -T0 | tar -xf - -C {UE}; du -sh {UE}", check=True)
+sh(f"cat {' '.join(parts)} | zstd -d -T0 | tar -xf - -C {UE}; du -sh {UE}; df -h /tmp", check=True)
 sh(f"git clone -q --depth 1 -b {BRANCH} https://github.com/moemenwork0-cmyk/game.git /tmp/game", check=True)
 P = "/tmp/game/war/WarGame.uproject"
 os.environ["SKETCHFAB_API_TOKEN"] = "__SKETCHFAB__"
@@ -34,7 +34,7 @@ if not gpu:
     sys.exit("no GPU: the map is built but cannot be rendered")
 x, y = RES.split("x")
 os.makedirs(f"{W}/frames", exist_ok=True)
-sh(f"{U} {UE}/Engine/Binaries/Linux/UnrealEditor {P} /Game/Maps/Breach -game -RenderOffscreen -unattended -nosound "
+sh(f"timeout 14000 {U} {UE}/Engine/Binaries/Linux/UnrealEditor {P} /Game/Maps/Breach -game -RenderOffscreen -unattended -nosound "
    f"-ResX={x} -ResY={y} -windowed -benchmark -fps=30 -capture={W}/frames -captureframes={FRAMES} "
    f"> {W}/game.log 2>&1; echo game=$?; grep -aE 'Error|Fatal|Vulkan|RHI' {W}/game.log | tail -30")
 sh(f"ls {W}/frames | wc -l")

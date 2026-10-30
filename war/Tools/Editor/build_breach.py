@@ -70,6 +70,26 @@ def import_model(name):
     return None
 
 
+def import_gltf(name, path):
+    dest = f"/Game/Env/{name}"
+    if not os.path.exists(path):
+        unreal.log_error(f"missing {path} (run Tools/Assets/fetch.py with SKETCHFAB_API_TOKEN)")
+        return None
+    t = unreal.AssetImportTask()
+    t.filename = path
+    t.destination_path = dest
+    t.automated = True
+    t.save = True
+    t.replace_existing = True
+    assets.import_asset_tasks([t])
+    for p in unreal.EditorAssetLibrary.list_assets(dest, recursive=True):
+        a = unreal.load_asset(p)
+        if isinstance(a, unreal.StaticMesh):
+            return a
+    unreal.log_error(f"no static mesh imported for {name}")
+    return None
+
+
 def import_texture(path, dest, normal=False, linear=False):
     t = unreal.AssetImportTask()
     t.filename = path
@@ -140,7 +160,6 @@ m = {n: import_model(n) for n in ["namaqualand_cliff_01", "namaqualand_cliff_02"
                                    "namaqualand_boulder_04", "mountainside", "rock_face_01",
                                    "sand_rocks_small_01", "wooden_military_crate", "ammo_box"]}
 sand = tiled_material("aerial_sand", 160.0)
-dark = flat_material("M_TunnelDark", unreal.LinearColor(0.004, 0.0035, 0.003, 1.0))
 
 les.new_level("/Game/Maps/Breach")
 
@@ -157,7 +176,7 @@ sky = spawn(unreal.SkyLight, label="SkyLight").get_component_by_class(unreal.Sky
 sky.set_editor_property("real_time_capture", True)
 sky.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
 fog = spawn(unreal.ExponentialHeightFog, label="Haze").get_component_by_class(unreal.ExponentialHeightFogComponent)
-fog.set_editor_property("fog_density", 0.02)
+fog.set_editor_property("fog_density", 0.012)
 fog.set_editor_property("fog_height_falloff", 0.35)
 fog.set_editor_property("fog_inscattering_luminance", unreal.LinearColor(0.95, 0.74, 0.52, 1.0))
 
@@ -176,14 +195,15 @@ for i, (x, y, yaw, s) in enumerate([(W + 2600, -2500, 30, 7.0), (W + 2800, 2600,
 for i in range(8):
     place(m["namaqualand_cliff_01"], (60000 + (i % 3) * 9000, -60000 + i * 17000, -800), 180 + i * 37, 22.0, f"Ridge{i}")
 
-# --- the tunnel mouth: two rock faces as jambs, a dark throat behind, boulders plugging it
-place(m["rock_face_01"], (W - 250, -520, 0), 165, 2.6, "MouthLeft")
-place(m["rock_face_01"], (W - 250, 520, 0), 15, 2.6, "MouthRight")
-throat = place(unreal.load_asset("/Engine/BasicShapes/Cube"), (W + 600, 0, 330), 0, 1.0, "TunnelThroat", dark)
-throat.set_actor_scale3d(unreal.Vector(14, 7.5, 6.6))
-for i, (x, y, z, yaw, s) in enumerate([(W - 180, -160, 0, 20, 1.5), (W - 160, 210, 0, 95, 1.6), (W - 120, 30, 230, 160, 1.3),
-                                       (W - 260, -300, 0, 250, 1.1), (W - 240, 330, 0, 310, 1.0)]):
-    place(m["namaqualand_boulder_04"], (x, y, z), yaw, s, f"Plug{i}")
+# --- the breach target: the concrete bunker scan, half sunk at the foot of the cliffs, its
+# door facing the player; boulders packed around its flanks so it reads as dug into the hill
+bunker = import_gltf("Bunker", os.path.join(RAW, "Downloaded", "Sketchfab", "Bunker", "scene.gltf"))
+if bunker:
+    place(bunker, (W - 700, 0, -60), 180, 1.6, "Bunker")
+for i, (x, y, z, yaw, s) in enumerate([(W - 400, -1150, 0, 20, 2.2), (W - 300, 1150, 0, 95, 2.4), (W + 100, -700, 250, 160, 2.0),
+                                       (W + 150, 750, 260, 250, 2.1), (W - 900, -1300, 0, 310, 1.3), (W - 950, 1350, 0, 40, 1.2)]):
+    place(m["namaqualand_boulder_04"], (x, y, z), yaw, s, f"Flank{i}")
+place(m["rock_face_01"], (W + 300, 0, 300), 180, 3.2, "BunkerBackRock")
 
 # --- foreground: rubble, scattered boulders, the team's kit
 for i, (x, y, yaw, s) in enumerate([(1800, -900, 40, 1.2), (2600, 1300, 140, 1.0), (3900, -2100, 220, 1.4),
