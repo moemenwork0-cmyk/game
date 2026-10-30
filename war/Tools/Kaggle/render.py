@@ -20,6 +20,10 @@ sh(f"git clone -q --depth 1 -b {BRANCH} https://github.com/moemenwork0-cmyk/game
 P = "/tmp/game/war/WarGame.uproject"
 os.environ["SKETCHFAB_API_TOKEN"] = "__SKETCHFAB__"
 sh("python3 /tmp/game/war/Tools/Assets/fetch.py 2>&1 | tail -3", check=True)
+# Mixamo animations live in a private dataset (Adobe's terms forbid putting them in a public repo).
+sh("mkdir -p /tmp/game/war/Content/Raw/Downloaded/Mixamo && "
+   "cp $(find /kaggle/input -path '*desert-breach-animations*' -name '*.fbx') /tmp/game/war/Content/Raw/Downloaded/Mixamo/; "
+   "ls /tmp/game/war/Content/Raw/Downloaded/Mixamo")
 # The engine refuses to run as root.
 sh("useradd -m ue 2>/dev/null; chown -R ue /tmp/ue /tmp/game " + W)
 U = f"runuser -u ue -- env LD_LIBRARY_PATH={os.environ.get('LD_LIBRARY_PATH', '')} HOME=/home/ue"
