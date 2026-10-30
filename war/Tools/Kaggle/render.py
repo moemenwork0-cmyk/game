@@ -16,6 +16,10 @@ if not parts:
     sys.exit("engine parts missing: run engine_fetch first and attach its output")
 os.makedirs(UE, exist_ok=True)
 sh(f"cat {' '.join(parts)} | zstd -d -T0 | tar -xf - -C {UE}; du -sh {UE}; df -h /tmp", check=True)
+# The zip-to-tar conversion drops execute bits: restore them on scripts and binaries.
+sh(f"find {UE} -type f \\( -name '*.sh' -o -name '*.command' -o -path '*/Binaries/*' -o -path '*/ThirdParty*/bin/*' "
+   f"-o -path '*/SDKs/HostLinux/*/bin/*' -o -name 'dotnet' \\) -exec chmod +x {{}} +; "
+   f"ls -la {UE}/Engine/Build/BatchFiles/Linux/Build.sh {UE}/Engine/Binaries/Linux/UnrealEditor; mount | grep -E ' /tmp | / ' | head -3")
 sh(f"git clone -q --depth 1 -b {BRANCH} https://github.com/moemenwork0-cmyk/game.git /tmp/game", check=True)
 P = "/tmp/game/war/WarGame.uproject"
 os.environ["SKETCHFAB_API_TOKEN"] = "__SKETCHFAB__"

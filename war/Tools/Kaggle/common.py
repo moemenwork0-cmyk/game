@@ -30,5 +30,5 @@ def setup_vulkan():
     open("/usr/share/vulkan/icd.d/nvidia_icd.json", "w").write(
         '{"file_format_version":"1.0.1","ICD":{"library_path":"%s","api_version":"1.4.0"}}' % nv)
     os.environ["NVIDIA_DRIVER_CAPABILITIES"] = "all"
-    sh("vulkaninfo --summary 2>&1 | grep -E 'deviceName|apiVersion' | head -4")
+    sh("vulkaninfo --summary 2>&1 | head -40")
     return True
