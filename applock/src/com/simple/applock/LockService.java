@@ -38,57 +38,87 @@ public class LockService extends AccessibilityService {
     private WindowManager wm;
     private View overlay;          // currently shown lock screen, or null
     private String overlayPkg;     // app the overlay is covering
-    private String foregroundPkg;  // last app seen in the foreground
-    private Set<String> appPkgs = new HashSet<>(); // launchable apps + home screens
+    private String foregroundPkg;  // app currently on top of the screen
+
+    // ---- status shown on App Lock's main screen ----
+    static volatile boolean running = false;
+    static volatile int eventCount = 0;
+    static volatile String lastSeenPkg = null;
+    private String lastEventPkg;   // fallback if the window list is unavailable
 
     @Override
     protected void onServiceConnected() {
         wm = (WindowManager) getSystemService(WINDOW_SERVICE);
-        refreshAppList();
+        running = true;
     }
 
-    private void refreshAppList() {
-        Set<String> s = new HashSet<>();
-        PackageManager pm = getPackageManager();
-        Intent launcher = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
-        for (ResolveInfo ri : pm.queryIntentActivities(launcher, 0)) s.add(ri.activityInfo.packageName);
-        Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
-        for (ResolveInfo ri : pm.queryIntentActivities(home, 0)) s.add(ri.activityInfo.packageName);
-        s.remove(getPackageName());
-        appPkgs = s;
+    @Override
+    public boolean onUnbind(Intent intent) {
+        running = false;
+        return super.onUnbind(intent);
     }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent e) {
-        if (e.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
-        if (e.getPackageName() == null) return;
-        String pkg = e.getPackageName().toString();
-        if (pkg.equals(getPackageName())) return; // our own lock screen / settings
+        eventCount++;
+        if (e.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                && e.getPackageName() != null) {
+            lastEventPkg = e.getPackageName().toString();
+        }
+        // Window changes arrive in bursts during app-open animations. Check now
+        // and once more after things settle, so a late event can't fool us.
+        handler.removeCallbacks(evaluate);
+        evaluate.run();
+        handler.postDelayed(evaluate, 500);
+    }
 
-        if (Store.isLocked(this, pkg)) {
-            foregroundPkg = pkg;
+    private final Runnable evaluate = new Runnable() {
+        @Override public void run() { checkForeground(); }
+    };
+
+    /** Find the app that is really on top and lock / unlock accordingly. */
+    private void checkForeground() {
+        String pkg = topAppPackage();
+        if (pkg == null) pkg = lastEventPkg;
+        if (pkg == null) return;
+        lastSeenPkg = pkg;
+        foregroundPkg = pkg;
+
+        if (!pkg.equals(getPackageName()) && Store.isLocked(this, pkg)) {
             if (Store.remainingMs(pkg) > 0) {
                 hideOverlay();
                 scheduleRelock(pkg);
             } else {
                 showOverlay(pkg);
             }
-        } else if (appPkgs.contains(pkg) && !isNoise(pkg)) {
-            // A different, unlocked app (or the home screen) is now in front.
-            foregroundPkg = pkg;
-            hideOverlay();
+        } else {
+            hideOverlay(); // home screen or an unlocked app is in front
         }
-        // Otherwise: keyboard, status bar, dialogs etc. -> ignore.
     }
 
-    /** Packages whose windows pop up over other apps and should not clear the lock. */
-    private boolean isNoise(String pkg) {
-        if (pkg.equals("android") || pkg.contains("systemui")) return true;
-        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
-        for (android.view.inputmethod.InputMethodInfo i : imm.getEnabledInputMethodList()) {
-            if (i.getPackageName().equals(pkg)) return true;
+    /**
+     * Package of the top-most normal app window (launcher counts as an app).
+     * Keyboard, status bar, our own lock overlay etc. are different window
+     * types and are skipped automatically.
+     */
+    private String topAppPackage() {
+        String best = null;
+        int bestLayer = Integer.MIN_VALUE;
+        java.util.List<android.view.accessibility.AccessibilityWindowInfo> ws;
+        try {
+            ws = getWindows();
+        } catch (RuntimeException ex) {
+            return null;
         }
-        return false;
+        for (android.view.accessibility.AccessibilityWindowInfo w : ws) {
+            if (w.getType() != android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION) continue;
+            if (w.getLayer() < bestLayer) continue;
+            android.view.accessibility.AccessibilityNodeInfo root = w.getRoot();
+            if (root == null || root.getPackageName() == null) continue;
+            best = root.getPackageName().toString();
+            bestLayer = w.getLayer();
+        }
+        return best;
     }
 
     private final Runnable relockCheck = new Runnable() {
@@ -111,6 +141,7 @@ public class LockService extends AccessibilityService {
 
     @Override
     public void onDestroy() {
+        running = false;
         hideOverlay();
         super.onDestroy();
     }
@@ -122,7 +153,6 @@ public class LockService extends AccessibilityService {
             if (pkg.equals(overlayPkg)) return;
             hideOverlay();
         }
-        refreshAppList(); // pick up newly installed apps
         overlayPkg = pkg;
 
         float d = getResources().getDisplayMetrics().density;

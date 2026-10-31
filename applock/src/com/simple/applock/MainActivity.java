@@ -135,10 +135,22 @@ public class MainActivity extends Activity {
         LinearLayout l = column();
 
         boolean on = serviceEnabled();
-        TextView status = text(on
-                ? "Protection is ON"
-                : "Protection is OFF - turn on \"App Lock\" in Accessibility settings.", 16);
-        status.setTextColor(on ? 0xFF4CAF50 : 0xFFFF5252);
+        String msg;
+        boolean good = false;
+        if (!on) {
+            msg = "Protection is OFF - tap Accessibility and turn on \"App Lock\".";
+        } else if (!LockService.running) {
+            msg = "Accessibility is ON but Android is NOT running the service.\n"
+                    + "Fix: Accessibility -> App Lock -> turn OFF, then ON again. "
+                    + "Also allow App Lock in Battery -> App launch (manage manually).";
+        } else {
+            good = true;
+            String seen = LockService.lastSeenPkg;
+            msg = "Protection is ON and running.\nEvents received: " + LockService.eventCount
+                    + "\nLast app on top: " + (seen == null ? "none yet" : seen);
+        }
+        TextView status = text(msg, 15);
+        status.setTextColor(good ? 0xFF4CAF50 : 0xFFFF5252);
         l.addView(status);
 
         LinearLayout row = new LinearLayout(this);
