@@ -87,17 +87,31 @@ final class Store {
         s.add("com.hihonor.packageinstaller");
         s.add("com.huawei.packageinstaller");
         PackageManager pm = c.getPackageManager();
-        Intent[] probes = {
-                new Intent(Settings.ACTION_SETTINGS),
+
+        // The real Settings app (package name varies by vendor).
+        for (ResolveInfo ri : pm.queryIntentActivities(
+                new Intent(Settings.ACTION_SETTINGS), PackageManager.MATCH_DEFAULT_ONLY)) {
+            s.add(ri.activityInfo.packageName);
+        }
+
+        // The package installer / uninstaller. We probe the install and uninstall
+        // intents, but only keep packages whose name is actually an installer -
+        // otherwise every app that can open an .apk (app stores, file managers,
+        // AI apps) would get force-locked, which is not what we want.
+        Intent[] installProbes = {
                 new Intent(Intent.ACTION_VIEW).setDataAndType(
                         Uri.parse("content://x/a.apk"), "application/vnd.android.package-archive"),
                 new Intent(Intent.ACTION_INSTALL_PACKAGE).setData(Uri.parse("content://x/a.apk")),
                 new Intent(Intent.ACTION_DELETE).setData(Uri.parse("package:com.simple.applock")),
                 new Intent(Intent.ACTION_UNINSTALL_PACKAGE).setData(Uri.parse("package:com.simple.applock")),
         };
-        for (Intent i : probes) {
+        for (Intent i : installProbes) {
             for (ResolveInfo ri : pm.queryIntentActivities(i, PackageManager.MATCH_DEFAULT_ONLY)) {
-                s.add(ri.activityInfo.packageName);
+                String p = ri.activityInfo.packageName.toLowerCase();
+                if (p.contains("packageinstaller") || p.contains("packageinstall")
+                        || p.contains("com.android.packageinstaller")) {
+                    s.add(ri.activityInfo.packageName);
+                }
             }
         }
         s.remove(c.getPackageName());
