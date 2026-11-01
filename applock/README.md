@@ -6,7 +6,9 @@ A tiny app locker built on an AccessibilityService. No external libraries, no Gr
 
 ## How it works
 - First launch: set a password (min. 4 characters). App Lock itself always asks for it when opened.
-- Tick the apps to lock. Android Settings and the package installer/uninstaller are always locked.
+- Tick the apps to lock. Every app (including Settings and the package installer) can be ticked or unticked.
+- "Lock the Private DNS screen in Settings" (on by default): only the Private DNS dialog/page asks
+  for the password; the rest of Settings stays open. Wrong password closes the dialog and goes Home.
 - When a locked app comes to the front, a full-screen password screen covers it.
   - Wrong password, Cancel or Back → Home screen.
   - Correct password → the app is usable for 2 minutes, then it locks again.

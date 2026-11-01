@@ -75,52 +75,57 @@ final class Store {
         prefs(c).edit().putStringSet("locked", s).apply();
     }
 
-    private static Set<String> alwaysLocked;
+    static boolean isLocked(Context c, String pkg) {
+        return lockedUserApps(c).contains(pkg);
+    }
 
-    /** Settings + package installer / uninstaller. Always locked, can't be unchecked. */
-    static synchronized Set<String> alwaysLocked(Context c) {
-        if (alwaysLocked != null) return alwaysLocked;
+    // ---- Private DNS lock ----
+
+    /** Key used for the temporary unlock of the Private DNS screen. */
+    static final String DNS_KEY = "#private_dns";
+
+    static boolean dnsLockOn(Context c) {
+        return prefs(c).getBoolean("dns_lock", true);
+    }
+
+    static void setDnsLock(Context c, boolean on) {
+        prefs(c).edit().putBoolean("dns_lock", on).apply();
+    }
+
+    private static Set<String> settingsPkgs;
+
+    /** The Settings app package(s) on this phone. */
+    static synchronized Set<String> settingsPackages(Context c) {
+        if (settingsPkgs != null) return settingsPkgs;
         Set<String> s = new HashSet<>();
         s.add("com.android.settings");
-        s.add("com.android.packageinstaller");
-        s.add("com.google.android.packageinstaller");
-        s.add("com.hihonor.packageinstaller");
-        s.add("com.huawei.packageinstaller");
-        PackageManager pm = c.getPackageManager();
-
-        // The real Settings app (package name varies by vendor).
-        for (ResolveInfo ri : pm.queryIntentActivities(
+        for (ResolveInfo ri : c.getPackageManager().queryIntentActivities(
                 new Intent(Settings.ACTION_SETTINGS), PackageManager.MATCH_DEFAULT_ONLY)) {
             s.add(ri.activityInfo.packageName);
         }
+        settingsPkgs = s;
+        return s;
+    }
 
-        // The package installer / uninstaller. We probe the install and uninstall
-        // intents, but only keep packages whose name is actually an installer -
-        // otherwise every app that can open an .apk (app stores, file managers,
-        // AI apps) would get force-locked, which is not what we want.
-        Intent[] installProbes = {
+    /** Package installer / uninstaller(s): no launcher icon, but lockable from the list. */
+    static Set<String> installerPackages(Context c) {
+        Set<String> s = new HashSet<>();
+        PackageManager pm = c.getPackageManager();
+        Intent[] probes = {
                 new Intent(Intent.ACTION_VIEW).setDataAndType(
                         Uri.parse("content://x/a.apk"), "application/vnd.android.package-archive"),
                 new Intent(Intent.ACTION_INSTALL_PACKAGE).setData(Uri.parse("content://x/a.apk")),
-                new Intent(Intent.ACTION_DELETE).setData(Uri.parse("package:com.simple.applock")),
-                new Intent(Intent.ACTION_UNINSTALL_PACKAGE).setData(Uri.parse("package:com.simple.applock")),
+                new Intent(Intent.ACTION_DELETE).setData(Uri.parse("package:" + c.getPackageName())),
+                new Intent(Intent.ACTION_UNINSTALL_PACKAGE).setData(Uri.parse("package:" + c.getPackageName())),
         };
-        for (Intent i : installProbes) {
+        for (Intent i : probes) {
             for (ResolveInfo ri : pm.queryIntentActivities(i, PackageManager.MATCH_DEFAULT_ONLY)) {
-                String p = ri.activityInfo.packageName.toLowerCase();
-                if (p.contains("packageinstaller") || p.contains("packageinstall")
-                        || p.contains("com.android.packageinstaller")) {
+                if (ri.activityInfo.packageName.toLowerCase().contains("packageinstall")) {
                     s.add(ri.activityInfo.packageName);
                 }
             }
         }
-        s.remove(c.getPackageName());
-        alwaysLocked = s;
         return s;
-    }
-
-    static boolean isLocked(Context c, String pkg) {
-        return alwaysLocked(c).contains(pkg) || lockedUserApps(c).contains(pkg);
     }
 
     // ---- temporary unlocks ----

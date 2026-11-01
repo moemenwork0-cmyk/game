@@ -170,6 +170,21 @@ public class MainActivity extends Activity {
             @Override public void onClick(View v) { changePassword(); }
         });
 
+        CheckBox dns = new CheckBox(this);
+        dns.setText("Lock the Private DNS screen in Settings\n(the rest of Settings stays open)");
+        dns.setTextSize(16);
+        dns.setPadding(0, (int) (12 * d), 0, (int) (12 * d));
+        dns.setChecked(Store.dnsLockOn(this));
+        dns.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override public void onCheckedChanged(CompoundButton b, boolean on) {
+                Store.setDnsLock(MainActivity.this, on);
+            }
+        });
+        LinearLayout.LayoutParams dnsLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        dnsLp.topMargin = (int) (16 * d);
+        l.addView(dns, dnsLp);
+
         TextView hdr = text("Tick the apps to lock:", 16);
         hdr.setPadding(0, (int) (16 * d), 0, (int) (8 * d));
         l.addView(hdr);
@@ -183,11 +198,8 @@ public class MainActivity extends Activity {
     // ---------------- actions ----------------
 
     private void openAccessibilitySettings() {
-        // Settings is always locked; let the user straight in since they just unlocked us.
-        for (String p : Store.alwaysLocked(this)) {
-            if (p.contains("settings")) Store.unlock(p);
-        }
-        Store.unlock("com.android.settings");
+        // If Settings is locked, let the user straight in since they just unlocked us.
+        for (String p : Store.settingsPackages(this)) Store.unlock(p);
         startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
     }
 
@@ -233,45 +245,36 @@ public class MainActivity extends Activity {
     // ---------------- app list ----------------
 
     static final class App {
-        String pkg; CharSequence label; Drawable icon; boolean forced;
+        String pkg; CharSequence label; Drawable icon;
     }
 
     private List<App> loadApps() {
         PackageManager pm = getPackageManager();
-        Set<String> forced = Store.alwaysLocked(this);
         Set<String> seen = new HashSet<>();
-        List<App> forcedApps = new ArrayList<>(), apps = new ArrayList<>();
+        List<App> apps = new ArrayList<>();
 
+        Set<String> pkgs = new java.util.LinkedHashSet<>();
         Intent launcher = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
-        for (ResolveInfo ri : pm.queryIntentActivities(launcher, 0)) {
-            String p = ri.activityInfo.packageName;
+        for (ResolveInfo ri : pm.queryIntentActivities(launcher, 0)) pkgs.add(ri.activityInfo.packageName);
+        // Useful system packages without a launcher icon.
+        pkgs.addAll(Store.settingsPackages(this));
+        pkgs.addAll(Store.installerPackages(this));
+
+        for (String p : pkgs) {
             if (p.equals(getPackageName()) || !seen.add(p)) continue;
-            App a = new App();
-            a.pkg = p;
-            a.label = ri.activityInfo.applicationInfo.loadLabel(pm);
-            a.forced = forced.contains(p);
-            (a.forced ? forcedApps : apps).add(a);
-        }
-        // Always-locked system packages that have no launcher icon (e.g. package installer).
-        for (String p : forced) {
-            if (!seen.add(p)) continue;
             try {
                 App a = new App();
                 a.pkg = p;
                 a.label = pm.getApplicationLabel(pm.getApplicationInfo(p, 0));
-                a.forced = true;
-                forcedApps.add(a);
+                apps.add(a);
             } catch (PackageManager.NameNotFoundException ignored) {}
         }
-        Comparator<App> byName = new Comparator<App>() {
+        Collections.sort(apps, new Comparator<App>() {
             @Override public int compare(App x, App y) {
                 return x.label.toString().compareToIgnoreCase(y.label.toString());
             }
-        };
-        Collections.sort(forcedApps, byName);
-        Collections.sort(apps, byName);
-        forcedApps.addAll(apps);
-        return forcedApps;
+        });
+        return apps;
     }
 
     private static final class AppAdapter extends BaseAdapter {
@@ -296,9 +299,9 @@ public class MainActivity extends Activity {
             int pad = (int) (8 * act.d);
             cb.setPadding(pad, pad, pad, pad);
             cb.setOnCheckedChangeListener(null);
-            cb.setText(a.forced ? a.label + "  (always locked)" : a.label);
-            cb.setChecked(a.forced || locked.contains(a.pkg));
-            cb.setEnabled(!a.forced);
+            cb.setText(a.label);
+            cb.setChecked(locked.contains(a.pkg));
+            cb.setEnabled(true);
             if (a.icon == null) {
                 try { a.icon = act.getPackageManager().getApplicationIcon(a.pkg); }
                 catch (PackageManager.NameNotFoundException e) { a.icon = null; }
@@ -311,7 +314,6 @@ public class MainActivity extends Activity {
             cb.setCompoundDrawables(a.icon, null, null, null);
             cb.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override public void onCheckedChanged(CompoundButton btn, boolean checked) {
-                    if (a.forced) return;
                     if (checked) locked.add(a.pkg); else locked.remove(a.pkg);
                     Store.setLocked(act, a.pkg, checked);
                 }

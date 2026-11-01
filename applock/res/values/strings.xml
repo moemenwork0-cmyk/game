@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">App Lock</string>
-    <string name="service_desc">Shows a password screen when you open an app you have locked. It checks which app window is on top of the screen. It does not save or send anything.</string>
+    <string name="service_desc">Shows a password screen when you open an app you have locked. It checks which app window is on top of the screen and whether the Private DNS screen is open in Settings. It does not save or send anything.</string>
 </resources>
