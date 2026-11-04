@@ -97,4 +97,5 @@ private:
 	bool bChargesArmed = false;
 	int32 ReadyCount = 0;
 	float DoorHalfWidth = 600.f;
+	bool bReadyShown = false;
 };

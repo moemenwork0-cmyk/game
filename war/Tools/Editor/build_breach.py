@@ -171,6 +171,7 @@ m = {n: import_model(n) for n in ["namaqualand_cliff_01", "namaqualand_cliff_02"
 for src, fixed in (("namaqualand_boulder_04", "SM_Boulder"), ("namaqualand_boulder_02", "SM_Rock")):
     if m[src]:
         unreal.EditorAssetLibrary.duplicate_asset(m[src].get_path_name().split(".")[0], f"/Game/Props/{fixed}")
+        unreal.EditorAssetLibrary.save_asset(f"/Game/Props/{fixed}", only_if_is_dirty=False)
 sand = tiled_material("aerial_sand", 160.0, (1.25, 0.92, 0.62))
 
 # --- story assets (used by AWarBreachDirector through fixed paths) --------------------------
@@ -237,6 +238,7 @@ def import_prop(name, path, fixed):
     meshes = [a for a in meshes if isinstance(a, unreal.StaticMesh)]
     if meshes:
         unreal.EditorAssetLibrary.duplicate_asset(meshes[0].get_path_name().split(".")[0], f"/Game/Props/{fixed}")
+        unreal.EditorAssetLibrary.save_asset(f"/Game/Props/{fixed}", only_if_is_dirty=False)
         unreal.log(f"prop {fixed} <- {meshes[0].get_path_name()} ({len(meshes)} meshes)")
 
 
@@ -370,6 +372,10 @@ for i, (x, y, yaw, s) in enumerate([(W + 3200, -2600, 20, 4.0), (W + 3400, 2800,
                                     (W + 8000, -9000, 75, 6.0), (W + 8500, 9000, 260, 6.0)]):
     place(m["namaqualand_cliff_02"], (x, y, -100), yaw, s, f"Massif{i}")
 place(m["mountainside"], (W + 4200, -6500, -300), 40, 3.5, "MassifSide")
+# Fill the gaps between the cliff shells so the wall reads as one solid mountain.
+for i, (x, y, yaw, s) in enumerate([(W + 1400, -1500, 175, 3.6), (W + 1500, 1700, 190, 3.6), (W + 1900, 0, 182, 4.2),
+                                    (W + 1200, -5600, 200, 3.8), (W + 1300, 5800, 160, 3.8)]):
+    place(m["namaqualand_cliff_02"], (x, y, -250), yaw, s, f"Fill{i}")
 # Far ridges that close the horizon.
 for i in range(8):
     place(m["namaqualand_cliff_01"], (60000 + (i % 3) * 9000, -60000 + i * 17000, -800), 180 + i * 37, 22.0, f"Ridge{i}")

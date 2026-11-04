@@ -142,6 +142,15 @@ AWarSoldier* AWarBreachDirector::SpawnSoldier(const FVector& Where, float Yaw)
 	AWarSoldier* S = GetWorld()->SpawnActor<AWarSoldier>(Where, FRotator(0.f, Yaw, 0.f));
 	S->Mesh->SetSkeletalMesh(Body);
 	S->Mesh->SetRelativeRotation(FRotator(0.f, MeshYaw, 0.f));
+	// Whatever unit scale the FBX came in with, make him 1.8 m tall.
+	const FBoxSphereBounds B = Body->GetBounds();
+	const float Height = B.BoxExtent.Z * 2.f;
+	if (Height > 1.f)
+	{
+		S->Mesh->SetRelativeScale3D(FVector(180.f / Height));
+		S->Mesh->SetRelativeLocation(FVector(0.f, 0.f, -(B.Origin.Z - B.BoxExtent.Z) * 180.f / Height));
+	}
+	UE_LOG(LogTemp, Display, TEXT("Director: soldier bounds %s height %.1f"), *B.BoxExtent.ToString(), Height);
 	for (const TCHAR* Name : ClipNames)
 	{
 		S->Clips.Add(Name, LoadObject<UAnimSequence>(nullptr, *FString::Printf(TEXT("/Game/Chars/Soldier/Anim_%s.Anim_%s"), Name, Name)));
@@ -494,8 +503,9 @@ void AWarBreachDirector::Tick(float DeltaSeconds)
 		const float Daze = 1.f - FMath::SmoothStep(2.f, 7.5f, Time);
 		Player->SetDaze(Daze, Daze, 0.6f * Daze);
 	}
-	if (Phase == EPhase::Ready && Hud && !Detonator)
+	if (Phase == EPhase::Ready && Hud && !bReadyShown)
 	{
+		bReadyShown = true;
 		// The detonator in the player's hand and the prompt.
 		Detonator = SpawnProp(LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Props/SM_Detonator.SM_Detonator")), 22.f, Player->Camera);
 		if (Detonator)
