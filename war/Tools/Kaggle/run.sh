@@ -2,6 +2,7 @@
 # Pushes a Kaggle kernel, waits for it and downloads its output.
 #   Tools/Kaggle/run.sh engine <out_dir>                 (needs Tools/Kaggle/engine_url.txt, not committed)
 #   Tools/Kaggle/run.sh render <out_dir> [frames] [WxH]
+#   Tools/Kaggle/run.sh apk <out_dir>
 # Needs the Kaggle CLI authenticated (~/.kaggle/access_token or KAGGLE_API_TOKEN).
 set -euo pipefail
 KIND=${1:?engine|render}; OUT=${2:?out dir}
@@ -10,7 +11,13 @@ USER_NAME=$(kaggle config view 2>/dev/null | awk '/username/{print $3}')
 K=$(mktemp -d)
 # Kaggle uploads only the code file, so the shared helpers are prepended to it.
 bundle() { { cat "$HERE/common.py"; grep -v '^from common import' "$1"; } > "$K/$(basename "$1")"; }
-if [ "$KIND" = engine ]; then
+if [ "$KIND" = apk ]; then
+  SLUG=war-apk; CODE=apk.py; GPU=false; SOURCES='[]'; DATA="[\"$USER_NAME/unreal-engine-linux\", \"$USER_NAME/desert-breach-animations\"]"
+  bundle "$HERE/apk.py"
+  BRANCH=$(git -C "$HERE" rev-parse --abbrev-ref HEAD)
+  SF=${SKETCHFAB_API_TOKEN:-$(cat ~/.sketchfab_token 2>/dev/null || true)}
+  sed -i -e "s|__SKETCHFAB__|$SF|" -e "s|__BRANCH__|$BRANCH|" "$K/apk.py"
+elif [ "$KIND" = engine ]; then
   SLUG=war-engine; CODE=engine_fetch.py; GPU=false; SOURCES='[]'
   bundle "$HERE/engine_fetch.py"
   # The kernel (private) uploads the engine into a private dataset with the account's own token.
