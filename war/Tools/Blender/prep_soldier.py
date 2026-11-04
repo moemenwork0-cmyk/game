@@ -133,8 +133,13 @@ for img in bpy.data.images:
         img.save()
         print("texture", name)
 bpy.ops.object.select_all(action="SELECT")
+# One file with the mesh and every clip as its own take: Unreal binds the clips to the skeleton it
+# creates on import, whichever FBX importer (legacy or Interchange) is active.
+sol.animation_data.action = None
 bpy.ops.export_scene.fbx(filepath=os.path.join(OUT, "Soldier.fbx"), use_selection=True, object_types={"ARMATURE", "MESH"},
-                         bake_anim=False, add_leaf_bones=False, apply_scale_options="FBX_SCALE_UNITS", path_mode="STRIP")
+                         bake_anim=True, bake_anim_use_all_actions=True, bake_anim_use_nla_strips=False,
+                         bake_anim_force_startend_keying=True, add_leaf_bones=False,
+                         apply_scale_options="FBX_SCALE_UNITS", path_mode="STRIP")
 json.dump(speeds, open(os.path.join(OUT, "speeds.json"), "w"), indent=1)
 print("speeds cm/s", speeds)
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, "soldier_check.blend"))

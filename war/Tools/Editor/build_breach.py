@@ -193,6 +193,7 @@ def fbx_task(path, dest, name, ui):
 
 
 def import_soldier():
+    """Soldier.fbx carries the mesh and all clips (one take each); the clips are renamed Anim_<clip>."""
     folder = os.path.join(DLR, "Mixamo")
     if not os.path.exists(os.path.join(folder, "Soldier.fbx")):
         unreal.log_error("Soldier.fbx missing (Tools/Blender/prep_soldier.py output)")
@@ -200,25 +201,27 @@ def import_soldier():
     ui = unreal.FbxImportUI()
     ui.set_editor_property("import_mesh", True)
     ui.set_editor_property("import_as_skeletal", True)
-    ui.set_editor_property("import_animations", False)
+    ui.set_editor_property("import_animations", True)
     ui.set_editor_property("import_materials", True)
     ui.set_editor_property("import_textures", True)
     ui.set_editor_property("mesh_type_to_import", unreal.FBXImportType.FBXIT_SKELETAL_MESH)
     got = fbx_task(os.path.join(folder, "Soldier.fbx"), "/Game/Chars/Soldier", "Soldier", ui)
-    mesh = unreal.load_asset("/Game/Chars/Soldier/Soldier")
-    skeleton = mesh.get_editor_property("skeleton") if mesh else None
-    unreal.log(f"soldier: {got} skeleton {skeleton}")
-    for f in sorted(os.listdir(folder)):
-        if not (f.startswith("Anim_") and f.endswith(".fbx")):
+    unreal.log_warning(f"soldier import: {[a.get_path_name() for a in got if a]}")
+    clips = ["Breathing_Idle", "Getting_Up", "Jump_Away", "Kneeling_Idle", "Plant_A_Plant", "Running_Jump", "Running",
+             "Start_Walking", "Walking", "Waving"]
+    for path in unreal.EditorAssetLibrary.list_assets("/Game/Chars/Soldier", recursive=True):
+        a = unreal.load_asset(path)
+        if isinstance(a, unreal.SkeletalMesh) and a.get_name() != "Soldier":
+            unreal.EditorAssetLibrary.rename_asset(path.split(".")[0], "/Game/Chars/Soldier/Soldier")
+        if not isinstance(a, unreal.AnimSequence):
             continue
-        ui = unreal.FbxImportUI()
-        ui.set_editor_property("import_mesh", False)
-        ui.set_editor_property("import_as_skeletal", True)
-        ui.set_editor_property("import_animations", True)
-        ui.set_editor_property("skeleton", skeleton)
-        ui.set_editor_property("mesh_type_to_import", unreal.FBXImportType.FBXIT_ANIMATION)
-        fbx_task(os.path.join(folder, f), "/Game/Chars/Soldier", os.path.splitext(f)[0], ui)
-    unreal.log("soldier clips: " + ", ".join(unreal.EditorAssetLibrary.list_assets("/Game/Chars/Soldier")))
+        name = a.get_name()
+        clip = next((c for c in clips if name.endswith(c) or ("_" + c + "_") in name or name == c), None)
+        if clip and name != "Anim_" + clip:
+            unreal.EditorAssetLibrary.rename_asset(path.split(".")[0], "/Game/Chars/Soldier/Anim_" + clip)
+        unreal.log_warning(f"soldier clip {name} -> {clip} skeleton {a.get_editor_property('skeleton')}")
+    unreal.EditorAssetLibrary.save_directory("/Game/Chars/Soldier")
+    unreal.log_warning("soldier assets: " + ", ".join(unreal.EditorAssetLibrary.list_assets("/Game/Chars/Soldier")))
 
 
 def import_prop(name, path, fixed):
@@ -239,7 +242,7 @@ def import_prop(name, path, fixed):
     if meshes:
         unreal.EditorAssetLibrary.duplicate_asset(meshes[0].get_path_name().split(".")[0], f"/Game/Props/{fixed}")
         unreal.EditorAssetLibrary.save_asset(f"/Game/Props/{fixed}", only_if_is_dirty=False)
-        unreal.log(f"prop {fixed} <- {meshes[0].get_path_name()} ({len(meshes)} meshes)")
+        unreal.log_warning(f"prop {fixed} <- {meshes[0].get_path_name()} ({len(meshes)} meshes)")
 
 
 def import_sheets():
@@ -323,7 +326,7 @@ def import_audio():
             t.replace_existing = True
             tasks.append(t)
     assets.import_asset_tasks(tasks)
-    unreal.log("audio: " + ", ".join(unreal.EditorAssetLibrary.list_assets("/Game/Audio")))
+    unreal.log_warning("audio: " + ", ".join(unreal.EditorAssetLibrary.list_assets("/Game/Audio")))
 
 
 import_soldier()
