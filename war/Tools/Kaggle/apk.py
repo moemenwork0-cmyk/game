@@ -28,9 +28,18 @@ sh(f"cd /tmp && curl -sSLo clt.zip https://dl.google.com/android/repository/comm
    f"unzip -q clt.zip -d {SDK}/cmdline-tools && mv {SDK}/cmdline-tools/cmdline-tools {SDK}/cmdline-tools/latest", check=True)
 java = sh("dirname $(dirname $(readlink -f $(which javac)))").strip().splitlines()[-1]
 os.environ.update({"JAVA_HOME": java, "ANDROID_HOME": SDK, "ANDROID_SDK_ROOT": SDK, "STUDIO_SDK_PATH": SDK})
-sh(f"grep -nE 'sdkmanager|ndk|platforms|build-tools|cmake' {UE}/Engine/Extras/Android/SetupAndroid.sh | head -20")
-sh(f"yes | {SDK}/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1; echo licenses=$?")
-sh(f"cd {UE}/Engine/Extras/Android && yes | bash SetupAndroid.sh {SDK} 2>&1 | tail -15")
+# SetupAndroid.sh insists on an Android Studio install: read its pinned versions and run sdkmanager.
+import re
+setup = open(f"{UE}/Engine/Extras/Android/SetupAndroid.sh").read()
+ver = dict(re.findall(r'^(NDK_VERSION|PLATFORMS_VERSION|BUILDTOOLS_VERSION|CMAKE_VERSION)="?([^"\n]+)"?', setup, re.M))
+print("android versions", ver, flush=True)
+SM = f"{SDK}/cmdline-tools/latest/bin/sdkmanager"
+sh(f"yes | {SM} --licenses > /dev/null 2>&1; echo licenses=$?")
+pkgs = ['"platform-tools"', f'"platforms;{ver.get("PLATFORMS_VERSION", "android-34")}"',
+        f'"build-tools;{ver.get("BUILDTOOLS_VERSION", "34.0.0")}"', f'"ndk;{ver.get("NDK_VERSION", "27.2.12479018")}"']
+if "CMAKE_VERSION" in ver:
+    pkgs.append(f'"cmake;{ver["CMAKE_VERSION"]}"')
+sh(f"yes | {SM} --sdk_root={SDK} {' '.join(pkgs)} 2>&1 | tail -5", check=True)
 ndk = sorted(glob.glob(f"{SDK}/ndk/*"))
 if ndk:
     os.environ["NDKROOT"] = os.environ["NDK_ROOT"] = ndk[-1]

@@ -158,7 +158,7 @@ UStaticMeshComponent* AWarBreachDirector::SpawnProp(UStaticMesh* Mesh, float Siz
 	UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
 	C->SetStaticMesh(Mesh);
 	C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	C->SetupAttachment(AttachTo ? AttachTo : RootComponent);
+	C->SetupAttachment(AttachTo ? AttachTo : RootComponent.Get());
 	C->RegisterComponent();
 	// Normalise the scanned/downloaded prop to a real-world size along its longest side.
 	const float Longest = Mesh->GetBounds().BoxExtent.GetMax() * 2.f;
