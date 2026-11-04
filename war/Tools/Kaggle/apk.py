@@ -20,7 +20,7 @@ P = "/tmp/game/war/WarGame.uproject"
 os.environ["SKETCHFAB_API_TOKEN"] = "__SKETCHFAB__"
 sh("python3 /tmp/game/war/Tools/Assets/fetch.py 2>&1 | tail -2", check=True)
 sh("mkdir -p /tmp/game/war/Content/Raw/Downloaded/Mixamo && "
-   "cp $(find /kaggle/input -path '*desert-breach-animations*' -name '*.fbx') /tmp/game/war/Content/Raw/Downloaded/Mixamo/")
+   "cp $(find /kaggle/input -path '*desert-breach-animations*' \\( -name '*.fbx' -o -name '*.png' \\)) /tmp/game/war/Content/Raw/Downloaded/Mixamo/")
 
 # Android toolchain: command-line tools, then the engine's own setup script picks the versions.
 os.makedirs(f"{SDK}/cmdline-tools", exist_ok=True)
@@ -28,18 +28,13 @@ sh(f"cd /tmp && curl -sSLo clt.zip https://dl.google.com/android/repository/comm
    f"unzip -q clt.zip -d {SDK}/cmdline-tools && mv {SDK}/cmdline-tools/cmdline-tools {SDK}/cmdline-tools/latest", check=True)
 java = sh("dirname $(dirname $(readlink -f $(which javac)))").strip().splitlines()[-1]
 os.environ.update({"JAVA_HOME": java, "ANDROID_HOME": SDK, "ANDROID_SDK_ROOT": SDK, "STUDIO_SDK_PATH": SDK})
-# SetupAndroid.sh insists on an Android Studio install: read its pinned versions and run sdkmanager.
-import re
-setup = open(f"{UE}/Engine/Extras/Android/SetupAndroid.sh").read()
-ver = dict(re.findall(r'^(NDK_VERSION|PLATFORMS_VERSION|BUILDTOOLS_VERSION|CMAKE_VERSION)="?([^"\n]+)"?', setup, re.M))
-print("android versions", ver, flush=True)
+# SetupAndroid.sh needs Android Studio and takes its versions as arguments, so install the
+# toolchain directly: NDK r27c (what the engine reports it requires), API 34/35, build-tools.
+sh(f"grep -rlE 'r27c' {UE}/Engine/Config {UE}/Engine/Platforms 2>/dev/null | head -5")
 SM = f"{SDK}/cmdline-tools/latest/bin/sdkmanager"
-sh(f"yes | {SM} --licenses > /dev/null 2>&1; echo licenses=$?")
-pkgs = ['"platform-tools"', f'"platforms;{ver.get("PLATFORMS_VERSION", "android-34")}"',
-        f'"build-tools;{ver.get("BUILDTOOLS_VERSION", "34.0.0")}"', f'"ndk;{ver.get("NDK_VERSION", "27.2.12479018")}"']
-if "CMAKE_VERSION" in ver:
-    pkgs.append(f'"cmake;{ver["CMAKE_VERSION"]}"')
-sh(f"yes | {SM} --sdk_root={SDK} {' '.join(pkgs)} 2>&1 | tail -5", check=True)
+sh(f"yes | {SM} --sdk_root={SDK} --licenses > /dev/null 2>&1; echo licenses=$?")
+sh(f"yes | {SM} --sdk_root={SDK} platform-tools 'platforms;android-34' 'platforms;android-35' 'build-tools;35.0.1' "
+   f"'build-tools;34.0.0' 'ndk;27.2.12479018' 'cmake;3.22.1' 2>&1 | tail -4", check=True)
 ndk = sorted(glob.glob(f"{SDK}/ndk/*"))
 if ndk:
     os.environ["NDKROOT"] = os.environ["NDK_ROOT"] = ndk[-1]

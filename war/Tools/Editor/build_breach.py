@@ -244,6 +244,8 @@ def import_sheets():
     folder = os.path.join(DLR, "UnityVFX")
     tasks = []
     for d in sorted(os.listdir(folder)):
+        if not os.path.isdir(os.path.join(folder, d)):
+            continue  # the downloaded zips sit next to their extracted folders
         for f in os.listdir(os.path.join(folder, d)):
             if f.endswith(".tga") and "temperature" not in f:
                 t = unreal.AssetImportTask()

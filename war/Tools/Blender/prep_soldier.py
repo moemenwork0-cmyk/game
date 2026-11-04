@@ -122,10 +122,19 @@ for f in sorted(x for x in os.listdir(ANIMS) if x.endswith(".fbx")):
     for pb in sol.pose.bones:
         pb.matrix_basis = Matrix()
 
+# Textures saved next to the FBX first, so the export references them by file name.
+for img in bpy.data.images:
+    if img.packed_file or img.has_data:
+        name = bpy.path.clean_name(img.name)
+        if not os.path.splitext(name)[1]:
+            name += ".png"
+        img.filepath_raw = os.path.join(OUT, name)
+        img.file_format = "PNG" if name.endswith(".png") else "JPEG"
+        img.save()
+        print("texture", name)
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.export_scene.fbx(filepath=os.path.join(OUT, "Soldier.fbx"), use_selection=True, object_types={"ARMATURE", "MESH"},
-                         bake_anim=False, add_leaf_bones=False, apply_scale_options="FBX_SCALE_UNITS", path_mode="COPY",
-                         embed_textures=True)
+                         bake_anim=False, add_leaf_bones=False, apply_scale_options="FBX_SCALE_UNITS", path_mode="STRIP")
 json.dump(speeds, open(os.path.join(OUT, "speeds.json"), "w"), indent=1)
 print("speeds cm/s", speeds)
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, "soldier_check.blend"))
