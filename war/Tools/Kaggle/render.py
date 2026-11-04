@@ -41,9 +41,9 @@ GAME = (f"timeout 14000 {U} {UE}/Engine/Binaries/Linux/UnrealEditor {P} /Game/Ma
         f"-unattended -nosound -ResX={x} -ResY={y} -windowed -benchmark -fps=30")
 # The gameplay view (with the touch HUD) becomes the video; fixed review cameras give stills.
 # Views: name, frames, extra args (x,y,z,pitch,yaw in cm/degrees).
-VIEWS = [("play", FRAMES, ""),
-         ("wide", 3, "-nohud -captureview=-1800,-2600,1100,-14,40"),
-         ("bunker", 3, "-nohud -captureview=1300,-500,230,-3,12")]
+VIEWS = [("play", FRAMES, "-autodetonate"),
+         ("wide", 3, "-nohud -nostory -captureview=-1800,-2600,1100,-14,40"),
+         ("bunker", 3, "-nohud -nostory -captureview=1300,-500,230,-3,12")]
 os.makedirs(f"{W}/stills", exist_ok=True)
 for name, n, extra in VIEWS:
     d = f"{W}/frames_{name}"
@@ -52,6 +52,26 @@ for name, n, extra in VIEWS:
     sh(f"{GAME} -capture={d} -captureframes={n} {extra} > {W}/game_{name}.log 2>&1; echo {name}=$?; "
        f"grep -aE 'Fatal|Capture:' {W}/game_{name}.log | tail -5; ls {d} | wc -l")
     sh(f"cp $(ls {d}/*.png | tail -1) {W}/stills/{name}.png 2>/dev/null")
-sh(f"cp {W}/frames_play/frame_00000.png {W}/stills/play_start.png 2>/dev/null; ls {W}/stills")
-sh(f"ffmpeg -y -loglevel error -framerate 30 -i {W}/frames_play/frame_%05d.png -c:v libx264 -pix_fmt yuv420p -crf 18 "
+# Story beats for review.
+sh(f"for f in 00045 00150 00240 00420 00600 00720 00800 00830 00850 00880 00950 01080; do "
+   f"cp {W}/frames_play/frame_$f.png {W}/stills/play_$f.png 2>/dev/null; done; ls {W}/stills")
+# Soundtrack rebuilt from the director's SFX log (the offline capture runs without audio).
+import re
+AUD = "/tmp/game/war/Content/Raw/Downloaded/Audio"
+events = re.findall(r"(SFX|SFXLOOP) (\w+) (-?\d+) ([\d.]+)", open(f"{W}/game_play.log", errors="ignore").read())
+dur = FRAMES / 30.0
+inputs, chains = [], []
+for i, (kind, name, frame, vol) in enumerate(events):
+    t = max(0, int(frame)) / 30.0
+    loop = "-stream_loop -1 " if kind == "SFXLOOP" else ""
+    inputs.append(f"{loop}-i {AUD}/{name}.wav")
+    chains.append(f"[{i}:a]atrim=0:{dur - t:.2f},adelay={int(t * 1000)}|{int(t * 1000)},volume={vol}[a{i}]")
+if events:
+    mix = "".join(f"[a{i}]" for i in range(len(events)))
+    graph = ";".join(chains) + f";{mix}amix=inputs={len(events)}:normalize=0,alimiter=limit=0.95[out]"
+    sh(f"ffmpeg -y -loglevel error {' '.join(inputs)} -filter_complex \"{graph}\" -map [out] -t {dur:.2f} {W}/soundtrack.wav; ls -la {W}/soundtrack.wav")
+print(f"{len(events)} sound events", flush=True)
+audio = f"-i {W}/soundtrack.wav -c:a aac -b:a 192k -shortest" if events else ""
+sh(f"ffmpeg -y -loglevel error -framerate 30 -i {W}/frames_play/frame_%05d.png {audio} -c:v libx264 -pix_fmt yuv420p -crf 18 "
    f"{W}/breach.mp4 && rm -rf {W}/frames_*; ls -la {W}")
+sh(f"grep -aE 'Director:|soldier|Soldier:|prop |audio:|Warning: .*(missing|Failed)' {W}/game_play.log {W}/map.log | head -40")

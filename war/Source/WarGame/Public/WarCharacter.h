@@ -23,6 +23,12 @@ public:
 	void SetAiming(bool bOn);
 	void ToggleCrouch();
 
+	// Cinematic camera layer (wake-up, blast): offsets on top of the normal eye view.
+	void AddShake(float Strength, float Duration);
+	void SetCameraPose(const FVector& Offset, const FRotator& Extra) { PoseOffset = Offset; PoseRotation = Extra; }
+	// 0..1 each: depth-of-field blur, vignette darkening, colour drained.
+	void SetDaze(float Blur, float Dark, float Desaturate);
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "War")
 	TObjectPtr<UCameraComponent> Camera;
 
@@ -46,6 +52,12 @@ protected:
 
 private:
 	FVector2D MoveInput = FVector2D::ZeroVector;
+	FVector PoseOffset = FVector::ZeroVector;
+	FRotator PoseRotation = FRotator::ZeroRotator;
+	float ShakeStrength = 0.f;
+	float ShakeTime = 0.f;
+	float ShakeDuration = 0.f;
+	float Clock = 0.f;
 	bool bSprinting = false;
 	bool bAiming = false;
 };

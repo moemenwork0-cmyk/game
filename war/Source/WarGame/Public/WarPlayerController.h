@@ -13,6 +13,11 @@ class WARGAME_API AWarPlayerController : public APlayerController
 public:
 	AWarPlayerController();
 
+	SWarTouchControls* GetTouchControls() const { return TouchControls.Get(); }
+	bool IsCapturing() const { return !CaptureDir.IsEmpty(); }
+	// Recorded frame index (negative while warming up).
+	int32 CaptureFrame() const { return bCaptureReady ? FrameCounter - CaptureWarmup : -1; }
+
 protected:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void BeginPlay() override;

@@ -168,7 +168,165 @@ def place(mesh, loc, yaw=0.0, scale=1.0, label=None, material=None):
 m = {n: import_model(n) for n in ["namaqualand_cliff_01", "namaqualand_cliff_02", "namaqualand_boulder_02",
                                    "namaqualand_boulder_04", "mountainside", "rock_face_01",
                                    "sand_rocks_small_01", "wooden_military_crate", "ammo_box"]}
+for src, fixed in (("namaqualand_boulder_04", "SM_Boulder"), ("namaqualand_boulder_02", "SM_Rock")):
+    if m[src]:
+        unreal.EditorAssetLibrary.duplicate_asset(m[src].get_path_name().split(".")[0], f"/Game/Props/{fixed}")
 sand = tiled_material("aerial_sand", 160.0, (1.25, 0.92, 0.62))
+
+# --- story assets (used by AWarBreachDirector through fixed paths) --------------------------
+unreal.SystemLibrary.execute_console_command(None, "Interchange.FeatureFlags.Import.FBX False")
+DLR = os.path.join(RAW, "Downloaded")
+
+
+def fbx_task(path, dest, name, ui):
+    t = unreal.AssetImportTask()
+    t.filename = path
+    t.destination_path = dest
+    t.destination_name = name
+    t.automated = True
+    t.save = True
+    t.replace_existing = True
+    t.options = ui
+    assets.import_asset_tasks([t])
+    return [unreal.load_asset(p) for p in t.imported_object_paths]
+
+
+def import_soldier():
+    folder = os.path.join(DLR, "Mixamo")
+    if not os.path.exists(os.path.join(folder, "Soldier.fbx")):
+        unreal.log_error("Soldier.fbx missing (Tools/Blender/prep_soldier.py output)")
+        return
+    ui = unreal.FbxImportUI()
+    ui.set_editor_property("import_mesh", True)
+    ui.set_editor_property("import_as_skeletal", True)
+    ui.set_editor_property("import_animations", False)
+    ui.set_editor_property("import_materials", True)
+    ui.set_editor_property("import_textures", True)
+    ui.set_editor_property("mesh_type_to_import", unreal.FBXImportType.FBXIT_SKELETAL_MESH)
+    got = fbx_task(os.path.join(folder, "Soldier.fbx"), "/Game/Chars/Soldier", "Soldier", ui)
+    mesh = unreal.load_asset("/Game/Chars/Soldier/Soldier")
+    skeleton = mesh.get_editor_property("skeleton") if mesh else None
+    unreal.log(f"soldier: {got} skeleton {skeleton}")
+    for f in sorted(os.listdir(folder)):
+        if not (f.startswith("Anim_") and f.endswith(".fbx")):
+            continue
+        ui = unreal.FbxImportUI()
+        ui.set_editor_property("import_mesh", False)
+        ui.set_editor_property("import_as_skeletal", True)
+        ui.set_editor_property("import_animations", True)
+        ui.set_editor_property("skeleton", skeleton)
+        ui.set_editor_property("mesh_type_to_import", unreal.FBXImportType.FBXIT_ANIMATION)
+        fbx_task(os.path.join(folder, f), "/Game/Chars/Soldier", os.path.splitext(f)[0], ui)
+    unreal.log("soldier clips: " + ", ".join(unreal.EditorAssetLibrary.list_assets("/Game/Chars/Soldier")))
+
+
+def import_prop(name, path, fixed):
+    """Imports a downloaded glTF/GLB and keeps its first static mesh under a fixed name."""
+    if not os.path.exists(path):
+        unreal.log_error(f"missing {path}")
+        return
+    dest = f"/Game/Props/{name}"
+    t = unreal.AssetImportTask()
+    t.filename = path
+    t.destination_path = dest
+    t.automated = True
+    t.save = True
+    t.replace_existing = True
+    assets.import_asset_tasks([t])
+    meshes = [unreal.load_asset(p) for p in unreal.EditorAssetLibrary.list_assets(dest, recursive=True)]
+    meshes = [a for a in meshes if isinstance(a, unreal.StaticMesh)]
+    if meshes:
+        unreal.EditorAssetLibrary.duplicate_asset(meshes[0].get_path_name().split(".")[0], f"/Game/Props/{fixed}")
+        unreal.log(f"prop {fixed} <- {meshes[0].get_path_name()} ({len(meshes)} meshes)")
+
+
+def import_sheets():
+    folder = os.path.join(DLR, "UnityVFX")
+    tasks = []
+    for d in sorted(os.listdir(folder)):
+        for f in os.listdir(os.path.join(folder, d)):
+            if f.endswith(".tga") and "temperature" not in f:
+                t = unreal.AssetImportTask()
+                t.filename = os.path.join(folder, d, f)
+                t.destination_path = "/Game/FX"
+                t.destination_name = "T_" + os.path.splitext(f)[0]
+                t.automated = True
+                t.save = True
+                t.replace_existing = True
+                tasks.append(t)
+    assets.import_asset_tasks(tasks)
+    return unreal.load_asset(tasks[0].imported_object_paths[0]) if tasks and tasks[0].imported_object_paths else None
+
+
+def flipbook_material(default_tex):
+    """Unlit translucent sprite reading frame N of a Cols x Rows sheet."""
+    mat = assets.create_asset("M_Flipbook", "/Game/FX", unreal.Material, unreal.MaterialFactoryNew())
+    mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    mat.set_editor_property("two_sided", True)
+    E = lambda cls, x, y: MEL.create_material_expression(mat, cls, x, y)
+    C = MEL.connect_material_expressions
+
+    def scalar(name, value, y):
+        p = E(unreal.MaterialExpressionScalarParameter, -1600, y)
+        p.set_editor_property("parameter_name", name)
+        p.set_editor_property("default_value", value)
+        return p
+
+    cols, rows, frame = scalar("Cols", 5.0, 0), scalar("Rows", 5.0, 120), scalar("Frame", 0.0, 240)
+    opacity, glow = scalar("Opacity", 1.0, 600), scalar("Glow", 1.0, 720)
+    tint = E(unreal.MaterialExpressionVectorParameter, -1600, 840)
+    tint.set_editor_property("parameter_name", "Tint")
+    tint.set_editor_property("default_value", unreal.LinearColor(1, 1, 1, 1))
+    f = E(unreal.MaterialExpressionFloor, -1400, 240); C(frame, "", f, "")
+    col = E(unreal.MaterialExpressionFmod, -1200, 160); C(f, "", col, "A"); C(cols, "", col, "B")
+    dv = E(unreal.MaterialExpressionDivide, -1200, 300); C(f, "", dv, "A"); C(cols, "", dv, "B")
+    row = E(unreal.MaterialExpressionFloor, -1050, 300); C(dv, "", row, "")
+    cr = E(unreal.MaterialExpressionAppendVector, -900, 220); C(col, "", cr, "A"); C(row, "", cr, "B")
+    uv = E(unreal.MaterialExpressionTextureCoordinate, -900, 60)
+    add = E(unreal.MaterialExpressionAdd, -750, 120); C(uv, "", add, "A"); C(cr, "", add, "B")
+    grid = E(unreal.MaterialExpressionAppendVector, -900, 400); C(cols, "", grid, "A"); C(rows, "", grid, "B")
+    fuv = E(unreal.MaterialExpressionDivide, -600, 200); C(add, "", fuv, "A"); C(grid, "", fuv, "B")
+    tex = E(unreal.MaterialExpressionTextureSampleParameter2D, -400, 200)
+    tex.set_editor_property("parameter_name", "Tex")
+    if default_tex:
+        tex.set_editor_property("texture", default_tex)
+    C(fuv, "", tex, "UVs")
+    mask = E(unreal.MaterialExpressionComponentMask, -400, 840)
+    for ch, on in (("r", True), ("g", True), ("b", True), ("a", False)):
+        mask.set_editor_property(ch, on)
+    C(tint, "", mask, "")
+    m1 = E(unreal.MaterialExpressionMultiply, -200, 200); C(tex, "RGB", m1, "A"); C(mask, "", m1, "B")
+    m2 = E(unreal.MaterialExpressionMultiply, -50, 200); C(m1, "", m2, "A"); C(glow, "", m2, "B")
+    MEL.connect_material_property(m2, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    m3 = E(unreal.MaterialExpressionMultiply, -50, 400); C(tex, "A", m3, "A"); C(opacity, "", m3, "B")
+    MEL.connect_material_property(m3, "", unreal.MaterialProperty.MP_OPACITY)
+    MEL.recompile_material(mat)
+    unreal.EditorAssetLibrary.save_loaded_asset(mat)
+
+
+def import_audio():
+    folder = os.path.join(DLR, "Audio")
+    tasks = []
+    for f in sorted(os.listdir(folder)):
+        if f.endswith(".wav") and not f.startswith("src_"):
+            t = unreal.AssetImportTask()
+            t.filename = os.path.join(folder, f)
+            t.destination_path = "/Game/Audio"
+            t.destination_name = "S_" + os.path.splitext(f)[0]
+            t.automated = True
+            t.save = True
+            t.replace_existing = True
+            tasks.append(t)
+    assets.import_asset_tasks(tasks)
+    unreal.log("audio: " + ", ".join(unreal.EditorAssetLibrary.list_assets("/Game/Audio")))
+
+
+import_soldier()
+import_prop("C4", os.path.join(DLR, "Sketchfab", "C4", "C4.glb"), "SM_C4")
+import_prop("Detonator", os.path.join(DLR, "Sketchfab", "Detonator", "Detonator.glb"), "SM_Detonator")
+flipbook_material(import_sheets())
+import_audio()
 
 les.new_level("/Game/Maps/Breach")
 
@@ -220,7 +378,8 @@ for i in range(8):
 BX = 2800
 bunker = import_gltf("Bunker", os.path.join(RAW, "Downloaded", "Sketchfab", "Bunker", "scene.gltf"))
 if bunker:
-    place(bunker, (BX, 0, 170), 180, 2.0, "Bunker")
+    bunker_actor = place(bunker, (BX, 0, 170), 180, 2.0, "Bunker")
+    bunker_actor.tags = ["Bunker"]
 for i, (x, y, z, yaw, s) in enumerate([(BX + 300, -1250, 0, 20, 2.2), (BX + 350, 1250, 0, 95, 2.4), (BX + 800, -800, 150, 160, 2.0),
                                        (BX + 850, 850, 150, 250, 2.1), (BX - 300, -1500, 0, 310, 1.3), (BX - 350, 1550, 0, 40, 1.2)]):
     place(m["namaqualand_boulder_04"], (x, y, z), yaw, s, f"Flank{i}")
@@ -235,6 +394,8 @@ place(m["wooden_military_crate"], (380, -260, 0), 70, 1.0, "Crate")
 place(m["ammo_box"], (340, -140, 0), 15, 1.2, "Ammo")
 
 spawn(unreal.PlayerStart, (0, 0, 100), (0, 0, 0), "Start")
+director_class = unreal.load_class(None, "/Script/WarGame.WarBreachDirector")
+spawn(director_class, (0, 0, 0), (0, 0, 0), "BreachDirector")
 
 les.save_current_level()
 unreal.log("build_breach: done")

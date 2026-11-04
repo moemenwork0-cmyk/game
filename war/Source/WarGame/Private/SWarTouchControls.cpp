@@ -57,6 +57,12 @@ void SWarTouchControls::Construct(const FArguments& InArgs)
 	// Second trigger on the left so the player can shoot while steering with the right thumb.
 	Add("fire", TEXT(""), FVector2D(268.f, 222.f), 25.f, true);
 	Add("pause", TEXT(""), FVector2D(38.f, 504.f), 20.f);
+
+	DetonatorTexture = LoadObject<UTexture2D>(nullptr, TEXT("/Game/UI/Icons/T_charge.T_charge"));
+	DetonatorIcon.SetResourceObject(DetonatorTexture);
+	DetonatorIcon.ImageSize = FVector2D(256.f, 256.f);
+	White.DrawAs = ESlateBrushDrawType::Box;
+	White.TintColor = FLinearColor::White;
 }
 
 void SWarTouchControls::AddReferencedObjects(FReferenceCollector& Collector)
@@ -65,6 +71,7 @@ void SWarTouchControls::AddReferencedObjects(FReferenceCollector& Collector)
 	{
 		Collector.AddReferencedObject(B.Texture);
 	}
+	Collector.AddReferencedObject(DetonatorTexture);
 }
 
 float SWarTouchControls::LayoutScale(const FGeometry& Geometry) const
@@ -78,6 +85,12 @@ FVector2D SWarTouchControls::ButtonCentre(const FGeometry& Geometry, const FButt
 	const FVector2D Size = Geometry.GetLocalSize();
 	const FVector2D Off = Button.Offset * LayoutScale(Geometry);
 	return Button.bLeft ? FVector2D(Off.X, Size.Y - Off.Y) : FVector2D(Size.X - Off.X, Size.Y - Off.Y);
+}
+
+FVector2D SWarTouchControls::DetonatorCentre(const FGeometry& Geometry) const
+{
+	const FVector2D Size = Geometry.GetLocalSize();
+	return FVector2D(Size.X * 0.5f, Size.Y - 120.f * LayoutScale(Geometry));
 }
 
 SWarTouchControls::FButton* SWarTouchControls::HitButton(const FGeometry& Geometry, const FVector2D& Local)
@@ -147,6 +160,19 @@ FReply SWarTouchControls::OnTouchStarted(const FGeometry& MyGeometry, const FPoi
 	const FVector2D Local = MyGeometry.AbsoluteToLocal(Event.GetScreenSpacePosition());
 	const int32 Pointer = Event.GetPointerIndex();
 
+	if (bDetonator && FVector2D::Distance(Local, DetonatorCentre(MyGeometry)) < 90.f * LayoutScale(MyGeometry))
+	{
+		bDetonator = false;
+		if (OnDetonate)
+		{
+			OnDetonate();
+		}
+		return FReply::Handled();
+	}
+	if (!bControlsVisible)
+	{
+		return FReply::Handled();
+	}
 	if (FButton* B = HitButton(MyGeometry, Local))
 	{
 		B->Pointer = Pointer;
@@ -247,8 +273,55 @@ int32 SWarTouchControls::OnPaint(const FPaintArgs& Args, const FGeometry& Allott
 			&Brush, ESlateDrawEffect::None, Brush.TintColor.GetSpecifiedColor() * Tint);
 	};
 
-	// Move stick: a resting position bottom-left, or wherever the thumb landed.
 	const FVector2D Size = AllottedGeometry.GetLocalSize();
+	auto Text = [&](const FString& Str, float Pt, FVector2D Centre, FLinearColor Color, int32 Layer)
+	{
+		const FSlateFontInfo F = FCoreStyle::GetDefaultFontStyle("Bold", FMath::RoundToInt(Pt * Scale));
+		const float W = Str.Len() * Pt * 0.62f * Scale;
+		FSlateDrawElement::MakeText(OutDrawElements, Layer,
+			AllottedGeometry.ToPaintGeometry(FVector2D(W + 20.f, Pt * 1.6f * Scale), FSlateLayoutTransform(Centre - FVector2D(W * 0.5f, Pt * 0.8f * Scale))),
+			Str, F, ESlateDrawEffect::None, Color);
+	};
+	auto Fill = [&](float Alpha, FLinearColor Color, int32 Layer)
+	{
+		if (Alpha > 0.001f)
+		{
+			FSlateDrawElement::MakeBox(OutDrawElements, Layer, AllottedGeometry.ToPaintGeometry(Size, FSlateLayoutTransform()),
+				&White, ESlateDrawEffect::None, Color.CopyWithNewOpacity(Alpha));
+		}
+	};
+
+	if (!Objective.IsEmpty())
+	{
+		Text(TEXT("OBJECTIVE"), 9.f, FVector2D(80.f * Scale, 168.f * Scale), FLinearColor(0.91f, 0.66f, 0.23f, 0.95f), LayerId + 2);
+		Text(Objective, 12.f, FVector2D((24.f + Objective.Len() * 3.8f) * Scale, 186.f * Scale), FLinearColor(1.f, 1.f, 1.f, 0.95f), LayerId + 2);
+	}
+	if (bDetonator)
+	{
+		const FVector2D C = DetonatorCentre(AllottedGeometry);
+		const float Beat = 0.5f + 0.5f * FMath::Sin(PulseTime * 6.f);
+		Box(Halo, C, (78.f + 10.f * Beat) * Scale, LayerId + 2, FLinearColor(1.f, 0.35f, 0.25f, 0.6f + 0.4f * Beat));
+		Box(Disc, C, 70.f * Scale, LayerId + 2, FLinearColor(2.4f, 0.6f, 0.4f, 1.6f));
+		const FVector2D IconSize(70.f * Scale, 70.f * Scale);
+		FSlateDrawElement::MakeBox(OutDrawElements, LayerId + 3,
+			AllottedGeometry.ToPaintGeometry(IconSize, FSlateLayoutTransform(C - IconSize * 0.5f)), &DetonatorIcon);
+	}
+	if (!Prompt.IsEmpty())
+	{
+		Text(Prompt, 20.f, FVector2D(Size.X * 0.5f, Size.Y - 230.f * Scale), FLinearColor(1.f, 0.92f, 0.8f, 1.f), LayerId + 3);
+	}
+	if (Countdown > 0)
+	{
+		Text(FString::FromInt(Countdown), 96.f, FVector2D(Size.X * 0.5f, Size.Y * 0.42f), FLinearColor(1.f, 0.85f, 0.6f, 0.95f), LayerId + 3);
+	}
+	Fill(Flash, FLinearColor(1.f, 0.95f, 0.85f), LayerId + 4);
+	Fill(Fade, FLinearColor::Black, LayerId + 5);
+	if (!bControlsVisible)
+	{
+		return LayerId + 6;
+	}
+
+	// Move stick: a resting position bottom-left, or wherever the thumb landed.
 	const FVector2D StickCentre = MovePointer != INDEX_NONE ? MoveOrigin : FVector2D(155.f * Scale, Size.Y - 135.f * Scale);
 	Box(Disc, StickCentre, StickRadius * Scale, LayerId, FLinearColor::White);
 	Box(Halo, StickCentre, StickRadius * Scale, LayerId, FLinearColor::White);
@@ -283,5 +356,5 @@ int32 SWarTouchControls::OnPaint(const FPaintArgs& Args, const FGeometry& Allott
 				B.Label, Font, ESlateDrawEffect::None, FLinearColor(1.f, 1.f, 1.f, 0.75f));
 		}
 	}
-	return LayerId + 2;
+	return LayerId + 6;
 }

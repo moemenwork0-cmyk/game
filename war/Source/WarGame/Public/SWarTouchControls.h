@@ -26,6 +26,16 @@ public:
 	virtual FReply OnTouchEnded(const FGeometry& MyGeometry, const FPointerEvent& Event) override;
 	virtual bool SupportsKeyboardFocus() const override { return true; }
 
+	// Story overlay driven by the breach director.
+	void SetControlsVisible(bool bVisible) { bControlsVisible = bVisible; }
+	void SetObjective(const FString& Text) { Objective = Text; }
+	void SetPrompt(const FString& Text) { Prompt = Text; }
+	void SetCountdown(int32 Number) { Countdown = Number; }
+	void SetFade(float Alpha) { Fade = Alpha; }
+	void SetFlash(float Alpha) { Flash = Alpha; }
+	void SetDetonator(bool bShow, TFunction<void()> OnPress) { bDetonator = bShow; OnDetonate = MoveTemp(OnPress); }
+	void Pulse(float Time) { PulseTime = Time; }
+
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override { return TEXT("SWarTouchControls"); }
 
@@ -64,4 +74,18 @@ private:
 	int32 LookPointer = INDEX_NONE;
 	FVector2D LookLast = FVector2D::ZeroVector;
 	FVector2D FireLast = FVector2D::ZeroVector;
+
+	bool bControlsVisible = true;
+	FString Objective;
+	FString Prompt;
+	int32 Countdown = 0;
+	float Fade = 0.f;
+	float Flash = 0.f;
+	float PulseTime = 0.f;
+	bool bDetonator = false;
+	TFunction<void()> OnDetonate;
+	TObjectPtr<UTexture2D> DetonatorTexture = nullptr;
+	FSlateBrush DetonatorIcon;
+	FSlateBrush White;
+	FVector2D DetonatorCentre(const FGeometry& Geometry) const;
 };

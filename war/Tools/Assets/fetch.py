@@ -22,6 +22,21 @@ SKETCHFAB = {
     "Detonator": ("3c8b9fe3d79a428cb70c8b1be27f1d04", "glb"),   # Detonator, BRAIN_ZIP
     "SoldierKSK": ("110daf3d1884412989e41dc95866c579", "glb"),  # German KSK operator - rigged, 42manako
 }
+# OpenGameArt sounds (CC0 unless noted; CC-BY credited in CREDITS.md), converted to 48 kHz WAV.
+OGA = "https://opengameart.org/sites/default/files/"
+SOUNDS = {
+    "Explosion": "flash_bang.wav",                                   # teeeece, CC0
+    "ExplosionPunch": "exp.mp3",                                     # qubodup, CC-BY 3.0
+    "Distant": "NenadSimic%20-%20Muffled%20Distant%20Explosion.wav", # Nenad Simic, CC0
+    "Rumble": "rumble.wav",                                          # cinameng, CC0
+    "Beep": "beep.wav",                                              # qubodup, CC0
+    "Wind": "wind-01_0.ogg",                                         # AntumDeluge, CC-BY 3.0
+    "Heartbeat": "heartbeat_slow_reverb.wav",                        # Bart, CC0
+    "Footsteps": "sand_footsteps_0.mp3",                             # peludo, CC0
+    "Click": "Metal%20Click.wav",                                    # Mobeyee Sounds, CC-BY 4.0
+    "Rocks": "Falling%20Rock.wav",                                   # spookymodem, CC-BY 3.0
+    "Radio": "transmissionStart.wav",                                # Needforbleed, CC-BY 3.0
+}
 RES = "2k"
 
 
@@ -79,6 +94,19 @@ def sketchfab(name, uid, fmt):
             zf.extractall(out)
 
 
+def sounds():
+    out = os.path.join(DEST, "Audio")
+    os.makedirs(out, exist_ok=True)
+    for name, f in SOUNDS.items():
+        src = os.path.join(out, "src_" + name + os.path.splitext(f)[1])
+        get(OGA + f, src)
+        os.system(f"ffmpeg -y -loglevel error -i '{src}' -ar 48000 -ac 2 '{os.path.join(out, name)}.wav'")
+    # Ear ringing after the blast: a pure ~8 kHz tone fading out is what tinnitus is.
+    os.system(f"ffmpeg -y -loglevel error -f lavfi -i 'sine=f=7800:d=8' -af 'afade=t=in:d=0.05,afade=t=out:st=1.5:d=6.5,volume=0.25' "
+              f"-ar 48000 -ac 2 '{os.path.join(out, 'Tinnitus')}.wav'")
+
+
+sounds()
 for name, (uid, fmt) in SKETCHFAB.items():
     sketchfab(name, uid, fmt)
 for a in POLYHAVEN_MODELS:
