@@ -109,7 +109,7 @@ def import_texture(path, dest, normal=False, linear=False):
     return tex
 
 
-def tiled_material(name, tiling):
+def tiled_material(name, tiling, tint=(1.0, 1.0, 1.0)):
     """Ground material from a Poly Haven texture set: albedo, normal, roughness from ARM.g."""
     folder = os.path.join(DL, "Textures", name)
     dest = f"/Game/Env/Ground/{name}"
@@ -128,7 +128,16 @@ def tiled_material(name, tiling):
         s.texture = tex
         s.sampler_type = kind
         MEL.connect_material_expressions(uv, "", s, "UVs")
-        MEL.connect_material_property(s, pin, prop)
+        if prop == unreal.MaterialProperty.MP_BASE_COLOR:
+            # Poly Haven's sand is shot grey: warm it towards desert ochre.
+            mul = MEL.create_material_expression(mat, unreal.MaterialExpressionMultiply, -250, 0)
+            col = MEL.create_material_expression(mat, unreal.MaterialExpressionConstant3Vector, -500, -200)
+            col.constant = unreal.LinearColor(tint[0], tint[1], tint[2], 1.0)
+            MEL.connect_material_expressions(s, pin, mul, "A")
+            MEL.connect_material_expressions(col, "", mul, "B")
+            MEL.connect_material_property(mul, "", prop)
+        else:
+            MEL.connect_material_property(s, pin, prop)
     MEL.recompile_material(mat)
     unreal.EditorAssetLibrary.save_loaded_asset(mat)
     return mat
@@ -159,14 +168,14 @@ def place(mesh, loc, yaw=0.0, scale=1.0, label=None, material=None):
 m = {n: import_model(n) for n in ["namaqualand_cliff_01", "namaqualand_cliff_02", "namaqualand_boulder_02",
                                    "namaqualand_boulder_04", "mountainside", "rock_face_01",
                                    "sand_rocks_small_01", "wooden_military_crate", "ammo_box"]}
-sand = tiled_material("aerial_sand", 160.0)
+sand = tiled_material("aerial_sand", 160.0, (1.25, 0.92, 0.62))
 
 les.new_level("/Game/Maps/Breach")
 
 # --- light: low morning sun behind the player's right shoulder, hazy desert air
-sun = spawn(unreal.DirectionalLight, (0, 0, 1000), (0, -24, -35), "Sun")
+sun = spawn(unreal.DirectionalLight, (0, 0, 1000), (0, -38, 25), "Sun")
 light = sun.get_component_by_class(unreal.DirectionalLightComponent)
-light.set_editor_property("intensity", 8.0)
+light.set_editor_property("intensity", 10.0)
 light.set_editor_property("light_color", unreal.Color(255, 228, 196, 255))
 light.set_editor_property("atmosphere_sun_light", True)
 light.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
@@ -192,35 +201,38 @@ ppv.set_editor_property("settings", pp)
 floor = place(unreal.load_asset("/Engine/BasicShapes/Plane"), (0, 0, 0), scale=1.0, label="Sand", material=sand)
 floor.set_actor_scale3d(unreal.Vector(2000, 2000, 1))
 
-# --- the mountain: a wall of scaled-up cliff scans in an arc 60 m ahead, more mass behind it
-W = 6000
-for i, (y, yaw, s) in enumerate([(-9000, 200, 5.0), (-4200, 186, 4.4), (4200, 174, 4.4), (9000, 160, 5.0)]):
-    place(m["namaqualand_cliff_02"], (W + abs(y) * 0.18, y, -150), yaw, s, f"CliffWall{i}")
-for i, (x, y, yaw, s) in enumerate([(W + 2600, -2500, 30, 7.0), (W + 2800, 2600, 210, 7.5), (W + 4500, 0, 120, 9.0),
-                                    (W + 7000, -9000, 75, 10.0), (W + 7500, 9000, 260, 10.0)]):
-    place(m["mountainside"], (x, y, -200), yaw, s, f"Massif{i}")
+# --- the mountain: a wall of scaled-up cliff scans in an arc 40 m ahead; lower mass behind it so
+# the sky stays open above the ridge line
+W = 4000
+for i, (y, yaw, s) in enumerate([(-8000, 200, 4.6), (-3600, 186, 4.0), (3600, 174, 4.0), (8000, 160, 4.6)]):
+    place(m["namaqualand_cliff_02"], (W + abs(y) * 0.2, y, -150), yaw, s, f"CliffWall{i}")
+for i, (x, y, yaw, s) in enumerate([(W + 3200, -2600, 20, 4.0), (W + 3400, 2800, 200, 4.2), (W + 5200, 0, 180, 5.0),
+                                    (W + 8000, -9000, 75, 6.0), (W + 8500, 9000, 260, 6.0)]):
+    place(m["namaqualand_cliff_02"], (x, y, -100), yaw, s, f"Massif{i}")
+place(m["mountainside"], (W + 4200, -6500, -300), 40, 3.5, "MassifSide")
 # Far ridges that close the horizon.
 for i in range(8):
     place(m["namaqualand_cliff_01"], (60000 + (i % 3) * 9000, -60000 + i * 17000, -800), 180 + i * 37, 22.0, f"Ridge{i}")
 
-# --- the breach target: the concrete bunker scan, half sunk at the foot of the cliffs, its
-# door facing the player; boulders packed around its flanks so it reads as dug into the hill
+# --- the breach target: the concrete bunker scan, 28 m ahead, gun slits facing the player
+# (the scan's opening faces its local +X; yaw 180 turns it to the player). The scan carries its
+# own earth below the slab: lift it so ~1.7 m of that stays under the sand.
+BX = 2800
 bunker = import_gltf("Bunker", os.path.join(RAW, "Downloaded", "Sketchfab", "Bunker", "scene.gltf"))
 if bunker:
-    place(bunker, (W - 700, 0, -60), 180, 1.6, "Bunker")
-for i, (x, y, z, yaw, s) in enumerate([(W - 400, -1150, 0, 20, 2.2), (W - 300, 1150, 0, 95, 2.4), (W + 100, -700, 250, 160, 2.0),
-                                       (W + 150, 750, 260, 250, 2.1), (W - 900, -1300, 0, 310, 1.3), (W - 950, 1350, 0, 40, 1.2)]):
+    place(bunker, (BX, 0, 170), 180, 2.0, "Bunker")
+for i, (x, y, z, yaw, s) in enumerate([(BX + 300, -1250, 0, 20, 2.2), (BX + 350, 1250, 0, 95, 2.4), (BX + 800, -800, 150, 160, 2.0),
+                                       (BX + 850, 850, 150, 250, 2.1), (BX - 300, -1500, 0, 310, 1.3), (BX - 350, 1550, 0, 40, 1.2)]):
     place(m["namaqualand_boulder_04"], (x, y, z), yaw, s, f"Flank{i}")
-place(m["rock_face_01"], (W + 300, 0, 300), 180, 3.2, "BunkerBackRock")
 
 # --- foreground: rubble, scattered boulders, the team's kit
-for i, (x, y, yaw, s) in enumerate([(1800, -900, 40, 1.2), (2600, 1300, 140, 1.0), (3900, -2100, 220, 1.4),
-                                    (4600, 1900, 300, 1.1), (900, 1700, 80, 0.8)]):
+for i, (x, y, yaw, s) in enumerate([(1500, -900, 40, 1.2), (1900, 1300, 140, 1.0), (3300, -2300, 220, 1.4),
+                                    (3600, 2100, 300, 1.1), (800, 1700, 80, 0.8)]):
     place(m["namaqualand_boulder_02"], (x, y, 0), yaw, s, f"Boulder{i}")
-for i, (x, y, yaw) in enumerate([(3000, -400, 10), (4800, 700, 200), (1400, 600, 120)]):
+for i, (x, y, yaw) in enumerate([(2200, -500, 10), (3400, 900, 200), (1200, 600, 120)]):
     place(m["sand_rocks_small_01"], (x, y, 0), yaw, 1.0, f"Rubble{i}")
-place(m["wooden_military_crate"], (260, -180, 0), 70, 1.0, "Crate")
-place(m["ammo_box"], (230, -60, 0), 15, 1.2, "Ammo")
+place(m["wooden_military_crate"], (380, -260, 0), 70, 1.0, "Crate")
+place(m["ammo_box"], (340, -140, 0), 15, 1.2, "Ammo")
 
 spawn(unreal.PlayerStart, (0, 0, 100), (0, 0, 0), "Start")
 

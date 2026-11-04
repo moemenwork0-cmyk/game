@@ -37,12 +37,21 @@ sh(f"{U} {UE}/Engine/Binaries/Linux/UnrealEditor-Cmd {P} -run=pythonscript -scri
 if not gpu:
     sys.exit("no GPU: the map is built but cannot be rendered")
 x, y = RES.split("x")
-os.makedirs(f"{W}/frames", exist_ok=True)
-sh(f"chown ue {W}/frames")
-sh(f"timeout 14000 {U} {UE}/Engine/Binaries/Linux/UnrealEditor {P} /Game/Maps/Breach -game -RenderOffscreen -unattended -nosound "
-   f"-ResX={x} -ResY={y} -windowed -benchmark -fps=30 -capture={W}/frames -captureframes={FRAMES} "
-   f"> {W}/game.log 2>&1; echo game=$?; grep -aE 'Error|Fatal|Vulkan|RHI' {W}/game.log | tail -30")
-sh(f"ls {W}/frames | wc -l")
-# A few stills for review next to the video.
-sh(f"mkdir -p {W}/stills && for f in 00000 00060 00120; do cp {W}/frames/frame_$f.png {W}/stills/ 2>/dev/null; done; ls {W}/stills")
-sh(f"ffmpeg -y -loglevel error -framerate 30 -i {W}/frames/frame_%05d.png -c:v libx264 -pix_fmt yuv420p -crf 18 {W}/breach.mp4 && rm -rf {W}/frames; ls -la {W}")
+GAME = (f"timeout 14000 {U} {UE}/Engine/Binaries/Linux/UnrealEditor {P} /Game/Maps/Breach -game -RenderOffscreen "
+        f"-unattended -nosound -ResX={x} -ResY={y} -windowed -benchmark -fps=30")
+# The gameplay view (with the touch HUD) becomes the video; fixed review cameras give stills.
+# Views: name, frames, extra args (x,y,z,pitch,yaw in cm/degrees).
+VIEWS = [("play", FRAMES, ""),
+         ("wide", 3, "-nohud -captureview=-1800,-2600,1100,-14,40"),
+         ("bunker", 3, "-nohud -captureview=1300,-500,230,-3,12")]
+os.makedirs(f"{W}/stills", exist_ok=True)
+for name, n, extra in VIEWS:
+    d = f"{W}/frames_{name}"
+    os.makedirs(d, exist_ok=True)
+    sh(f"chown ue {d}")
+    sh(f"{GAME} -capture={d} -captureframes={n} {extra} > {W}/game_{name}.log 2>&1; echo {name}=$?; "
+       f"grep -aE 'Fatal|Capture:' {W}/game_{name}.log | tail -5; ls {d} | wc -l")
+    sh(f"cp $(ls {d}/*.png | tail -1) {W}/stills/{name}.png 2>/dev/null")
+sh(f"cp {W}/frames_play/frame_00000.png {W}/stills/play_start.png 2>/dev/null; ls {W}/stills")
+sh(f"ffmpeg -y -loglevel error -framerate 30 -i {W}/frames_play/frame_%05d.png -c:v libx264 -pix_fmt yuv420p -crf 18 "
+   f"{W}/breach.mp4 && rm -rf {W}/frames_*; ls -la {W}")

@@ -1,6 +1,7 @@
 #include "WarPlayerController.h"
 #include "SWarTouchControls.h"
 #include "WarCharacter.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/LocalPlayer.h"
 #include "HAL/PlatformMisc.h"
@@ -38,7 +39,21 @@ void AWarPlayerController::BeginPlay()
 		ConsoleCommand(FString::Printf(TEXT("r.SetRes %dx%dw"), ResX, ResY));
 	}
 
-	if (!IsLocalController() || !GetLocalPlayer() || !GetLocalPlayer()->ViewportClient)
+	FString View;
+	if (FParse::Value(FCommandLine::Get(), TEXT("-captureview="), View, false))
+	{
+		// x,y,z,pitch,yaw: a fixed camera for review shots, applied once the pawn exists.
+		TArray<FString> Parts;
+		View.ParseIntoArray(Parts, TEXT(","));
+		if (Parts.Num() == 5)
+		{
+			CaptureLocation = FVector(FCString::Atof(*Parts[0]), FCString::Atof(*Parts[1]), FCString::Atof(*Parts[2]));
+			CaptureRotation = FRotator(FCString::Atof(*Parts[3]), FCString::Atof(*Parts[4]), 0.f);
+			bCaptureView = true;
+		}
+	}
+
+	if (FParse::Param(FCommandLine::Get(), TEXT("nohud")) || !IsLocalController() || !GetLocalPlayer() || !GetLocalPlayer()->ViewportClient)
 	{
 		return;
 	}
@@ -56,6 +71,22 @@ void AWarPlayerController::Tick(float DeltaSeconds)
 	{
 		return;
 	}
+	if (bCaptureView && GetPawn())
+	{
+		GetPawn()->SetActorLocation(CaptureLocation, false, nullptr, ETeleportType::TeleportPhysics);
+		GetPawn()->DisableComponentsSimulatePhysics();
+		SetControlRotation(CaptureRotation);
+		if (APawn* P = GetPawn())
+		{
+			P->SetActorEnableCollision(false);
+		}
+		if (ACharacter* C = Cast<ACharacter>(GetPawn()))
+		{
+			C->GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+			C->GetCharacterMovement()->StopMovementImmediately();
+		}
+	}
+
 	// Hold the capture until every texture and shader has finished compiling (first run, empty DDC).
 	if (!bCaptureReady)
 	{

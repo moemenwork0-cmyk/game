@@ -26,4 +26,7 @@ private:
 	int32 CaptureWarmup = 90;
 	int32 FrameCounter = 0;
 	bool bCaptureReady = false;
+	bool bCaptureView = false;
+	FVector CaptureLocation = FVector::ZeroVector;
+	FRotator CaptureRotation = FRotator::ZeroRotator;
 };
