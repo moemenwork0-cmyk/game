@@ -247,14 +247,14 @@ void AWarCharacter::Tick(float DeltaSeconds)
 	// Own footsteps from the body's toes (same rule as the team: a toe settling back to its lowest).
 	if (Body->IsVisible() && OnStep)
 	{
-		const FName Toes[2] = { TEXT("mixamorig:LeftToeBase"), TEXT("mixamorig:RightToeBase") };
+		const FName Toes[2] = { TEXT("mixamorig:LeftFoot"), TEXT("mixamorig:RightFoot") };
 		for (int32 i = 0; i < 2; ++i)
 		{
 			if (Body->GetBoneIndex(Toes[i]) == INDEX_NONE) continue;
 			const float Z = Body->GetBoneLocation(Toes[i]).Z;
 			FootMin[i] = FMath::Min(FootMin[i] + 6.f * DeltaSeconds, Z);
-			if (Z > FootMin[i] + 7.f) { bFootUp[i] = true; }
-			else if (bFootUp[i] && Z < FootMin[i] + 2.5f && GetVelocity().Size2D() > 30.f)
+			if (Z > FootMin[i] + 5.f) { bFootUp[i] = true; }
+			else if (bFootUp[i] && Z < FootMin[i] + 2.f && GetVelocity().Size2D() > 30.f)
 			{
 				bFootUp[i] = false;
 				OnStep(Body->GetBoneLocation(Toes[i]), GetVelocity().Size2D());

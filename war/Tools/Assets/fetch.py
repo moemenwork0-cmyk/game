@@ -107,6 +107,8 @@ def sounds():
         filt = ",".join(chain)
         gain = peak_gain(src, filt, spec["peak_db"])
         os.system(f"ffmpeg -y -loglevel error -i '{src}' -af '{filt},volume={gain}dB' -c:a pcm_s16le '{os.path.join(out, name)}.wav'")
+        if spec.get("loop"):
+            seamless(os.path.join(out, name) + ".wav")
     # Six footstep variations per surface sample: small pitch/speed shifts, as boots never sound twice the same.
     for base in ("StepA", "StepB", "StepC", "StepD"):
         for i, k in enumerate((0.94, 1.06)):
@@ -117,6 +119,22 @@ def sounds():
               f"-f lavfi -i 'anoisesrc=d=9:c=pink:a=0.05' -filter_complex "
               f"'[2]highpass=f=5000,lowpass=f=9000[n];[0][1][n]amix=inputs=3:normalize=0,"
               f"afade=t=in:d=0.04,afade=t=out:st=1.2:d=7.5,volume=1.1' -ar 48000 -ac 2 '{os.path.join(out, 'Tinnitus')}.wav'")
+
+
+def seamless(path, fade=4.0):
+    """Loop without a seam: the last `fade` seconds are cross-faded (equal power) into the start."""
+    import wave
+    import numpy as np
+    with wave.open(path) as w:
+        p = w.getparams()
+        x = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32).reshape(-1, p.nchannels)
+    n = int(fade * p.framerate)
+    body, tail = x[:-n].copy(), x[-n:]
+    t = np.linspace(0, np.pi / 2, n)[:, None]
+    body[:n] = body[:n] * np.sin(t) + tail * np.cos(t)
+    with wave.open(path, "w") as w:
+        w.setparams(p)
+        w.writeframes(np.clip(body, -32768, 32767).astype(np.int16).tobytes())
 
 
 def probe_channels(path):

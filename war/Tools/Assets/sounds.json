@@ -53,7 +53,7 @@
   "path": "Alexander Kopeikin - Rocks/rocks stream down heavy 02.wav",
   "channels": "mono",
   "peak_db": -4.0,
-  "filter": "atrim=0:6,afade=t=out:st=4.5:d=1.5"
+  "filter": "atrim=0:6,asetpts=PTS-STARTPTS,afade=t=out:st=4.5:d=1.5"
  },
  "StepA": {
   "item": "sonniss-gdc-2019-game-audio-bundle-normalized",
@@ -88,7 +88,8 @@
   "path": "Joshua Reinhardt - Ultimate Cloth and Prop Collection/PR ARMY GEAR ROOM_WALK_C414.wav",
   "channels": "mono",
   "peak_db": -6.0,
-  "filter": "atrim=0:20"
+  "filter": "atrim=0:24,asetpts=PTS-STARTPTS",
+  "loop": true
  },
  "Cloth": {
   "item": "game-audio-gdcpart-6",
@@ -109,7 +110,7 @@
   "path": "Mechanical Wave - Hits Whoosh/Fast Action Swish_HW 05.wav",
   "channels": "mono",
   "peak_db": -3.0,
-  "filter": "atrim=0:0.7,afade=t=out:st=0.5:d=0.2"
+  "filter": "atrim=0:0.7,asetpts=PTS-STARTPTS,afade=t=out:st=0.5:d=0.2"
  },
  "Click": {
   "item": "game-audio-gdcpart-6",
@@ -137,7 +138,8 @@
   "path": "Sonniss.com - GDC 2020 - Game Audio Bundle/Articulated Sounds - Rare Winds/WEATHER WIND Beach, Strong, Gusty, Storm, Sands & Seaweed, Tierra Del Fuego, Argentina, LOOP.wav",
   "channels": "stereo",
   "peak_db": -8.0,
-  "filter": "atrim=10:70,afade=t=in:d=2,afade=t=out:st=58:d=2"
+  "filter": "atrim=10:74,asetpts=PTS-STARTPTS",
+  "loop": true
  },
  "Bodyfall": {
   "item": "sonniss-gdc-2019-game-audio-bundle-normalized",

@@ -356,7 +356,7 @@ void AWarBreachDirector::StartIntro()
 	Player->SetCameraPose(FVector(0.f, 0.f, -150.f), FRotator(0.f, 0.f, 70.f));
 	Player->SetDaze(1.f, 1.f, 0.6f);
 	PC->SetControlRotation(FRotator(35.f, 20.f, 0.f));
-	Loop(TEXT("Wind"), 0.35f);
+	Loop(TEXT("Wind"), 0.75f);
 	Loop(TEXT("Heartbeat"), 0.9f);
 	Muffle(true);
 	Sound(TEXT("Tinnitus"), 0.55f);
@@ -477,9 +477,10 @@ void AWarBreachDirector::Detonate()
 
 void AWarBreachDirector::Blast()
 {
+	// Countdown cues still pending (the dive's bodyfall) carry over on the new clock.
+	for (FCue& Q : Cues) { Q.At -= Time; }
 	Phase = EPhase::After;
 	Time = 0.f;
-	Cues.Reset();
 	if (SWarTouchControls* Hud = PC->GetTouchControls())
 	{
 		Hud->SetCountdown(0);
@@ -661,6 +662,7 @@ void AWarBreachDirector::Tick(float DeltaSeconds)
 	{
 		// The detonator in the player's hand; the fire button sets it off.
 		bReadyShown = true;
+		Time = 0.f;  // the ready clock starts now (delayed sounds below are scheduled on it)
 		Detonator = SpawnProp(LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Props/SM_Detonator.SM_Detonator")), 14.f, Player->Camera);
 		if (Detonator)
 		{
@@ -672,7 +674,6 @@ void AWarBreachDirector::Tick(float DeltaSeconds)
 		Player->FireOverride = [this] { Detonate(); return true; };
 		Sound(TEXT("Beep"), 0.35f, nullptr, 1.4f);
 		Sound(TEXT("Radio"), 0.5f, nullptr, 1.f, 0.12f);
-		Time = 0.f;
 	}
 	if (Phase == EPhase::Ready && bAuto && Time > 1.6f)
 	{

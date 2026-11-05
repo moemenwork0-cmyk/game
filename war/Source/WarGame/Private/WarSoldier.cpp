@@ -15,8 +15,8 @@ AWarSoldier::AWarSoldier()
 	Mesh->SetAnimInstanceClass(UWarAnimInstance::StaticClass());
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Mesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
-	Feet[0].Bone = "mixamorig:LeftToeBase";
-	Feet[1].Bone = "mixamorig:RightToeBase";
+	Feet[0].Bone = "mixamorig:LeftFoot";
+	Feet[1].Bone = "mixamorig:RightFoot";
 }
 
 UWarAnimInstance* AWarSoldier::Anim() const
@@ -121,15 +121,27 @@ void AWarSoldier::DetectSteps(float DeltaSeconds)
 	{
 		if (Mesh->GetBoneIndex(F.Bone) == INDEX_NONE)
 		{
+			// Bone names as imported (the ':' may have become '_').
+			const FName Alt(*F.Bone.ToString().Replace(TEXT(":"), TEXT("_")));
+			if (Mesh->GetBoneIndex(Alt) == INDEX_NONE)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Soldier: no foot bone %s"), *F.Bone.ToString());
+				F.Bone = NAME_None;
+				continue;
+			}
+			F.Bone = Alt;
+		}
+		if (F.Bone.IsNone())
+		{
 			continue;
 		}
 		const float Z = Mesh->GetBoneLocation(F.Bone).Z;
 		F.Min = FMath::Min(F.Min + 6.f * DeltaSeconds, Z);
-		if (Z > F.Min + 7.f)
+		if (Z > F.Min + 5.f)
 		{
 			F.bUp = true;
 		}
-		else if (F.bUp && Z < F.Min + 2.5f)
+		else if (F.bUp && Z < F.Min + 2.f)
 		{
 			F.bUp = false;
 			if (OnStep)
