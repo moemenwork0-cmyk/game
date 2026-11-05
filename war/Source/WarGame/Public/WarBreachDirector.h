@@ -71,6 +71,7 @@ private:
 	UPROPERTY() TObjectPtr<AWarSoldier> Alpha;
 	UPROPERTY() TObjectPtr<AWarSoldier> Bravo;
 	UPROPERTY() TObjectPtr<UMaterialInterface> FlipbookMaterial;
+	UPROPERTY() TObjectPtr<UMaterialInterface> FireMaterial;
 	UPROPERTY() TMap<FString, TObjectPtr<UTexture2D>> Sheets;
 	UPROPERTY() TMap<FString, TObjectPtr<USoundBase>> Sounds;
 	UPROPERTY() TArray<TObjectPtr<UAudioComponent>> Loops;

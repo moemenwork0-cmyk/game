@@ -95,6 +95,7 @@ void AWarBreachDirector::BeginPlay()
 	}
 
 	FlipbookMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/FX/M_Flipbook.M_Flipbook"));
+	FireMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/FX/M_FlipbookAdd.M_FlipbookAdd"));
 	for (const TCHAR* S : SheetNames)
 	{
 		Sheets.Add(S, LoadObject<UTexture2D>(nullptr, *FString::Printf(TEXT("/Game/FX/T_%s.T_%s"), S, S)));
@@ -251,7 +252,9 @@ void AWarBreachDirector::SpawnFX(const TCHAR* Sheet, const FVector& Where, float
 	Spec.Glow = Glow;
 	Spec.Delay = Delay;
 	Spec.Alpha = Peak;
-	AWarFX::Spawn(GetWorld(), FlipbookMaterial, Where, Spec);
+	// Fire sheets glow additively (their black background vanishes); smoke stays translucent.
+	const bool bFire = FString(Sheet).StartsWith(TEXT("Explosion")) || FString(Sheet).StartsWith(TEXT("FireBall"));
+	AWarFX::Spawn(GetWorld(), bFire && FireMaterial ? FireMaterial.Get() : FlipbookMaterial.Get(), Where, Spec);
 }
 
 void AWarBreachDirector::SpawnDistantBlast()

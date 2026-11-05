@@ -265,10 +265,10 @@ def import_sheets():
     return unreal.load_asset(tasks[0].imported_object_paths[0]) if tasks and tasks[0].imported_object_paths else None
 
 
-def flipbook_material(default_tex):
-    """Unlit translucent sprite reading frame N of a Cols x Rows sheet."""
-    mat = assets.create_asset("M_Flipbook", "/Game/FX", unreal.Material, unreal.MaterialFactoryNew())
-    mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+def flipbook_material(default_tex, name="M_Flipbook", blend=unreal.BlendMode.BLEND_TRANSLUCENT):
+    """Unlit sprite reading frame N of a Cols x Rows sheet (translucent for smoke, additive for fire)."""
+    mat = assets.create_asset(name, "/Game/FX", unreal.Material, unreal.MaterialFactoryNew())
+    mat.set_editor_property("blend_mode", blend)
     mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
     mat.set_editor_property("two_sided", True)
     E = lambda cls, x, y: MEL.create_material_expression(mat, cls, x, y)
@@ -332,7 +332,9 @@ def import_audio():
 import_soldier()
 import_prop("C4", os.path.join(DLR, "Sketchfab", "C4", "C4.glb"), "SM_C4")
 import_prop("Detonator", os.path.join(DLR, "Sketchfab", "Detonator", "Detonator.glb"), "SM_Detonator")
-flipbook_material(import_sheets())
+_sheet = import_sheets()
+flipbook_material(_sheet)
+flipbook_material(_sheet, "M_FlipbookAdd", unreal.BlendMode.BLEND_ADDITIVE)
 import_audio()
 
 les.new_level("/Game/Maps/Breach")
