@@ -229,7 +229,7 @@ void AWarBreachDirector::Muffle(bool bOn)
 }
 
 void AWarBreachDirector::SpawnFX(const TCHAR* Sheet, const FVector& Where, float Duration, float From, float To, const FVector& Vel,
-	FLinearColor Tint, float Glow, float Delay, float Alpha)
+	FLinearColor Tint, float Glow, float Delay, float Peak)
 {
 	UTexture2D* Tex = Sheets.FindRef(Sheet);
 	if (!Tex)
@@ -250,7 +250,7 @@ void AWarBreachDirector::SpawnFX(const TCHAR* Sheet, const FVector& Where, float
 	Spec.Tint = Tint;
 	Spec.Glow = Glow;
 	Spec.Delay = Delay;
-	Spec.Alpha = Alpha;
+	Spec.Alpha = Peak;
 	AWarFX::Spawn(GetWorld(), FlipbookMaterial, Where, Spec);
 }
 
