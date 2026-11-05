@@ -11,7 +11,8 @@ from mathutils import Matrix
 
 GLB, ANIMS, OUT = sys.argv[-3:]
 HEIGHT = 1.80
-IN_PLACE = {"Walking", "Running", "Running_Jump", "Start_Walking", "Jump_Away"}
+TURNS = {"Left_Turn", "Right_Turn"}
+IN_PLACE = {"Walking", "Running", "Running_Jump", "Start_Walking", "Jump_Away", "Descending_Stairs", "Walk_Stop"}
 os.makedirs(OUT, exist_ok=True)
 
 
@@ -24,10 +25,28 @@ def clean_name(n):
 
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
-# Node transforms as rest (not the guessed bind pose): only then is the rest an upright T-pose
-# matching Mixamo's (hips ~0.53 of the height, arms along +X, facing -Y).
-bpy.ops.import_scene.gltf(filepath=GLB, guess_original_bind_pose=False)
+if GLB.lower().endswith(".fbx"):
+    # A Sketchfab "source" FBX (Mixamo rig with clean bone names) comes in like Mixamo's own clips.
+    bpy.ops.import_scene.fbx(filepath=GLB)
+else:
+    # glTF: node transforms as rest (not the guessed bind pose).
+    bpy.ops.import_scene.gltf(filepath=GLB, guess_original_bind_pose=False)
+for act in list(bpy.data.actions):
+    bpy.data.actions.remove(act)  # the model's own idle clip
+# Relink textures by name: sources often point at the author's disk or the wrong extension.
+tex_dir = os.path.join(os.path.dirname(GLB), "textures")
+if os.path.isdir(tex_dir):
+    files = {os.path.splitext(f)[0].lower(): os.path.join(tex_dir, f) for f in os.listdir(tex_dir)}
+    for img in bpy.data.images:
+        stem = re.sub(r"\.\d{3}$", "", img.name)
+        stem = os.path.splitext(stem)[0].lower()
+        if not img.has_data and stem in files:
+            img.filepath = files[stem]
+            img.reload()
+    print("textures linked", sum(1 for i in bpy.data.images if i.has_data), "of", len(bpy.data.images))
 sol = armature()
+if sol.animation_data:
+    sol.animation_data.action = None
 meshes = [o for o in bpy.context.scene.objects if o.type == "MESH" and o.parent == sol]
 for o in list(bpy.context.scene.objects):
     if o.type == "MESH" and o not in meshes:
@@ -50,7 +69,8 @@ for b in sol.data.bones:
     b.name = clean_name(b.name)  # vertex groups follow bone renames
 # Size from the skeleton (mesh bounds ignore the skinning): top of the head over the toes.
 top = sol.data.bones["mixamorig:HeadTop_End"].head_local.z
-lo = min(b.head_local.z for b in sol.data.bones if "Toe" in b.name) - 0.08 * (top - 0)
+lo = min(b.head_local.z for b in sol.data.bones if "Toe" in b.name)
+lo -= 0.03 * (top - lo)
 print("before scale: armature scale", tuple(sol.scale), "head top", round(top, 3), "toes", round(lo, 3))
 h = top + 0.04 * (top - lo)
 k = HEIGHT / (h - lo)
@@ -60,6 +80,54 @@ bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 sol.name = "Soldier"
 sol.data.name = "Soldier"
+
+
+def align_to_mixamo_rest():
+    """Re-rest the soldier in Mixamo's T-pose: point every bone like the reference rig's bone,
+    bake the mesh in that pose and make it the new rest. Clips then transfer as clean deltas."""
+    before = set(bpy.data.objects)
+    ref_file = sorted(x for x in os.listdir(ANIMS) if x.endswith(".fbx"))[0]
+    bpy.ops.import_scene.fbx(filepath=os.path.join(ANIMS, ref_file))
+    ref = [o for o in bpy.data.objects if o not in before and o.type == "ARMATURE"][0]
+    if ref.animation_data:
+        ref.animation_data.action = None
+    ref_dir = {b.name: ((ref.matrix_world @ b.tail_local) - (ref.matrix_world @ b.head_local)).normalized() for b in ref.data.bones}
+    for o in [o for o in bpy.data.objects if o not in before]:
+        bpy.data.objects.remove(o)
+    bpy.context.view_layer.objects.active = sol
+    bpy.ops.object.mode_set(mode="POSE")
+    for pb in sol.pose.bones:  # parents first
+        if pb.name not in ref_dir or pb.parent is None and pb.name != "mixamorig:Hips":
+            continue
+        bpy.context.view_layer.update()
+        cur = (sol.matrix_world @ pb.tail) - (sol.matrix_world @ pb.head)
+        if cur.length < 1e-6:
+            continue
+        q = cur.normalized().rotation_difference(ref_dir[pb.name])
+        m = pb.matrix.copy()
+        loc = m.translation.copy()
+        m = q.to_matrix().to_4x4() @ m
+        m.translation = loc
+        pb.matrix = m
+    bpy.context.view_layer.update()
+    bpy.ops.object.mode_set(mode="OBJECT")
+    for m in meshes:
+        mod = next((md for md in m.modifiers if md.type == "ARMATURE"), None)
+        if mod:
+            if m.data.shape_keys:
+                m.shape_key_clear()  # facial shapes cannot survive the re-rest; the clips do not use them
+            bpy.context.view_layer.objects.active = m
+            name = mod.name
+            bpy.ops.object.modifier_apply(modifier=name)
+            new = m.modifiers.new("Armature", "ARMATURE")
+            new.object = sol
+    bpy.context.view_layer.objects.active = sol
+    bpy.ops.object.mode_set(mode="POSE")
+    bpy.ops.pose.armature_apply(selected=False)
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+
+align_to_mixamo_rest()
 rest = {b.name: b.matrix_local.copy() for b in sol.data.bones}
 order = [b.name for b in sol.data.bones]  # parents come before children
 print("soldier bones", len(order), "height", HEIGHT, "hips z", round(rest["mixamorig:Hips"].translation.z, 3))
@@ -101,6 +169,13 @@ for f in sorted(x for x in os.listdir(ANIMS) if x.endswith(".fbx")):
             src_pose = src.matrix_world @ sb.matrix
             delta = src_pose @ src_rest[name].inverted()
             m = delta @ rest[name]
+            if name == "mixamorig:Hips" and clip in TURNS:
+                # Turn clips: the game rotates the actor, so take the turning out of the hips.
+                yaw = (src_pose.to_3x3() @ src_rest[name].to_3x3().inverted()).to_euler("XYZ").z
+                if fr == f0:
+                    yaw0 = yaw
+                spin = Matrix.Rotation(-(yaw - yaw0), 4, "Z")
+                m = spin @ m
             if name == "mixamorig:Hips":
                 # Source hips travel, rescaled to the soldier's proportions.
                 m.translation = (src_pose.translation - src_rest[name].translation) * scale + rest[name].translation
@@ -109,8 +184,10 @@ for f in sorted(x for x in os.listdir(ANIMS) if x.endswith(".fbx")):
             tb.keyframe_insert("rotation_quaternion", frame=fr - f0 + 1)
             if name == "mixamorig:Hips":
                 tb.keyframe_insert("location", frame=fr - f0 + 1)
-    # Export this clip: skeleton only.
+    # Export this clip: skeleton only. The source clip's own action must not ride along in the
+    # all-takes export.
     bpy.data.objects.remove(src)
+    bpy.data.actions.remove(act)
     bpy.ops.object.select_all(action="DESELECT")
     sol.select_set(True)
     bpy.context.view_layer.objects.active = sol

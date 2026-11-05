@@ -33,8 +33,10 @@ public:
 	void SetCountdown(int32 Number) { Countdown = Number; }
 	void SetFade(float Alpha) { Fade = Alpha; }
 	void SetFlash(float Alpha) { Flash = Alpha; }
-	void SetDetonator(bool bShow, TFunction<void()> OnPress) { bDetonator = bShow; OnDetonate = MoveTemp(OnPress); }
-	void Pulse(float Time) { PulseTime = Time; }
+	void SetStory(const FString& Kicker, const FString& Title, const FString& Body, float Alpha)
+	{
+		StoryKicker = Kicker; StoryTitle = Title; StoryBody = Body; StoryAlpha = Alpha;
+	}
 
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override { return TEXT("SWarTouchControls"); }
@@ -81,11 +83,7 @@ private:
 	int32 Countdown = 0;
 	float Fade = 0.f;
 	float Flash = 0.f;
-	float PulseTime = 0.f;
-	bool bDetonator = false;
-	TFunction<void()> OnDetonate;
-	TObjectPtr<UTexture2D> DetonatorTexture = nullptr;
-	FSlateBrush DetonatorIcon;
 	FSlateBrush White;
-	FVector2D DetonatorCentre(const FGeometry& Geometry) const;
+	FString StoryKicker, StoryTitle, StoryBody;
+	float StoryAlpha = 0.f;
 };

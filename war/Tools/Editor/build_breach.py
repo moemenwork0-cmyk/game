@@ -207,8 +207,8 @@ def import_soldier():
     ui.set_editor_property("mesh_type_to_import", unreal.FBXImportType.FBXIT_SKELETAL_MESH)
     got = fbx_task(os.path.join(folder, "Soldier.fbx"), "/Game/Chars/Soldier", "Soldier", ui)
     unreal.log_warning(f"soldier import: {[a.get_path_name() for a in got if a]}")
-    clips = ["Breathing_Idle", "Getting_Up", "Jump_Away", "Kneeling_Idle", "Plant_A_Plant", "Running_Jump", "Running",
-             "Start_Walking", "Walking", "Waving"]
+    clips = ["Breathing_Idle", "Descending_Stairs", "Getting_Up", "Hook", "Jump_Away", "Kneel_To_Stand", "Kneeling_Down",
+             "Kneeling_Idle", "Left_Turn", "Punch_Combo", "Right_Turn", "Running_Jump", "Running", "Walk_Stop", "Walking"]
     for path in unreal.EditorAssetLibrary.list_assets("/Game/Chars/Soldier", recursive=True):
         a = unreal.load_asset(path)
         if isinstance(a, unreal.SkeletalMesh) and a.get_name() != "Soldier":
@@ -364,9 +364,15 @@ for k, v in [("auto_exposure_min_brightness", 0.6), ("auto_exposure_max_brightne
     pp.set_editor_property(k, v)
 ppv.set_editor_property("settings", pp)
 
-# --- ground: 2 km of sand
-floor = place(unreal.load_asset("/Engine/BasicShapes/Plane"), (0, 0, 0), scale=1.0, label="Sand", material=sand)
-floor.set_actor_scale3d(unreal.Vector(2000, 2000, 1))
+# --- ground: 2 km of sand in four slabs around a gap over the bunker's stairwell (the stairs go
+# below the sand). The engine plane is 100 cm square, centred on its origin.
+DOOR = (2400.0, 0.0)            # top of the stairs, where the team plants the charges
+HOLE = (2380.0, 3000.0, -115.0, 115.0)  # x0, x1, y0, y1 of the gap
+E = 100000.0
+plane = unreal.load_asset("/Engine/BasicShapes/Plane")
+for i, (x0, x1, y0, y1) in enumerate([(-E, HOLE[0], -E, E), (HOLE[1], E, -E, E), (HOLE[0], HOLE[1], -E, HOLE[2]), (HOLE[0], HOLE[1], HOLE[3], E)]):
+    slab = place(plane, ((x0 + x1) / 2, (y0 + y1) / 2, 0), label=f"Sand{i}", material=sand)
+    slab.set_actor_scale3d(unreal.Vector((x1 - x0) / 100.0, (y1 - y0) / 100.0, 1))
 
 # --- the mountain: a wall of scaled-up cliff scans in an arc 40 m ahead; lower mass behind it so
 # the sky stays open above the ridge line
@@ -385,30 +391,59 @@ for i, (x, y, yaw, s) in enumerate([(W + 1400, -1500, 175, 3.6), (W + 1500, 1700
 for i in range(8):
     place(m["namaqualand_cliff_01"], (60000 + (i % 3) * 9000, -60000 + i * 17000, -800), 180 + i * 37, 22.0, f"Ridge{i}")
 
-# --- the breach target: the concrete bunker scan, 28 m ahead, gun slits facing the player
-# (the scan's opening faces its local +X; yaw 180 turns it to the player). The scan carries its
-# own earth below the slab: lift it so ~1.7 m of that stays under the sand.
-BX = 2800
+# --- the breach target: the concrete bunker scan. Its real entrance is a stairwell cut into the
+# slab on one long side (Docs/bunker_door.jpg); yaw 90 turns that side to the player and puts the
+# top of the stairs at DOOR. The scan carries its own earth: ~1.7 m of it stays under the sand.
 bunker = import_gltf("Bunker", os.path.join(RAW, "Downloaded", "Sketchfab", "Bunker", "scene.gltf"))
 if bunker:
-    bunker_actor = place(bunker, (BX, 0, 170), 180, 2.0, "Bunker")
+    bunker_actor = place(bunker, (DOOR[0] + 558, DOOR[1] + 668, 170), 90, 2.0, "Bunker")
     bunker_actor.tags = ["Bunker"]
-for i, (x, y, z, yaw, s) in enumerate([(BX + 300, -1250, 0, 20, 2.2), (BX + 350, 1250, 0, 95, 2.4), (BX + 800, -800, 150, 160, 2.0),
-                                       (BX + 850, 850, 150, 250, 2.1), (BX - 300, -1500, 0, 310, 1.3), (BX - 350, 1550, 0, 40, 1.2)]):
-    place(m["namaqualand_boulder_04"], (x, y, z), yaw, s, f"Flank{i}")
+# Bury it in a rocky mound: boulders packed all round, leaving only the stairwell approach open.
+rng = __import__("random").Random(7)
+ring = []
+for i in range(34):
+    ang = i / 34.0 * 6.283
+    x = DOOR[0] + 600 + __import__("math").cos(ang) * rng.uniform(1100, 1450)
+    y = DOOR[1] + 700 + __import__("math").sin(ang) * rng.uniform(1300, 1650)
+    if x < DOOR[0] + 200 and abs(y - DOOR[1]) < 520:
+        continue  # keep the approach to the stairs clear
+    ring.append((x, y))
+for i, (x, y) in enumerate(ring):
+    mesh = m["namaqualand_boulder_04"] if i % 3 else m["namaqualand_boulder_02"]
+    place(mesh, (x, y, rng.uniform(-60, 40)), rng.uniform(0, 360), rng.uniform(1.6, 2.8), f"Mound{i}")
+# A few big rocks framing the stairwell, and some on the roof slab.
+for i, (dx, dy, sc, yaw) in enumerate([(-150, -560, 1.9, 30), (-120, 560, 2.0, 120), (-380, -820, 1.4, 200), (-360, 840, 1.5, 290),
+                                       (500, -300, 1.2, 60), (900, 700, 1.4, 140), (300, 1400, 1.3, 250)]):
+    place(m["namaqualand_boulder_04"], (DOOR[0] + dx, DOOR[1] + dy, 0 if dx < 0 else 330), yaw, sc, f"Frame{i}")
+for i, (dx, dy) in enumerate([(-500, -350), (-650, 380), (-300, -1000), (-280, 1050)]):
+    place(m["sand_rocks_small_01"], (DOOR[0] + dx, DOOR[1] + dy, 0), rng.uniform(0, 360), 1.2, f"Scree{i}")
 
 # --- foreground: rubble, scattered boulders, the team's kit
-for i, (x, y, yaw, s) in enumerate([(1500, -900, 40, 1.2), (1900, 1300, 140, 1.0), (3300, -2300, 220, 1.4),
-                                    (3600, 2100, 300, 1.1), (800, 1700, 80, 0.8)]):
+for i, (x, y, yaw, s) in enumerate([(1300, -1200, 40, 1.2), (1700, 1500, 140, 1.0), (900, 1900, 80, 0.8)]):
     place(m["namaqualand_boulder_02"], (x, y, 0), yaw, s, f"Boulder{i}")
-for i, (x, y, yaw) in enumerate([(2200, -500, 10), (3400, 900, 200), (1200, 600, 120)]):
+for i, (x, y, yaw) in enumerate([(1500, -700, 10), (1100, 900, 120)]):
     place(m["sand_rocks_small_01"], (x, y, 0), yaw, 1.0, f"Rubble{i}")
 place(m["wooden_military_crate"], (380, -260, 0), 70, 1.0, "Crate")
 place(m["ammo_box"], (340, -140, 0), 15, 1.2, "Ammo")
 
 spawn(unreal.PlayerStart, (0, 0, 100), (0, 0, 0), "Start")
+
+# Navigation: every scan blocks the team's paths (complex-as-simple collision) inside a nav volume
+# that the game builds at start (RuntimeGeneration=Dynamic in DefaultEngine.ini).
+for mesh in [a for a in m.values() if a] + ([bunker] if bunker else []):
+    try:
+        body = mesh.get_editor_property("body_setup")
+    except Exception as e:  # noqa: BLE001
+        unreal.log_warning(f"no body setup on {mesh.get_name()}: {e}")
+        body = None
+    if body:
+        body.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE)
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+nav = spawn(unreal.NavMeshBoundsVolume, (1500, 0, 0), (0, 0, 0), "NavBounds")
+nav.set_actor_scale3d(unreal.Vector(40, 40, 8))
 director_class = unreal.load_class(None, "/Script/WarGame.WarBreachDirector")
-spawn(director_class, (0, 0, 0), (0, 0, 0), "BreachDirector")
+director = spawn(director_class, (0, 0, 0), (0, 0, 0), "BreachDirector")
+director.set_editor_property("door", unreal.Vector(DOOR[0], DOOR[1], 0))
 
 les.save_current_level()
 unreal.log("build_breach: done")

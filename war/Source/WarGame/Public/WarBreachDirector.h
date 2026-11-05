@@ -38,7 +38,7 @@ protected:
 	virtual void Tick(float DeltaSeconds) override;
 
 private:
-	enum class EPhase : uint8 { Waiting, Intro, Ready, Countdown, After };
+	enum class EPhase : uint8 { Waiting, Intro, Ready, Countdown, After, Enter, Story };
 
 	struct FCue
 	{
@@ -59,6 +59,9 @@ private:
 	AWarSoldier* SpawnSoldier(const FVector& Where, float Yaw);
 	UStaticMeshComponent* SpawnProp(UStaticMesh* Mesh, float SizeCm, USceneComponent* AttachTo = nullptr);
 	void Look(const FVector& Point, float Speed);
+	void PlantCharge(AWarSoldier* S, float Side);
+	void EnterTunnel(AWarSoldier* S, float Delay);
+	void ShowStory();
 
 	EPhase Phase = EPhase::Waiting;
 	float Time = 0.f;
@@ -97,6 +100,7 @@ private:
 	float BeepClock = 0.f;
 	bool bChargesArmed = false;
 	int32 ReadyCount = 0;
-	float DoorHalfWidth = 600.f;
 	bool bReadyShown = false;
+	int32 Inside = 0;
+	float StoryTime = -1.f;
 };

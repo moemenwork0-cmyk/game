@@ -3,7 +3,9 @@
 #include "GameFramework/Character.h"
 #include "WarCharacter.generated.h"
 
+class UAnimSequence;
 class UCameraComponent;
+class USkeletalMeshComponent;
 
 // First-person soldier driven by the touch controls (move stick + look drag + buttons).
 UCLASS()
@@ -23,6 +25,11 @@ public:
 	void SetAiming(bool bOn);
 	void ToggleCrouch();
 
+	// Fire button: the story can claim it (the detonator); otherwise bare-hand punches.
+	void Fire();
+	TFunction<bool()> FireOverride;
+	void SetBodyVisible(bool bVisible);
+
 	// Cinematic camera layer (wake-up, blast): offsets on top of the normal eye view.
 	void AddShake(float Strength, float Duration);
 	void SetCameraPose(const FVector& Offset, const FRotator& Extra) { PoseOffset = Offset; PoseRotation = Extra; }
@@ -31,6 +38,13 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "War")
 	TObjectPtr<UCameraComponent> Camera;
+
+	// The player's own body (same soldier as the team), head hidden, seen when looking down or punching.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "War")
+	TObjectPtr<USkeletalMeshComponent> Body;
+
+	UPROPERTY()
+	TMap<FName, TObjectPtr<UAnimSequence>> Clips;
 
 	UPROPERTY(EditAnywhere, Category = "War|Look")
 	float LookSensitivity = 0.12f;
@@ -48,6 +62,7 @@ public:
 	float AimFov = 55.f;
 
 protected:
+	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 
 private:
@@ -60,4 +75,10 @@ private:
 	float Clock = 0.f;
 	bool bSprinting = false;
 	bool bAiming = false;
+	FName Loco;
+	float PunchLeft = 0.f;    // seconds left in the current strike
+	float PunchLength = 0.f;
+	bool bPunchQueued = false;
+	int32 PunchIndex = 0;
+	void PlayBody(FName Clip, bool bLoop, float Rate, float Blend);
 };

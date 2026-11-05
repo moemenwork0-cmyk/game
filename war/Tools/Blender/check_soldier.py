@@ -19,7 +19,7 @@ sun.rotation_euler = (math.radians(40), 0, math.radians(30))
 scn.collection.objects.link(sun)
 scn.world = bpy.data.worlds.new("W")
 scn.world.color = (0.5, 0.5, 0.55)
-shots = [("Walking", 10), ("Running", 6), ("Plant_A_Plant", 120), ("Kneeling_Idle", 20), ("Jump_Away", 35), ("Waving", 12)]
+shots = [("Breathing_Idle", 1), ("Walking", 10), ("Running", 6), ("Kneeling_Down", 40), ("Left_Turn", 20), ("Descending_Stairs", 15), ("Jump_Away", 35), ("Getting_Up", 40)]
 paths = []
 for clip, fr in shots:
     sol.animation_data_create()

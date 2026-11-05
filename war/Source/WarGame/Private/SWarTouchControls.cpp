@@ -51,16 +51,12 @@ void SWarTouchControls::Construct(const FArguments& InArgs)
 	Add("aim", TEXT("AIM"), FVector2D(228.f, 190.f), 34.f, false, true);
 	Add("jump", TEXT("JUMP"), FVector2D(92.f, 242.f), 31.f);
 	Add("crouch", TEXT("CROUCH"), FVector2D(170.f, 290.f), 28.f, false, true);
-	Add("reload", TEXT("RELOAD"), FVector2D(52.f, 330.f), 26.f);
-	Add("grenade", TEXT("GRENADE"), FVector2D(316.f, 236.f), 26.f);
+	// Reload and grenade come back with the first weapon; bare hands for now.
 	Add("sprint", TEXT("SPRINT"), FVector2D(300.f, 84.f), 27.f, true, true);
 	// Second trigger on the left so the player can shoot while steering with the right thumb.
 	Add("fire", TEXT(""), FVector2D(268.f, 222.f), 25.f, true);
 	Add("pause", TEXT(""), FVector2D(38.f, 504.f), 20.f);
 
-	DetonatorTexture = LoadObject<UTexture2D>(nullptr, TEXT("/Game/UI/Icons/T_charge.T_charge"));
-	DetonatorIcon.SetResourceObject(DetonatorTexture);
-	DetonatorIcon.ImageSize = FVector2D(256.f, 256.f);
 	White.DrawAs = ESlateBrushDrawType::Box;
 	White.TintColor = FLinearColor::White;
 }
@@ -71,7 +67,6 @@ void SWarTouchControls::AddReferencedObjects(FReferenceCollector& Collector)
 	{
 		Collector.AddReferencedObject(B.Texture);
 	}
-	Collector.AddReferencedObject(DetonatorTexture);
 }
 
 float SWarTouchControls::LayoutScale(const FGeometry& Geometry) const
@@ -85,12 +80,6 @@ FVector2D SWarTouchControls::ButtonCentre(const FGeometry& Geometry, const FButt
 	const FVector2D Size = Geometry.GetLocalSize();
 	const FVector2D Off = Button.Offset * LayoutScale(Geometry);
 	return Button.bLeft ? FVector2D(Off.X, Size.Y - Off.Y) : FVector2D(Size.X - Off.X, Size.Y - Off.Y);
-}
-
-FVector2D SWarTouchControls::DetonatorCentre(const FGeometry& Geometry) const
-{
-	const FVector2D Size = Geometry.GetLocalSize();
-	return FVector2D(Size.X * 0.5f, Size.Y - 120.f * LayoutScale(Geometry));
 }
 
 SWarTouchControls::FButton* SWarTouchControls::HitButton(const FGeometry& Geometry, const FVector2D& Local)
@@ -152,7 +141,10 @@ void SWarTouchControls::Press(FButton& Button, bool bDown)
 	{
 		Soldier->SetAiming(Button.bOn);
 	}
-	// fire / reload / grenade are wired up with the weapon in the next part.
+	else if (Button.Id == "fire" && bDown)
+	{
+		Soldier->Fire();
+	}
 }
 
 FReply SWarTouchControls::OnTouchStarted(const FGeometry& MyGeometry, const FPointerEvent& Event)
@@ -160,15 +152,6 @@ FReply SWarTouchControls::OnTouchStarted(const FGeometry& MyGeometry, const FPoi
 	const FVector2D Local = MyGeometry.AbsoluteToLocal(Event.GetScreenSpacePosition());
 	const int32 Pointer = Event.GetPointerIndex();
 
-	if (bDetonator && FVector2D::Distance(Local, DetonatorCentre(MyGeometry)) < 90.f * LayoutScale(MyGeometry))
-	{
-		bDetonator = false;
-		if (OnDetonate)
-		{
-			OnDetonate();
-		}
-		return FReply::Handled();
-	}
 	if (!bControlsVisible)
 	{
 		return FReply::Handled();
@@ -296,16 +279,6 @@ int32 SWarTouchControls::OnPaint(const FPaintArgs& Args, const FGeometry& Allott
 		Text(TEXT("OBJECTIVE"), 9.f, FVector2D(80.f * Scale, 168.f * Scale), FLinearColor(0.91f, 0.66f, 0.23f, 0.95f), LayerId + 2);
 		Text(Objective, 12.f, FVector2D((24.f + Objective.Len() * 3.8f) * Scale, 186.f * Scale), FLinearColor(1.f, 1.f, 1.f, 0.95f), LayerId + 2);
 	}
-	if (bDetonator)
-	{
-		const FVector2D C = DetonatorCentre(AllottedGeometry);
-		const float Beat = 0.5f + 0.5f * FMath::Sin(PulseTime * 6.f);
-		Box(Halo, C, (78.f + 10.f * Beat) * Scale, LayerId + 2, FLinearColor(1.f, 0.35f, 0.25f, 0.6f + 0.4f * Beat));
-		Box(Disc, C, 70.f * Scale, LayerId + 2, FLinearColor(2.4f, 0.6f, 0.4f, 1.6f));
-		const FVector2D IconSize(70.f * Scale, 70.f * Scale);
-		FSlateDrawElement::MakeBox(OutDrawElements, LayerId + 3,
-			AllottedGeometry.ToPaintGeometry(IconSize, FSlateLayoutTransform(C - IconSize * 0.5f)), &DetonatorIcon);
-	}
 	if (!Prompt.IsEmpty())
 	{
 		Text(Prompt, 20.f, FVector2D(Size.X * 0.5f, Size.Y - 230.f * Scale), FLinearColor(1.f, 0.92f, 0.8f, 1.f), LayerId + 3);
@@ -316,6 +289,22 @@ int32 SWarTouchControls::OnPaint(const FPaintArgs& Args, const FGeometry& Allott
 	}
 	Fill(Flash, FLinearColor(1.f, 0.95f, 0.85f), LayerId + 4);
 	Fill(Fade, FLinearColor::Black, LayerId + 5);
+	if (StoryAlpha > 0.001f)
+	{
+		// Chapter card on black: a new screen, not the field HUD.
+		Fill(1.f, FLinearColor::Black, LayerId + 5);
+		const FLinearColor Gold(0.91f, 0.66f, 0.23f, StoryAlpha);
+		const FLinearColor Soft(0.92f, 0.9f, 0.86f, StoryAlpha);
+		Text(StoryKicker, 10.f, FVector2D(Size.X * 0.5f, Size.Y * 0.30f), Gold, LayerId + 6);
+		Text(StoryTitle, 30.f, FVector2D(Size.X * 0.5f, Size.Y * 0.38f), Soft, LayerId + 6);
+		TArray<FString> Lines;
+		StoryBody.ParseIntoArray(Lines, TEXT("\n"));
+		for (int32 i = 0; i < Lines.Num(); ++i)
+		{
+			Text(Lines[i], 11.f, FVector2D(Size.X * 0.5f, Size.Y * 0.50f + i * 22.f * Scale), Soft, LayerId + 6);
+		}
+		return LayerId + 7;
+	}
 	if (!bControlsVisible)
 	{
 		return LayerId + 6;

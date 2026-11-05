@@ -2,6 +2,10 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "WarAnimInstance.h"
+#include "Animation/AnimSequence.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 
 AWarCharacter::AWarCharacter()
 {
@@ -15,11 +19,87 @@ AWarCharacter::AWarCharacter()
 	Camera->bUsePawnControlRotation = false;
 	Camera->SetFieldOfView(HipFov);
 
+	Body = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Body"));
+	Body->SetupAttachment(GetCapsuleComponent());
+	Body->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+	Body->SetAnimInstanceClass(UWarAnimInstance::StaticClass());
+	Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Body->CastShadow = true;
+	Body->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+
 	bUseControllerRotationYaw = true;
 	UCharacterMovementComponent* Move = GetCharacterMovement();
 	Move->MaxWalkSpeed = WalkSpeed;
 	Move->GetNavAgentPropertiesRef().bCanCrouch = true;
 	Move->MaxWalkSpeedCrouched = 180.f;
+}
+
+void AWarCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+	if (USkeletalMesh* M = LoadObject<USkeletalMesh>(nullptr, TEXT("/Game/Chars/Soldier/Soldier.Soldier")))
+	{
+		Body->SetSkeletalMesh(M);
+		const FBoxSphereBounds B = M->GetBounds();
+		const float H = FMath::Max(B.BoxExtent.Z * 2.f, 1.f);
+		const float K = 180.f / H;
+		// Feet on the capsule floor, a little behind the eye so the chest is seen, not the inside of the neck.
+		Body->SetRelativeScale3D(FVector(K));
+		Body->SetRelativeLocation(FVector(-14.f, 0.f, -90.f - (B.Origin.Z - B.BoxExtent.Z) * K));
+		Body->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+		for (const TCHAR* Bone : { TEXT("mixamorig:Head"), TEXT("mixamorig_Head") })
+		{
+			if (Body->GetBoneIndex(Bone) != INDEX_NONE)
+			{
+				Body->HideBoneByName(Bone, EPhysBodyOp::PBO_None);
+			}
+		}
+	}
+	for (const TCHAR* Name : { TEXT("Breathing_Idle"), TEXT("Walking"), TEXT("Running"), TEXT("Punch_Combo"), TEXT("Hook") })
+	{
+		Clips.Add(Name, LoadObject<UAnimSequence>(nullptr, *FString::Printf(TEXT("/Game/Chars/Soldier/Anim_%s.Anim_%s"), Name, Name)));
+	}
+	PlayBody("Breathing_Idle", true, 1.f, 0.f);
+	Loco = "Breathing_Idle";
+}
+
+void AWarCharacter::SetBodyVisible(bool bVisible)
+{
+	Body->SetVisibility(bVisible, true);
+}
+
+void AWarCharacter::PlayBody(FName Clip, bool bLoop, float Rate, float Blend)
+{
+	UWarAnimInstance* A = Cast<UWarAnimInstance>(Body->GetAnimInstance());
+	UAnimSequence* Seq = Clips.FindRef(Clip);
+	if (A && Seq)
+	{
+		A->Play(Seq, bLoop, Rate, Blend);
+	}
+}
+
+void AWarCharacter::Fire()
+{
+	if (FireOverride)
+	{
+		// Copy first: the handler may clear FireOverride while it runs.
+		const TFunction<bool()> Handler = FireOverride;
+		if (Handler())
+		{
+			return;
+		}
+	}
+	if (PunchLeft > 0.f)
+	{
+		bPunchQueued = true;  // chain the next strike when this one lands
+		return;
+	}
+	PunchIndex = 0;
+	const FName Clip = "Punch_Combo";
+	PunchLength = Clips.FindRef(Clip) ? Clips.FindRef(Clip)->GetPlayLength() / 1.15f : 1.f;
+	PunchLeft = PunchLength;
+	PlayBody(Clip, false, 1.15f, 0.1f);
+	Loco = NAME_None;
 }
 
 void AWarCharacter::AddLookInput(const FVector2D& Delta)
@@ -108,6 +188,34 @@ void AWarCharacter::Tick(float DeltaSeconds)
 		const FRotator Yaw(0.f, Controller->GetControlRotation().Yaw, 0.f);
 		AddMovementInput(FRotationMatrix(Yaw).GetUnitAxis(EAxis::X), MoveInput.Y);
 		AddMovementInput(FRotationMatrix(Yaw).GetUnitAxis(EAxis::Y), MoveInput.X);
+	}
+
+	// Strikes: Punch_Combo, then Hook while the player keeps pressing, alternating; back to idle/walk.
+	if (PunchLeft > 0.f)
+	{
+		PunchLeft -= DeltaSeconds;
+		if (bPunchQueued && PunchLeft < PunchLength * 0.3f)
+		{
+			bPunchQueued = false;
+			PunchIndex = (PunchIndex + 1) % 2;
+			const FName Clip = PunchIndex == 1 ? FName("Hook") : FName("Punch_Combo");
+			const float Rate = PunchIndex == 1 ? 1.25f : 1.15f;
+			PunchLength = Clips.FindRef(Clip) ? Clips.FindRef(Clip)->GetPlayLength() / Rate : 1.f;
+			PunchLeft = PunchLength;
+			PlayBody(Clip, false, Rate, 0.12f);
+		}
+	}
+	else
+	{
+		// Body locomotion follows the real speed so feet keep pace (clip speeds from prep_soldier.py).
+		const float V = GetVelocity().Size2D();
+		const FName Want = V < 30.f ? FName("Breathing_Idle") : (V < 420.f ? FName("Walking") : FName("Running"));
+		if (Want != Loco)
+		{
+			const float Rate = Want == "Walking" ? V / 169.f : (Want == "Running" ? V / 560.f : 1.f);
+			PlayBody(Want, true, FMath::Clamp(Rate, 0.6f, 1.6f), 0.25f);
+			Loco = Want;
+		}
 	}
 
 	// Ease the field of view between hip fire and aiming.
