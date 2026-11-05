@@ -373,6 +373,10 @@ plane = unreal.load_asset("/Engine/BasicShapes/Plane")
 for i, (x0, x1, y0, y1) in enumerate([(-E, HOLE[0], -E, E), (HOLE[1], E, -E, E), (HOLE[0], HOLE[1], -E, HOLE[2]), (HOLE[0], HOLE[1], HOLE[3], E)]):
     slab = place(plane, ((x0 + x1) / 2, (y0 + y1) / 2, 0), label=f"Sand{i}", material=sand)
     slab.set_actor_scale3d(unreal.Vector((x1 - x0) / 100.0, (y1 - y0) / 100.0, 1))
+# The stairwell's depths: a black pit under the gap, so the way in reads as pure darkness.
+pit = place(unreal.load_asset("/Engine/BasicShapes/Cube"), ((HOLE[0] + HOLE[1]) / 2, (HOLE[2] + HOLE[3]) / 2, -265), label="StairPit",
+            material=flat_material("M_StairDark", unreal.LinearColor(0.003, 0.0028, 0.0025, 1.0)))
+pit.set_actor_scale3d(unreal.Vector((HOLE[1] - HOLE[0]) / 100.0, (HOLE[3] - HOLE[2]) / 100.0, 5.2))
 
 # --- the mountain: a wall of scaled-up cliff scans in an arc 40 m ahead; lower mass behind it so
 # the sky stays open above the ridge line
