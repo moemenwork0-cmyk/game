@@ -42,8 +42,8 @@ GAME = (f"timeout 14000 {U} {UE}/Engine/Binaries/Linux/UnrealEditor {P} /Game/Ma
 # The gameplay view (with the touch HUD) becomes the video; fixed review cameras give stills.
 # Views: name, frames, extra args (x,y,z,pitch,yaw in cm/degrees).
 VIEWS = [("play", FRAMES, "-autodetonate"),
-         ("wide", 3, "-nohud -nostory -captureview=-1800,-2600,1100,-14,40"),
-         ("bunker", 3, "-nohud -nostory -captureview=1300,-500,230,-3,12")]
+         ("wide", 3, "-nohud -nostory -captureview=-600,-2600,1100,-14,40"),
+         ("bunker", 3, "-nohud -nostory -captureview=1700,-300,230,-3,8")]
 os.makedirs(f"{W}/stills", exist_ok=True)
 for name, n, extra in VIEWS:
     d = f"{W}/frames_{name}"

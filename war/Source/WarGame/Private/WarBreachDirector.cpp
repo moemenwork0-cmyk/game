@@ -85,8 +85,22 @@ void AWarBreachDirector::BeginPlay()
 			R->Tags.Add("Plug");
 		}
 	}
-	Alpha = SpawnSoldier(FVector(170.f, 90.f, 0.f), 200.f);
-	Bravo = SpawnSoldier(FVector(560.f, -260.f, 0.f), 10.f);
+	FlipbookMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/FX/M_Flipbook.M_Flipbook"));
+	FireMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/FX/M_FlipbookAdd.M_FlipbookAdd"));
+	for (const TCHAR* S : SheetNames)
+	{
+		Sheets.Add(S, LoadObject<UTexture2D>(nullptr, *FString::Printf(TEXT("/Game/FX/T_%s.T_%s"), S, S)));
+	}
+	for (const TCHAR* S : SoundNames)
+	{
+		Sounds.Add(S, LoadObject<USoundBase>(nullptr, *FString::Printf(TEXT("/Game/Audio/S_%s.S_%s"), S, S)));
+	}
+	RockMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Props/SM_Rock.SM_Rock"));
+
+	// The team starts beside the player (PlayerStart ~15 m from the stairwell).
+	const FVector P0(Door.X - 1500.f, Door.Y, 0.f);
+	Alpha = SpawnSoldier(P0 + FVector(170.f, 90.f, 0.f), 200.f);
+	Bravo = SpawnSoldier(P0 + FVector(560.f, -260.f, 0.f), 10.f);
 
 	// Two charges on the bunker face, hidden until planted; red LEDs blink once armed.
 	UStaticMesh* C4 = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Props/SM_C4.SM_C4"));

@@ -423,10 +423,10 @@ for i, (x, y, yaw, s) in enumerate([(1300, -1200, 40, 1.2), (1700, 1500, 140, 1.
     place(m["namaqualand_boulder_02"], (x, y, 0), yaw, s, f"Boulder{i}")
 for i, (x, y, yaw) in enumerate([(1500, -700, 10), (1100, 900, 120)]):
     place(m["sand_rocks_small_01"], (x, y, 0), yaw, 1.0, f"Rubble{i}")
-place(m["wooden_military_crate"], (380, -260, 0), 70, 1.0, "Crate")
-place(m["ammo_box"], (340, -140, 0), 15, 1.2, "Ammo")
+place(m["wooden_military_crate"], (DOOR[0] - 1500 + 280, -330, 0), 70, 1.0, "Crate")
+place(m["ammo_box"], (DOOR[0] - 1500 + 250, -220, 0), 15, 1.2, "Ammo")
 
-spawn(unreal.PlayerStart, (0, 0, 100), (0, 0, 0), "Start")
+spawn(unreal.PlayerStart, (DOOR[0] - 1500, DOOR[1], 100), (0, 0, 0), "Start")
 
 # Navigation: every scan blocks the team's paths (complex-as-simple collision) inside a nav volume
 # that the game builds at start (RuntimeGeneration=Dynamic in DefaultEngine.ini).
