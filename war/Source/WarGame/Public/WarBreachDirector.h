@@ -54,7 +54,7 @@ private:
 	UAudioComponent* Loop(const TCHAR* Name, float Volume);
 	void Muffle(bool bOn);
 	void SpawnFX(const TCHAR* Sheet, const FVector& Where, float Duration, float From, float To, const FVector& Vel,
-		FLinearColor Tint, float Glow, float Delay = 0.f);
+		FLinearColor Tint, float Glow, float Delay = 0.f, float Alpha = 1.f);
 	void SpawnDistantBlast();
 	AWarSoldier* SpawnSoldier(const FVector& Where, float Yaw);
 	UStaticMeshComponent* SpawnProp(UStaticMesh* Mesh, float SizeCm, USceneComponent* AttachTo = nullptr);

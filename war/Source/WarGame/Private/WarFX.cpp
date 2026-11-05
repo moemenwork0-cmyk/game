@@ -75,6 +75,6 @@ void AWarFX::Tick(float DeltaSeconds)
 	Mid->SetScalarParameterValue("Frame", FMath::Min(FMath::FloorToInt(T * Frames), Frames - 1));
 	const float In = Spec.FadeIn > 0.f ? FMath::Clamp(T / Spec.FadeIn, 0.f, 1.f) : 1.f;
 	const float Out = Spec.FadeOut > 0.f ? FMath::Clamp((1.f - T) / Spec.FadeOut, 0.f, 1.f) : 1.f;
-	Mid->SetScalarParameterValue("Opacity", In * Out);
+	Mid->SetScalarParameterValue("Opacity", In * Out * Spec.Alpha);
 	Mid->SetScalarParameterValue("Glow", Spec.Glow);
 }

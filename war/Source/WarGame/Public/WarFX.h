@@ -31,6 +31,7 @@ public:
 		float FadeIn = 0.05f;     // fraction of life
 		float FadeOut = 0.4f;
 		float Delay = 0.f;
+		float Alpha = 1.f;        // peak opacity
 	};
 
 	static AWarFX* Spawn(UWorld* World, UMaterialInterface* Material, const FVector& Where, const FSpec& Spec);

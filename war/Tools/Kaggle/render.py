@@ -52,7 +52,13 @@ for name, n, extra in VIEWS:
     sh(f"{GAME} -capture={d} -captureframes={n} {extra} > {W}/game_{name}.log 2>&1; echo {name}=$?; "
        f"grep -aE 'Fatal|Capture:' {W}/game_{name}.log | tail -5; ls {d} | wc -l")
     sh(f"cp $(ls {d}/*.png | tail -1) {W}/stills/{name}.png 2>/dev/null")
-# Story beats for review.
+# Story beats for review, plus frames right after the blast (frame from the SFX log).
+import re as _re
+_m = _re.search(r"SFX ExplosionPunch (\d+)", open(f"{W}/game_play.log", errors="ignore").read())
+if _m:
+    _b = int(_m.group(1))
+    sh(f"for f in {' '.join(str(_b + d).zfill(5) for d in (2, 8, 15, 25, 40, 60))}; do "
+       f"cp {W}/frames_play/frame_$f.png {W}/stills/blast_$f.png 2>/dev/null; done")
 sh(f"for f in 00045 00150 00240 00420 00600 00720 00800 00830 00850 00880 00950 01080; do "
    f"cp {W}/frames_play/frame_$f.png {W}/stills/play_$f.png 2>/dev/null; done; ls {W}/stills")
 # Soundtrack rebuilt from the director's SFX log (the offline capture runs without audio).

@@ -229,7 +229,7 @@ void AWarBreachDirector::Muffle(bool bOn)
 }
 
 void AWarBreachDirector::SpawnFX(const TCHAR* Sheet, const FVector& Where, float Duration, float From, float To, const FVector& Vel,
-	FLinearColor Tint, float Glow, float Delay)
+	FLinearColor Tint, float Glow, float Delay, float Alpha)
 {
 	UTexture2D* Tex = Sheets.FindRef(Sheet);
 	if (!Tex)
@@ -250,6 +250,7 @@ void AWarBreachDirector::SpawnFX(const TCHAR* Sheet, const FVector& Where, float
 	Spec.Tint = Tint;
 	Spec.Glow = Glow;
 	Spec.Delay = Delay;
+	Spec.Alpha = Alpha;
 	AWarFX::Spawn(GetWorld(), FlipbookMaterial, Where, Spec);
 }
 
@@ -399,13 +400,14 @@ void AWarBreachDirector::Blast()
 	SpawnFX(TEXT("Explosion02HD_5x5"), C, 1.9f, 700.f, 2600.f, FVector(0, 0, 150.f), FLinearColor(1.f, 0.85f, 0.7f), 4.f);
 	SpawnFX(TEXT("FireBall02_8x8"), C + FVector(-60.f, -120.f, 60.f), 1.3f, 500.f, 1600.f, FVector(-100.f, 0, 250.f), FLinearColor(1.f, 0.8f, 0.6f), 5.f, 0.05f);
 	SpawnFX(TEXT("Explosion00_5x5"), C + FVector(-40.f, 200.f, 120.f), 1.6f, 500.f, 1900.f, FVector(0, 100.f, 200.f), FLinearColor::White, 4.f, 0.15f);
-	SpawnFX(TEXT("DiscSmoke01_16x4"), Door + FVector(-200.f, 0.f, 60.f), 3.2f, 800.f, 4200.f, FVector(-250.f, 0, 40.f), FLinearColor(0.75f, 0.62f, 0.48f), 0.9f, 0.1f);
-	for (int32 i = 0; i < 4; ++i)
+	SpawnFX(TEXT("DiscSmoke01_16x4"), Door + FVector(-200.f, 0.f, 60.f), 2.6f, 700.f, 2600.f, FVector(-200.f, 0, 40.f), FLinearColor(0.75f, 0.62f, 0.48f), 0.9f, 0.25f, 0.55f);
+	// Smoke rises from behind the fireball and drifts up and away, leaving the opening visible.
+	for (int32 i = 0; i < 3; ++i)
 	{
-		SpawnFX(TEXT("WispySmoke02_8x8"), C + FVector(FMath::FRandRange(-150.f, 150.f), FMath::FRandRange(-300.f, 300.f), 200.f + i * 150.f),
-			6.5f, 900.f, 3200.f, FVector(-60.f, FMath::FRandRange(-80.f, 80.f), 180.f + i * 40.f), FLinearColor(0.22f, 0.2f, 0.19f), 0.5f, 0.3f + i * 0.25f);
+		SpawnFX(TEXT("WispySmoke02_8x8"), C + FVector(250.f, FMath::FRandRange(-300.f, 300.f), 350.f + i * 200.f),
+			6.f, 700.f, 2200.f, FVector(40.f, FMath::FRandRange(-80.f, 80.f), 260.f + i * 40.f), FLinearColor(0.2f, 0.19f, 0.18f), 0.5f, 0.6f + i * 0.3f, 0.7f);
 	}
-	SpawnFX(TEXT("Cloud02_8x8"), Door + FVector(-500.f, 0.f, 150.f), 9.f, 1500.f, 4500.f, FVector(-120.f, 0, 60.f), FLinearColor(0.7f, 0.6f, 0.5f), 0.7f, 0.8f);
+	SpawnFX(TEXT("Cloud02_8x8"), Door + FVector(-300.f, 0.f, 150.f), 6.f, 1000.f, 2600.f, FVector(-60.f, 0, 90.f), FLinearColor(0.7f, 0.6f, 0.5f), 0.7f, 1.2f, 0.35f);
 
 	// The rocks plugging the entrance (tag "Plug") and a spray of smaller stones fly out.
 	for (TActorIterator<AStaticMeshActor> It(GetWorld()); It; ++It)
@@ -507,10 +509,10 @@ void AWarBreachDirector::Tick(float DeltaSeconds)
 	{
 		bReadyShown = true;
 		// The detonator in the player's hand and the prompt.
-		Detonator = SpawnProp(LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Props/SM_Detonator.SM_Detonator")), 22.f, Player->Camera);
+		Detonator = SpawnProp(LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Props/SM_Detonator.SM_Detonator")), 14.f, Player->Camera);
 		if (Detonator)
 		{
-			Detonator->SetRelativeLocation(FVector(38.f, 7.f, -21.f));
+			Detonator->SetRelativeLocation(FVector(60.f, 20.f, -30.f));
 			Detonator->SetRelativeRotation(FRotator(0.f, 160.f, 0.f));
 		}
 		Hud->SetObjective(TEXT("DETONATE THE CHARGES"));
@@ -534,7 +536,7 @@ void AWarBreachDirector::Tick(float DeltaSeconds)
 	{
 		DetonatorPress += DeltaSeconds;
 		const float Dip = FMath::Sin(FMath::Clamp(DetonatorPress / 0.3f, 0.f, 1.f) * PI) * 4.f;
-		Detonator->SetRelativeLocation(FVector(38.f, 7.f, -21.f - Dip));
+		Detonator->SetRelativeLocation(FVector(60.f, 20.f, -30.f - Dip));
 	}
 
 	// Charge LEDs: blink with a soft beep.
