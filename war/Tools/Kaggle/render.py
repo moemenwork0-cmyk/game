@@ -59,7 +59,7 @@ if _m:
     _b = int(_m.group(1))
     sh(f"for f in {' '.join(str(_b + d).zfill(5) for d in (2, 8, 15, 25, 40, 60))}; do "
        f"cp {W}/frames_play/frame_$f.png {W}/stills/blast_$f.png 2>/dev/null; done")
-sh(f"for f in 00045 00150 00240 00420 00600 00720 00800 00830 00850 00880 00950 01080; do "
+sh(f"for f in {' '.join(str(i).zfill(5) for i in range(60, FRAMES, 120))}; do "
    f"cp {W}/frames_play/frame_$f.png {W}/stills/play_$f.png 2>/dev/null; done; ls {W}/stills")
 # Soundtrack rebuilt from the director's SFX log (the offline capture runs without audio).
 import re
