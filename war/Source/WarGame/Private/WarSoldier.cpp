@@ -15,6 +15,8 @@ AWarSoldier::AWarSoldier()
 	Mesh->SetAnimInstanceClass(UWarAnimInstance::StaticClass());
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Mesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+	Feet[0].Bone = "mixamorig:LeftToeBase";
+	Feet[1].Bone = "mixamorig:RightToeBase";
 }
 
 UWarAnimInstance* AWarSoldier::Anim() const
@@ -101,9 +103,47 @@ void AWarSoldier::NextLeg()
 	}
 }
 
+void AWarSoldier::DetectSteps(float DeltaSeconds)
+{
+	const FVector Loc = GetActorLocation();
+	if (DeltaSeconds > 0.f)
+	{
+		Speed2D = FMath::Lerp(Speed2D, FVector::Dist2D(Loc, LastLoc) / DeltaSeconds, 0.3f);
+	}
+	LastLoc = Loc;
+	if (IsHidden())
+	{
+		return;
+	}
+	// A step = the toe dropping back to its lowest height after having lifted. The lowest height
+	// relaxes upward slowly so kneeling or stairs re-calibrate on their own.
+	for (FFoot& F : Feet)
+	{
+		if (Mesh->GetBoneIndex(F.Bone) == INDEX_NONE)
+		{
+			continue;
+		}
+		const float Z = Mesh->GetBoneLocation(F.Bone).Z;
+		F.Min = FMath::Min(F.Min + 6.f * DeltaSeconds, Z);
+		if (Z > F.Min + 7.f)
+		{
+			F.bUp = true;
+		}
+		else if (F.bUp && Z < F.Min + 2.5f)
+		{
+			F.bUp = false;
+			if (OnStep)
+			{
+				OnStep(Mesh->GetBoneLocation(F.Bone), Speed2D);
+			}
+		}
+	}
+}
+
 void AWarSoldier::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	DetectSteps(DeltaSeconds);
 
 	FVector Loc = GetActorLocation();
 	if (TurnLeft > 0.f)

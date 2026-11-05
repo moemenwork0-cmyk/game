@@ -6,6 +6,8 @@
 #include "Animation/AnimSequence.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 
 AWarCharacter::AWarCharacter()
 {
@@ -61,6 +63,14 @@ void AWarCharacter::BeginPlay()
 	}
 	PlayBody("Breathing_Idle", true, 1.f, 0.f);
 	Loco = "Breathing_Idle";
+	for (const TCHAR* Name : { TEXT("Whoosh"), TEXT("Whoosh2") })
+	{
+		if (USoundBase* S = LoadObject<USoundBase>(nullptr, *FString::Printf(TEXT("/Game/Audio/S_%s.S_%s"), Name, Name)))
+		{
+			SwingSounds.Add(S);
+		}
+	}
+	ClothSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Audio/S_Cloth.S_Cloth"));
 }
 
 void AWarCharacter::SetBodyVisible(bool bVisible)
@@ -75,6 +85,20 @@ void AWarCharacter::PlayBody(FName Clip, bool bLoop, float Rate, float Blend)
 	if (A && Seq)
 	{
 		A->Play(Seq, bLoop, Rate, Blend);
+	}
+}
+
+void AWarCharacter::Swing()
+{
+	// A fist cutting the air: a gloved whoosh, slightly varied, with the sleeve's rustle.
+	if (SwingSounds.Num() > 0)
+	{
+		UGameplayStatics::PlaySound2D(this, SwingSounds[FMath::RandRange(0, SwingSounds.Num() - 1)], FMath::FRandRange(0.5f, 0.7f),
+			FMath::FRandRange(0.92f, 1.1f));
+	}
+	if (ClothSound)
+	{
+		UGameplayStatics::PlaySound2D(this, ClothSound, 0.3f, FMath::FRandRange(0.9f, 1.15f));
 	}
 }
 
@@ -99,6 +123,7 @@ void AWarCharacter::Fire()
 	PunchLength = Clips.FindRef(Clip) ? Clips.FindRef(Clip)->GetPlayLength() / 1.15f : 1.f;
 	PunchLeft = PunchLength;
 	PlayBody(Clip, false, 1.15f, 0.1f);
+	Swing();
 	Loco = NAME_None;
 }
 
@@ -203,6 +228,7 @@ void AWarCharacter::Tick(float DeltaSeconds)
 			PunchLength = Clips.FindRef(Clip) ? Clips.FindRef(Clip)->GetPlayLength() / Rate : 1.f;
 			PunchLeft = PunchLength;
 			PlayBody(Clip, false, Rate, 0.12f);
+			Swing();
 		}
 	}
 	else
@@ -215,6 +241,24 @@ void AWarCharacter::Tick(float DeltaSeconds)
 			const float Rate = Want == "Walking" ? V / 169.f : (Want == "Running" ? V / 560.f : 1.f);
 			PlayBody(Want, true, FMath::Clamp(Rate, 0.6f, 1.6f), 0.25f);
 			Loco = Want;
+		}
+	}
+
+	// Own footsteps from the body's toes (same rule as the team: a toe settling back to its lowest).
+	if (Body->IsVisible() && OnStep)
+	{
+		const FName Toes[2] = { TEXT("mixamorig:LeftToeBase"), TEXT("mixamorig:RightToeBase") };
+		for (int32 i = 0; i < 2; ++i)
+		{
+			if (Body->GetBoneIndex(Toes[i]) == INDEX_NONE) continue;
+			const float Z = Body->GetBoneLocation(Toes[i]).Z;
+			FootMin[i] = FMath::Min(FootMin[i] + 6.f * DeltaSeconds, Z);
+			if (Z > FootMin[i] + 7.f) { bFootUp[i] = true; }
+			else if (bFootUp[i] && Z < FootMin[i] + 2.5f && GetVelocity().Size2D() > 30.f)
+			{
+				bFootUp[i] = false;
+				OnStep(Body->GetBoneLocation(Toes[i]), GetVelocity().Size2D());
+			}
 		}
 	}
 

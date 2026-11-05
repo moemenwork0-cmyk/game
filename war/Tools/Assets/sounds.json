@@ -1,0 +1,170 @@
+{
+ "Explosion": {
+  "item": "sonniss-gdc-2017-game-audio-bundle-normalized",
+  "path": "Gamemaster Audio -  Explosion Sound Pack/explosion_large_08.wav",
+  "channels": "stereo",
+  "peak_db": -1.0,
+  "filter": ""
+ },
+ "ExplosionCrack": {
+  "item": "sonniss-gdc-2023-game-audio-bundle-normalized",
+  "path": "BluezoneCorp - Detonation - Explosion/Bluezone_BC0277_explosion_urban_004_02.wav",
+  "channels": "stereo",
+  "peak_db": -2.0,
+  "filter": ""
+ },
+ "ExplosionTail": {
+  "item": "sonniss-gdc-2017-game-audio-bundle-normalized",
+  "path": "Gamemaster Audio -  Explosion Sound Pack/explosion_med_long_tail_01.wav",
+  "channels": "stereo",
+  "peak_db": -3.0,
+  "filter": ""
+ },
+ "Distant": {
+  "item": "sonniss-gdc-2017-game-audio-bundle-normalized",
+  "path": "Gamemaster Audio -  Explosion Sound Pack/explosion_far_distant_02.wav",
+  "channels": "stereo",
+  "peak_db": -3.0,
+  "filter": ""
+ },
+ "Incoming": {
+  "item": "game-audio-gdcpart-6",
+  "path": "Sonniss.com - GDC 2020 - Game Audio Bundle/Bluezone - Tank - Explosion Sound Effects/Bluezone_BC0271_shell_trajectory_004.wav",
+  "channels": "stereo",
+  "peak_db": -4.0,
+  "filter": ""
+ },
+ "Debris1": {
+  "item": "sonniss-gdc-2016-game-audio-bundle-normalized",
+  "path": "Alexander Kopeikin - Rocks/rock tumble down debris long 06.wav",
+  "channels": "mono",
+  "peak_db": -3.0,
+  "filter": ""
+ },
+ "Debris2": {
+  "item": "sonniss-gdc-2016-game-audio-bundle-normalized",
+  "path": "Alexander Kopeikin - Rocks/soil and dirt debris heavy 13.wav",
+  "channels": "mono",
+  "peak_db": -3.0,
+  "filter": ""
+ },
+ "Debris3": {
+  "item": "sonniss-gdc-2016-game-audio-bundle-normalized",
+  "path": "Alexander Kopeikin - Rocks/rocks stream down heavy 02.wav",
+  "channels": "mono",
+  "peak_db": -4.0,
+  "filter": "atrim=0:6,afade=t=out:st=4.5:d=1.5"
+ },
+ "StepA": {
+  "item": "sonniss-gdc-2019-game-audio-bundle-normalized",
+  "path": "PMSFX - STEPS Dirt & Gravel/PM_SDNG_Single_Step_Footstep_19.wav",
+  "channels": "mono",
+  "peak_db": -3.0,
+  "filter": ""
+ },
+ "StepB": {
+  "item": "sonniss-gdc-2019-game-audio-bundle-normalized",
+  "path": "PMSFX - STEPS Dirt & Gravel/PM_SDNG_Single_Step_Footstep_46.wav",
+  "channels": "mono",
+  "peak_db": -3.0,
+  "filter": ""
+ },
+ "StepC": {
+  "item": "sonniss-gdc-2016-game-audio-bundle-normalized",
+  "path": "Levan Nadashvili - Civilian Footsteps/FS Ground Civilian Walk N03.wav",
+  "channels": "mono",
+  "peak_db": -3.0,
+  "filter": ""
+ },
+ "StepD": {
+  "item": "sonniss-gdc-2016-game-audio-bundle-normalized",
+  "path": "Levan Nadashvili - Civilian Footsteps/FS Ground Civilian Walk N05.wav",
+  "channels": "mono",
+  "peak_db": -3.0,
+  "filter": ""
+ },
+ "Gear": {
+  "item": "sonniss-gdc-2017-game-audio-bundle-normalized",
+  "path": "Joshua Reinhardt - Ultimate Cloth and Prop Collection/PR ARMY GEAR ROOM_WALK_C414.wav",
+  "channels": "mono",
+  "peak_db": -6.0,
+  "filter": "atrim=0:20"
+ },
+ "Cloth": {
+  "item": "game-audio-gdcpart-6",
+  "path": "Sonniss.com - GDC 2020 - Game Audio Bundle/Shapeforms - Hit & Punch/CLOTHING_MATERIAL_MOVEMENT_08.wav",
+  "channels": "mono",
+  "peak_db": -4.0,
+  "filter": ""
+ },
+ "Whoosh": {
+  "item": "sonniss-gdc-2019-game-audio-bundle-normalized",
+  "path": "Airborne Sound - Organic Whooshes/Whoosh,Organic,Fabric,Glove,Airy,Breathy,Punchy.wav",
+  "channels": "mono",
+  "peak_db": -3.0,
+  "filter": ""
+ },
+ "Whoosh2": {
+  "item": "sonniss-gdc-2015-game-audio-bundle-normalized",
+  "path": "Mechanical Wave - Hits Whoosh/Fast Action Swish_HW 05.wav",
+  "channels": "mono",
+  "peak_db": -3.0,
+  "filter": "atrim=0:0.7,afade=t=out:st=0.5:d=0.2"
+ },
+ "Click": {
+  "item": "game-audio-gdcpart-6",
+  "path": "Sonniss.com - GDC 2020 - Game Audio Bundle/Bluezone - Switch And Button Sound Effects/Bluezone_BC0268_switch_button_click_ignition_002_03.wav",
+  "channels": "stereo",
+  "peak_db": -2.0,
+  "filter": ""
+ },
+ "Beep": {
+  "item": "game-audio-gdcpart-6",
+  "path": "Sonniss.com - GDC 2020 - Game Audio Bundle/Bluezone - Interception - Radio Transmission/Bluezone_BC0266_radio_beep_walkie_talkie_002.wav",
+  "channels": "mono",
+  "peak_db": -3.0,
+  "filter": ""
+ },
+ "Radio": {
+  "item": "game-audio-gdcpart-6",
+  "path": "Sonniss.com - GDC 2020 - Game Audio Bundle/Bluezone - Interception - Radio Transmission/Bluezone_BC0266_radio_transmission_interference_noise_transmitter_008.wav",
+  "channels": "stereo",
+  "peak_db": -6.0,
+  "filter": ""
+ },
+ "Wind": {
+  "item": "game-audio-gdcpart-6",
+  "path": "Sonniss.com - GDC 2020 - Game Audio Bundle/Articulated Sounds - Rare Winds/WEATHER WIND Beach, Strong, Gusty, Storm, Sands & Seaweed, Tierra Del Fuego, Argentina, LOOP.wav",
+  "channels": "stereo",
+  "peak_db": -8.0,
+  "filter": "atrim=10:70,afade=t=in:d=2,afade=t=out:st=58:d=2"
+ },
+ "Bodyfall": {
+  "item": "sonniss-gdc-2019-game-audio-bundle-normalized",
+  "path": "Red Libraries - Bodyfall/RL_bodyfall_Dirt_M4_Close_Stereo_Hard_Impact_10.wav",
+  "channels": "mono",
+  "peak_db": -2.0,
+  "filter": ""
+ },
+ "Land": {
+  "item": "sonniss-gdc-2017-game-audio-bundle-normalized",
+  "path": "Tovusound - Edward \u2013 Foleyart Collection Add-On Extended Footsteps/289_Foley_Footsteps_Rocks_Sneaker_Jump_Land_On_Two_Feet_Close.wav",
+  "channels": "mono",
+  "peak_db": -2.0,
+  "filter": "silenceremove=start_periods=1:start_threshold=-35dB,atrim=0:0.8,afade=t=out:st=0.6:d=0.2"
+ },
+ "Heartbeat": {
+  "item": "sonniss-gdc-2019-game-audio-bundle-normalized",
+  "path": "Sound Spark LLC \u2013 Forge Sound Design Toolkit/Heart_Beat_02.wav",
+  "channels": "stereo",
+  "peak_db": -4.0,
+  "filter": ""
+ },
+ "Breath": {
+  "item": "sonniss-gdc-2017-game-audio-bundle-normalized",
+  "path": "JC Audio - Breathing In Hell/scared breath 12.wav",
+  "channels": "stereo",
+  "peak_db": -4.0,
+  "filter": ""
+ }
+}

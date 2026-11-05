@@ -21,6 +21,8 @@
 #include "Misc/Parse.h"
 #include "Sound/SoundBase.h"
 #include "Sound/SoundWave.h"
+#include "Sound/SoundAttenuation.h"
+#include "Camera/PlayerCameraManager.h"
 
 namespace
 {
@@ -29,8 +31,12 @@ namespace
 		TEXT("Walk_Stop"), TEXT("Descending_Stairs") };
 	const TCHAR* SheetNames[] = { TEXT("Explosion02HD_5x5"), TEXT("Explosion00_5x5"), TEXT("Explosion01_5x5"), TEXT("FireBall02_8x8"),
 		TEXT("WispySmoke02_8x8"), TEXT("DiscSmoke01_16x4"), TEXT("Cloud02_8x8") };
-	const TCHAR* SoundNames[] = { TEXT("Explosion"), TEXT("ExplosionPunch"), TEXT("Distant"), TEXT("Rumble"), TEXT("Beep"), TEXT("Wind"),
-		TEXT("Heartbeat"), TEXT("Footsteps"), TEXT("Click"), TEXT("Rocks"), TEXT("Radio"), TEXT("Tinnitus") };
+	// Sonniss GDC picks prepared by Tools/Assets/fetch.py (sounds.json).
+	const TCHAR* SoundNames[] = { TEXT("Explosion"), TEXT("ExplosionCrack"), TEXT("ExplosionTail"), TEXT("Distant"), TEXT("Incoming"),
+		TEXT("Debris1"), TEXT("Debris2"), TEXT("Debris3"), TEXT("Gear"), TEXT("Cloth"), TEXT("Click"), TEXT("Beep"), TEXT("Radio"),
+		TEXT("Wind"), TEXT("Bodyfall"), TEXT("Land"), TEXT("Heartbeat"), TEXT("Breath"), TEXT("Tinnitus"),
+		TEXT("StepA"), TEXT("StepA0"), TEXT("StepA1"), TEXT("StepB"), TEXT("StepB0"), TEXT("StepB1"),
+		TEXT("StepC"), TEXT("StepC0"), TEXT("StepC1"), TEXT("StepD"), TEXT("StepD0"), TEXT("StepD1") };
 	const float WalkSpeed = 169.f;  // cm/s of the Walking clip at rate 1 (Tools/Blender/prep_soldier.py)
 	const float RunSpeed = 560.f;
 	const float StairSpeed = 44.f;
@@ -96,6 +102,22 @@ void AWarBreachDirector::BeginPlay()
 		Sounds.Add(S, LoadObject<USoundBase>(nullptr, *FString::Printf(TEXT("/Game/Audio/S_%s.S_%s"), S, S)));
 	}
 	RockMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Props/SM_Rock.SM_Rock"));
+	if (USoundWave* W = Cast<USoundWave>(Sounds.FindRef(TEXT("Gear")))) { W->bLooping = true; }
+
+	// Positional sounds: natural distance falloff with air absorption (distant things lose their highs).
+	Attenuation = NewObject<USoundAttenuation>(this);
+	FSoundAttenuationSettings& A = Attenuation->Attenuation;
+	A.bAttenuate = true;
+	A.bSpatialize = true;
+	A.AttenuationShape = EAttenuationShape::Sphere;
+	A.AttenuationShapeExtents = FVector(150.f, 0.f, 0.f);
+	A.FalloffDistance = 3500.f;
+	A.DistanceAlgorithm = EAttenuationDistanceModel::NaturalSound;
+	A.bAttenuateWithLPF = true;
+	A.LPFRadiusMin = 600.f;
+	A.LPFRadiusMax = 4000.f;
+	A.LPFFrequencyAtMin = 20000.f;
+	A.LPFFrequencyAtMax = 3500.f;
 
 	// The team starts beside the player (PlayerStart ~15 m from the stairwell).
 	const FVector P0(Door.X - 1500.f, Door.Y, 0.f);
@@ -149,6 +171,16 @@ AWarSoldier* AWarBreachDirector::SpawnSoldier(const FVector& Where, float Yaw)
 	{
 		S->Clips.Add(Name, LoadObject<UAnimSequence>(nullptr, *FString::Printf(TEXT("/Game/Chars/Soldier/Anim_%s.Anim_%s"), Name, Name)));
 	}
+	S->OnStep = [this](const FVector& P, float Speed) { Step(P, Speed, false); };
+	// Webbing, pouches and kit rattling with every move: a looped gear take, loud only while moving.
+	if (USoundBase* Gear = Sounds.FindRef(TEXT("Gear")))
+	{
+		if (UAudioComponent* G = UGameplayStatics::SpawnSoundAttached(Gear, S->GetRootComponent(), NAME_None, FVector(0.f, 0.f, 110.f),
+			EAttachLocation::KeepRelativeOffset, false, 0.01f, FMath::FRandRange(0.95f, 1.05f), FMath::FRandRange(0.f, 15.f), Attenuation))
+		{
+			GearLoops.Add(G);
+		}
+	}
 	return S;
 }
 
@@ -169,26 +201,64 @@ UStaticMeshComponent* AWarBreachDirector::SpawnProp(UStaticMesh* Mesh, float Siz
 	return C;
 }
 
-void AWarBreachDirector::Sound(const TCHAR* Name, float Volume, const FVector* Where)
+void AWarBreachDirector::Sound(const TCHAR* Name, float Volume, const FVector* Where, float Pitch, float Delay)
 {
+	if (Delay > 0.f)
+	{
+		const FString N(Name);
+		const bool bAt = Where != nullptr;
+		const FVector P = bAt ? *Where : FVector::ZeroVector;
+		Cue(Time + Delay, [this, N, Volume, bAt, P, Pitch] { Sound(*N, Volume, bAt ? &P : nullptr, Pitch, 0.f); });
+		return;
+	}
 	USoundBase* S = Sounds.FindRef(Name);
 	if (!S)
 	{
 		return;
 	}
-	if (Where)
+	UAudioComponent* C = Where
+		? UGameplayStatics::SpawnSoundAtLocation(this, S, *Where, FRotator::ZeroRotator, Volume, Pitch, 0.f, Attenuation)
+		: UGameplayStatics::SpawnSound2D(this, S, Volume, Pitch);
+	if (C)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, S, *Where, Volume);
+		if (bMuffled)
+		{
+			C->SetLowPassFilterEnabled(true);
+			C->SetLowPassFilterFrequency(600.f);
+		}
+		OneShots.RemoveAll([](const TObjectPtr<UAudioComponent>& X) { return !X || !X->IsPlaying(); });
+		OneShots.Add(C);
 	}
-	else
-	{
-		UGameplayStatics::PlaySound2D(this, S, Volume);
-	}
-	// The offline capture has no audio device: the render script rebuilds the soundtrack from these.
+	// The offline capture has no audio device: the render script rebuilds the soundtrack from these
+	// lines, with the distance falloff and left/right placement the listener would have heard.
 	if (bCapture && PC)
 	{
-		UE_LOG(LogTemp, Display, TEXT("SFX %s %d %.2f"), Name, PC->CaptureFrame(), Volume);
+		float Gain = Volume;
+		float Pan = 0.f;
+		if (Where && PC->PlayerCameraManager)
+		{
+			const FVector Ear = PC->PlayerCameraManager->GetCameraLocation();
+			const FVector To = *Where - Ear;
+			const float D = To.Size();
+			const float Fall = FMath::Clamp((D - 150.f) / 3500.f, 0.f, 1.f);
+			Gain *= FMath::Square(1.f - Fall);
+			Pan = FVector::DotProduct(To.GetSafeNormal(), FRotationMatrix(PC->PlayerCameraManager->GetCameraRotation()).GetUnitAxis(EAxis::Y));
+		}
+		UE_LOG(LogTemp, Display, TEXT("SFX %s %d %.3f %.2f %d %.2f"), Name, PC->CaptureFrame(), Gain, Pan, bMuffled ? 1 : 0, Pitch);
 	}
+}
+
+void AWarBreachDirector::Step(const FVector& Where, float Speed, bool bPlayer)
+{
+	// Boots on dry dirt and grit: walking takes from the soft dirt set, running from the harder
+	// ground set; every step a random take, pitch and level so no two sound alike.
+	static const TCHAR* Walk[] = { TEXT("StepA"), TEXT("StepA0"), TEXT("StepA1"), TEXT("StepB"), TEXT("StepB0"), TEXT("StepB1") };
+	static const TCHAR* Run[] = { TEXT("StepC"), TEXT("StepC0"), TEXT("StepC1"), TEXT("StepD"), TEXT("StepD0"), TEXT("StepD1") };
+	const bool bRun = Speed > 350.f;
+	const TCHAR* Name = bRun ? Run[FMath::RandRange(0, 5)] : Walk[FMath::RandRange(0, 5)];
+	float Vol = bRun ? 0.95f : (Speed > 40.f ? 0.6f : 0.3f);
+	Vol *= FMath::FRandRange(0.85f, 1.1f) * (bPlayer ? 0.5f : 1.f);
+	Sound(Name, Vol, bPlayer ? nullptr : &Where, FMath::FRandRange(0.95f, 1.05f));
 }
 
 UAudioComponent* AWarBreachDirector::Loop(const TCHAR* Name, float Volume)
@@ -212,12 +282,20 @@ UAudioComponent* AWarBreachDirector::Loop(const TCHAR* Name, float Volume)
 
 void AWarBreachDirector::Muffle(bool bOn)
 {
-	for (UAudioComponent* A : Loops)
+	bMuffled = bOn;
+	if (bCapture && PC)
+	{
+		UE_LOG(LogTemp, Display, TEXT("SFXMUFFLE %d %d"), PC->CaptureFrame(), bOn ? 1 : 0);
+	}
+	TArray<TObjectPtr<UAudioComponent>> All = Loops;
+	All.Append(OneShots);
+	All.Append(GearLoops);
+	for (UAudioComponent* A : All)
 	{
 		if (A)
 		{
 			A->SetLowPassFilterEnabled(bOn);
-			A->SetLowPassFilterFrequency(bOn ? 500.f : 20000.f);
+			A->SetLowPassFilterFrequency(bOn ? 600.f : 20000.f);
 		}
 	}
 }
@@ -255,7 +333,7 @@ void AWarBreachDirector::SpawnDistantBlast()
 	const FVector Far(FMath::FRandRange(14000.f, 26000.f), FMath::FRandRange(-16000.f, 16000.f), 400.f);
 	SpawnFX(TEXT("Explosion01_5x5"), Far, 2.2f, 1500.f, 4500.f, FVector(0, 0, 120.f), FLinearColor(1.f, 0.9f, 0.8f), 3.f);
 	SpawnFX(TEXT("WispySmoke02_8x8"), Far + FVector(0, 0, 600.f), 7.f, 2500.f, 7000.f, FVector(0, 0, 250.f), FLinearColor(0.25f, 0.23f, 0.22f), 0.6f, 0.6f);
-	Sound(TEXT("Distant"), 0.8f);
+	Sound(TEXT("Distant"), 0.9f, nullptr, FMath::FRandRange(0.9f, 1.05f));
 }
 
 void AWarBreachDirector::Look(const FVector& Point, float Speed)
@@ -281,14 +359,18 @@ void AWarBreachDirector::StartIntro()
 	Loop(TEXT("Wind"), 0.35f);
 	Loop(TEXT("Heartbeat"), 0.9f);
 	Muffle(true);
-	Sound(TEXT("Tinnitus"), 0.35f);
+	Sound(TEXT("Tinnitus"), 0.55f);
 	if (Alpha) { Alpha->Play("Kneeling_Idle", true, 1.f, 0.f); Alpha->FaceTowards(Player->GetActorLocation()); }
 	if (Bravo) { Bravo->Play("Breathing_Idle", true, 1.f, 0.f); Bravo->FaceTowards(Door); }
 	Look(Alpha ? Alpha->GetActorLocation() + FVector(0, 0, 110.f) : Door, 0.8f);
 
+	Cue(1.1f, [this] { Sound(TEXT("Incoming"), 0.4f); });
 	Cue(1.8f, [this] { SpawnDistantBlast(); });
 	Cue(3.4f, [this] { SpawnDistantBlast(); Player->AddShake(0.25f, 1.2f); });
-	Cue(4.2f, [this] { Sound(TEXT("Radio"), 0.6f); });
+	Cue(4.2f, [this] { Sound(TEXT("Beep"), 0.35f, nullptr, 1.4f); Sound(TEXT("Radio"), 0.5f, nullptr, 1.f, 0.12f); });
+	// Hard breaths and a rustle of kit while pushing up off the sand.
+	Cue(4.7f, [this] { Sound(TEXT("Breath"), 0.6f); Sound(TEXT("Cloth"), 0.45f, nullptr, 0.9f, 0.3f); });
+	Cue(6.0f, [this] { Sound(TEXT("Breath"), 0.45f, nullptr, 0.94f); Sound(TEXT("Cloth"), 0.4f, nullptr, 1.05f, 0.2f); });
 	Cue(5.6f, [this] { if (Alpha) Alpha->Play("Kneel_To_Stand", false, 1.f, 0.3f); });
 	Cue(7.2f, [this]
 	{
@@ -300,7 +382,6 @@ void AWarBreachDirector::StartIntro()
 			H->SetControlsVisible(true);
 			H->SetObjective(TEXT("FOLLOW THE BREACH TEAM"));
 		}
-		Sound(TEXT("Footsteps"), 0.5f);
 		PlantCharge(Alpha, -1.f);
 		Cue(Time + 0.6f, [this] { PlantCharge(Bravo, 1.f); });
 		Look(Door + FVector(-500.f, 0.f, 100.f), 0.6f);
@@ -323,9 +404,15 @@ void AWarBreachDirector::PlantCharge(AWarSoldier* S, float Side)
 			Cue(Time + Down + 0.9f, [this, Side]
 			{
 				const int32 i = Side < 0.f ? 0 : 1;
-				if (Charges.IsValidIndex(i)) { Charges[i]->SetVisibility(true); }
+				if (Charges.IsValidIndex(i))
+				{
+					Charges[i]->SetVisibility(true);
+					const FVector At = Charges[i]->GetComponentLocation();
+					Sound(TEXT("Cloth"), 0.5f, &At, 1.1f);
+					Sound(TEXT("Click"), 0.35f, &At, 1.3f, 0.25f);
+					Sound(TEXT("Beep"), 0.6f, &At, 1.f, 0.5f);
+				}
 				bChargesArmed = true;
-				Sound(TEXT("Beep"), 0.7f);
 			});
 			Cue(Time + Down + 2.2f, [this, S, Side]
 			{
@@ -359,26 +446,31 @@ void AWarBreachDirector::Detonate()
 	DetonatorPress = 0.f;
 	Player->FireOverride = nullptr;
 	Sound(TEXT("Click"), 1.f);
+	Sound(TEXT("Cloth"), 0.35f, nullptr, 1.1f);
 	if (SWarTouchControls* Hud = PC->GetTouchControls())
 	{
 		Hud->SetPrompt(TEXT(""));
 		Hud->SetCountdown(3);
 		Hud->SetObjective(TEXT("TAKE COVER"));
 	}
-	Sound(TEXT("Beep"), 1.f);
+	Sound(TEXT("Beep"), 0.8f);
 	auto Run = [this](AWarSoldier* S, float Side)
 	{
 		if (!S) return;
 		S->MoveTo(FVector(Door.X - 1700.f, Side * 650.f, 0.f), RunSpeed, "Running", 1.f, nullptr, false);
 		Cue(1.1f, [S] { S->Play("Running_Jump", false, 1.f, 0.15f); });
+		Cue(1.1f + S->ClipLength("Running_Jump") * 0.72f, [this, S] { const FVector P = S->GetActorLocation(); Sound(TEXT("Land"), 0.9f, &P); });
 		Cue(1.1f + S->ClipLength("Running_Jump") * 0.9f, [S] { S->Play("Running", true, 1.f, 0.15f); });
 		Cue(2.7f, [S] { S->Stop(); S->Play("Jump_Away", false, 1.25f, 0.12f); });
+		Cue(2.7f + S->ClipLength("Jump_Away", 1.25f) * 0.42f, [this, S] { const FVector P = S->Mesh->GetBoneLocation(TEXT("mixamorig:Hips")); Sound(TEXT("Bodyfall"), 1.f, &P); });
 	};
 	Run(Alpha, -1.f);
 	Run(Bravo, 1.f);
-	Cue(1.f, [this] { if (SWarTouchControls* H = PC->GetTouchControls()) H->SetCountdown(2); Sound(TEXT("Beep"), 1.f); });
-	Cue(2.f, [this] { if (SWarTouchControls* H = PC->GetTouchControls()) H->SetCountdown(1); Sound(TEXT("Beep"), 1.f); });
-	Cue(2.6f, [this] { Sound(TEXT("Beep"), 1.f); });
+	// The charges' beeping speeds up and climbs in pitch to the blast.
+	Cue(1.f, [this] { if (SWarTouchControls* H = PC->GetTouchControls()) H->SetCountdown(2); Sound(TEXT("Beep"), 0.85f, nullptr, 1.1f); });
+	Cue(2.f, [this] { if (SWarTouchControls* H = PC->GetTouchControls()) H->SetCountdown(1); Sound(TEXT("Beep"), 0.9f, nullptr, 1.22f); });
+	Cue(2.45f, [this] { Sound(TEXT("Beep"), 0.9f, nullptr, 1.35f); });
+	Cue(2.75f, [this] { Sound(TEXT("Beep"), 0.95f, nullptr, 1.5f); });
 	Cue(3.f, [this] { Blast(); });
 	Look(Door + FVector(0.f, 0.f, 150.f), 1.5f);
 }
@@ -401,11 +493,20 @@ void AWarBreachDirector::Blast()
 	BlastLightLevel = 1.f;
 
 	const FVector C = Door + FVector(-40.f, 0.f, 120.f);
-	Sound(TEXT("ExplosionPunch"), 1.f);
+	// The blast in layers, as a film mixes it: the crack and body at once, the low tail after,
+	// rock and grit raining down, and the boom coming back off the cliffs. Then everything goes
+	// dull behind the ringing in the ears for a few seconds.
+	const FVector Gate = Door;
 	Sound(TEXT("Explosion"), 1.f);
-	Sound(TEXT("Rumble"), 0.8f);
-	Sound(TEXT("Tinnitus"), 0.5f);
+	Sound(TEXT("ExplosionCrack"), 0.85f);
+	Sound(TEXT("Tinnitus"), 0.9f);
 	Muffle(true);
+	Sound(TEXT("ExplosionTail"), 0.9f, nullptr, 0.95f, 0.25f);
+	Sound(TEXT("Explosion"), 0.32f, nullptr, 0.9f, 0.45f);   // first echo off the cliff wall
+	Sound(TEXT("Explosion"), 0.16f, nullptr, 0.82f, 1.15f);  // second, further away
+	Sound(TEXT("Debris2"), 0.8f, &Gate, 1.f, 0.55f);
+	Sound(TEXT("Debris1"), 0.7f, &Gate, 1.f, 1.0f);
+	Sound(TEXT("Debris3"), 0.5f, &Gate, 0.95f, 1.6f);
 	Player->AddShake(1.f, 3.2f);
 	Player->SetDaze(0.6f, 0.6f, 0.7f);
 
@@ -442,7 +543,6 @@ void AWarBreachDirector::Blast()
 		const FVector V(FMath::FRandRange(-2600.f, -600.f), FMath::FRandRange(-1600.f, 1600.f), FMath::FRandRange(600.f, 1800.f));
 		Debris.Add({ R, V, FRotator(FMath::FRandRange(-720.f, 720.f), FMath::FRandRange(-720.f, 720.f), 0.f) });
 	}
-	Cue(0.7f, [this] { Sound(TEXT("Rocks"), 0.9f); });
 	Cue(3.f, [this] { Muffle(false); });
 	Cue(2.4f, [this]
 	{
@@ -451,6 +551,8 @@ void AWarBreachDirector::Blast()
 			if (!S) continue;
 			S->SettleOnHips();
 			S->Play("Getting_Up", false, 1.1f, 0.2f);
+			const FVector P = S->GetActorLocation();
+			Sound(TEXT("Cloth"), 0.6f, &P, FMath::FRandRange(0.9f, 1.1f), FMath::FRandRange(0.f, 0.3f));
 		}
 	});
 	Cue(2.4f + 2.4f, [this]
@@ -514,6 +616,7 @@ void AWarBreachDirector::Tick(float DeltaSeconds)
 		{
 			return;
 		}
+		Player->OnStep = [this](const FVector& P, float Speed) { Step(P, Speed, true); };
 	}
 	SWarTouchControls* Hud = PC->GetTouchControls();
 	if (Phase == EPhase::Waiting)
@@ -567,7 +670,8 @@ void AWarBreachDirector::Tick(float DeltaSeconds)
 		Hud->SetObjective(TEXT("DETONATE THE CHARGES"));
 		Hud->SetPrompt(TEXT("PRESS FIRE TO DETONATE"));
 		Player->FireOverride = [this] { Detonate(); return true; };
-		Sound(TEXT("Radio"), 0.6f);
+		Sound(TEXT("Beep"), 0.35f, nullptr, 1.4f);
+		Sound(TEXT("Radio"), 0.5f, nullptr, 1.f, 0.12f);
 		Time = 0.f;
 	}
 	if (Phase == EPhase::Ready && bAuto && Time > 1.6f)
@@ -617,8 +721,14 @@ void AWarBreachDirector::Tick(float DeltaSeconds)
 	if (bChargesArmed)
 	{
 		BeepClock += DeltaSeconds;
+		const bool bWasOn = FMath::Fmod(BeepClock - DeltaSeconds, 1.f) < 0.15f;
 		const bool bOn = FMath::Fmod(BeepClock, 1.f) < 0.15f;
 		for (UPointLightComponent* L : ChargeLights) { if (L) L->SetIntensity(bOn ? 600.f : 0.f); }
+		if (bOn && !bWasOn && Charges.Num() > 0 && Charges[0] && Charges[0]->IsVisible())
+		{
+			const FVector At = Charges[0]->GetComponentLocation();
+			Sound(TEXT("Beep"), 0.35f, &At);
+		}
 	}
 
 	// Flash and fireball light decay; daze clears after the blast.
@@ -644,6 +754,19 @@ void AWarBreachDirector::Tick(float DeltaSeconds)
 		}
 	}
 
+	// Kit rattle follows each teammate's pace.
+	{
+		int32 i = 0;
+		for (AWarSoldier* S : { Alpha.Get(), Bravo.Get() })
+		{
+			if (S && GearLoops.IsValidIndex(i) && GearLoops[i])
+			{
+				GearLoops[i]->SetVolumeMultiplier(S->IsHidden() ? 0.01f : FMath::Clamp(S->CurrentSpeed() / 170.f, 0.02f, 1.3f) * 0.45f);
+			}
+			++i;
+		}
+	}
+
 	// Ballistic debris (no physics bodies needed on the scans).
 	for (FDebris& D : Debris)
 	{
@@ -652,6 +775,12 @@ void AWarBreachDirector::Tick(float DeltaSeconds)
 		FVector L = A->GetActorLocation();
 		if (L.Z <= 15.f && D.Velocity.Z < 0.f)
 		{
+			// Rocks landing: a gritty thud where they hit, not too many at once.
+			if (-D.Velocity.Z > 300.f && Time - LastDebrisSound > 0.12f)
+			{
+				LastDebrisSound = Time;
+				Sound(TEXT("Debris2"), FMath::Clamp(-D.Velocity.Z / 2000.f, 0.15f, 0.6f), &L, FMath::FRandRange(0.9f, 1.25f));
+			}
 			D.Velocity *= FVector(0.35f, 0.35f, -0.25f);
 			D.Spin *= 0.5f;
 			if (D.Velocity.Size() < 120.f) { D.Velocity = FVector::ZeroVector; D.Spin = FRotator::ZeroRotator; }

@@ -9,6 +9,7 @@ class AWarSoldier;
 class UAudioComponent;
 class UMaterialInterface;
 class UPointLightComponent;
+class USoundAttenuation;
 class USoundBase;
 class UStaticMesh;
 class UStaticMeshComponent;
@@ -50,7 +51,9 @@ private:
 	void StartIntro();
 	void Detonate();
 	void Blast();
-	void Sound(const TCHAR* Name, float Volume = 1.f, const FVector* Where = nullptr);
+	// Plays a sound (3D when Where is given), muffled while the blast deafens; Delay schedules it.
+	void Sound(const TCHAR* Name, float Volume = 1.f, const FVector* Where = nullptr, float Pitch = 1.f, float Delay = 0.f);
+	void Step(const FVector& Where, float Speed, bool bPlayer);
 	UAudioComponent* Loop(const TCHAR* Name, float Volume);
 	void Muffle(bool bOn);
 	void SpawnFX(const TCHAR* Sheet, const FVector& Where, float Duration, float From, float To, const FVector& Vel,
@@ -78,6 +81,11 @@ private:
 	UPROPERTY() TMap<FString, TObjectPtr<UTexture2D>> Sheets;
 	UPROPERTY() TMap<FString, TObjectPtr<USoundBase>> Sounds;
 	UPROPERTY() TArray<TObjectPtr<UAudioComponent>> Loops;
+	UPROPERTY() TArray<TObjectPtr<UAudioComponent>> OneShots;
+	UPROPERTY() TArray<TObjectPtr<UAudioComponent>> GearLoops;
+	UPROPERTY() TObjectPtr<USoundAttenuation> Attenuation;
+	bool bMuffled = false;
+	float LastDebrisSound = -1.f;
 	UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Charges;
 	UPROPERTY() TArray<TObjectPtr<UPointLightComponent>> ChargeLights;
 	UPROPERTY() TObjectPtr<UStaticMeshComponent> Detonator;

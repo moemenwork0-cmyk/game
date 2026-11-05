@@ -2,7 +2,7 @@
 # Poly Haven and Unity Labs need no account; the Sketchfab models need SKETCHFAB_API_TOKEN
 # (or ~/.sketchfab_token). Run it on the build machine.
 #   python3 Tools/Assets/fetch.py [dest]
-import json, os, sys, urllib.request, zipfile
+import json, os, re, subprocess, sys, urllib.parse, urllib.request, zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEST = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "..", "Content", "Raw", "Downloaded")
@@ -22,21 +22,10 @@ SKETCHFAB = {
     "Detonator": ("3c8b9fe3d79a428cb70c8b1be27f1d04", "glb"),   # Detonator, BRAIN_ZIP
     "SoldierKSK": ("110daf3d1884412989e41dc95866c579", "glb"),  # German KSK operator - rigged, 42manako
 }
-# OpenGameArt sounds (CC0 unless noted; CC-BY credited in CREDITS.md), converted to 48 kHz WAV.
+# Sounds: hand-picked from the Sonniss GDC Game Audio Bundles (royalty-free, commercial use, no
+# attribution required), fetched file by file from their archive.org mirrors; see sounds.json.
+SOUNDS = json.load(open(os.path.join(HERE, "sounds.json")))
 OGA = "https://opengameart.org/sites/default/files/"
-SOUNDS = {
-    "Explosion": "flash_bang.wav",                                   # teeeece, CC0
-    "ExplosionPunch": "exp.mp3",                                     # qubodup, CC-BY 3.0
-    "Distant": "NenadSimic%20-%20Muffled%20Distant%20Explosion.wav", # Nenad Simic, CC0
-    "Rumble": "rumble.wav",                                          # cinameng, CC0
-    "Beep": "beep.wav",                                              # qubodup, CC0
-    "Wind": "wind-01_0.ogg",                                         # AntumDeluge, CC-BY 3.0
-    "Heartbeat": "heartbeat_slow_reverb.wav",                        # Bart, CC0
-    "Footsteps": "sand_footsteps_0.mp3",                             # peludo, CC0
-    "Click": "Metal%20Click.wav",                                    # Mobeyee Sounds, CC-BY 4.0
-    "Rocks": "Falling%20Rock.wav",                                   # spookymodem, CC-BY 3.0
-    "Radio": "transmissionStart.wav",                                # Needforbleed, CC-BY 3.0
-}
 RES = "2k"
 
 
@@ -50,9 +39,17 @@ def get(url, path):
         return
     os.makedirs(os.path.dirname(path), exist_ok=True)
     req = urllib.request.Request(url, headers={"User-Agent": "desert-breach-fetch"})
-    with urllib.request.urlopen(req) as r, open(path + ".part", "wb") as f:
-        while chunk := r.read(1 << 20):
-            f.write(chunk)
+    for attempt in range(6):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r, open(path + ".part", "wb") as f:
+                while chunk := r.read(1 << 20):
+                    f.write(chunk)
+            break
+        except Exception as e:  # archive.org answers 5xx now and then
+            print(f"retry {attempt + 1} {os.path.basename(path)}: {e}", flush=True)
+            __import__("time").sleep(5 * (attempt + 1))
+    else:
+        raise RuntimeError(f"could not download {url}")
     os.replace(path + ".part", path)
     print("got", os.path.relpath(path, DEST), flush=True)
 
@@ -95,15 +92,47 @@ def sketchfab(name, uid, fmt):
 
 
 def sounds():
+    """Download, trim, peak-normalise and resample every game sound; footsteps get pitch variants."""
     out = os.path.join(DEST, "Audio")
     os.makedirs(out, exist_ok=True)
-    for name, f in SOUNDS.items():
-        src = os.path.join(out, "src_" + name + os.path.splitext(f)[1])
-        get(OGA + f, src)
-        os.system(f"ffmpeg -y -loglevel error -i '{src}' -ar 48000 -ac 2 '{os.path.join(out, name)}.wav'")
-    # Ear ringing after the blast: a pure ~8 kHz tone fading out is what tinnitus is.
-    os.system(f"ffmpeg -y -loglevel error -f lavfi -i 'sine=f=7800:d=8' -af 'afade=t=in:d=0.05,afade=t=out:st=1.5:d=6.5,volume=0.25' "
-              f"-ar 48000 -ac 2 '{os.path.join(out, 'Tinnitus')}.wav'")
+    for name, spec in SOUNDS.items():
+        if os.path.exists(os.path.join(out, name + ".wav")):
+            continue  # prepared copy (e.g. from the private dataset)
+        src = os.path.join(out, "src_" + name + ".wav")
+        get("https://archive.org/download/%s/%s" % (spec["item"], urllib.parse.quote(spec["path"])), src)
+        chain = [f for f in [spec.get("filter", "")] if f]
+        chain.append("aresample=48000")
+        if spec["channels"] == "mono":
+            chain.append("pan=mono|c0=0.5*c0+0.5*c1" if probe_channels(src) > 1 else "anull")
+        filt = ",".join(chain)
+        gain = peak_gain(src, filt, spec["peak_db"])
+        os.system(f"ffmpeg -y -loglevel error -i '{src}' -af '{filt},volume={gain}dB' -c:a pcm_s16le '{os.path.join(out, name)}.wav'")
+    # Six footstep variations per surface sample: small pitch/speed shifts, as boots never sound twice the same.
+    for base in ("StepA", "StepB", "StepC", "StepD"):
+        for i, k in enumerate((0.94, 1.06)):
+            os.system(f"ffmpeg -y -loglevel error -i '{os.path.join(out, base)}.wav' -af 'asetrate=48000*{k},aresample=48000' "
+                      f"'{os.path.join(out, base)}{i}.wav'")
+    # Ear ringing: two close high tones beating against each other over a thin noise band, fading out.
+    os.system(f"ffmpeg -y -loglevel error -f lavfi -i 'sine=f=7650:d=9' -f lavfi -i 'sine=f=7890:d=9' "
+              f"-f lavfi -i 'anoisesrc=d=9:c=pink:a=0.05' -filter_complex "
+              f"'[2]highpass=f=5000,lowpass=f=9000[n];[0][1][n]amix=inputs=3:normalize=0,"
+              f"afade=t=in:d=0.04,afade=t=out:st=1.2:d=7.5,volume=1.1' -ar 48000 -ac 2 '{os.path.join(out, 'Tinnitus')}.wav'")
+
+
+def probe_channels(path):
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=channels",
+                        "-of", "csv=p=0", path], capture_output=True, text=True)
+    try:
+        return int(r.stdout.strip() or 1)
+    except ValueError:
+        return 1
+
+
+def peak_gain(path, filt, target_db):
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-i", path, "-af", filt + ",volumedetect", "-f", "null", "-"],
+                       capture_output=True, text=True)
+    m = re.search(r"max_volume: (-?[\d.]+) dB", r.stderr)
+    return round(target_db - float(m.group(1)), 2) if m else 0.0
 
 
 sounds()

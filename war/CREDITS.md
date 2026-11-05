@@ -15,3 +15,11 @@
 | C4 charge | Sketchfab `617d754683114b6a8244ececbd03365e` "C4 Explosive" | _Vadim2020_ | CC BY 4.0 |
 | Detonator | Sketchfab `3c8b9fe3d79a428cb70c8b1be27f1d04` "Detonator" | BRAIN_ZIP | CC BY 4.0 |
 | Teammates (Mixamo rig) | Sketchfab `110daf3d1884412989e41dc95866c579` "German KSK operator - rigged" | 42manako | CC BY 4.0 |
+
+## Sound
+All game sounds except the generated ear ringing come from the **Sonniss GDC Game Audio Bundles**
+(royalty-free for commercial use, no attribution required), picked file by file in
+`Tools/Assets/sounds.json`: Gamemaster Audio and Bluezone explosions, Alexander Kopeikin rocks and
+debris, PMSFX and Levan Nadashvili footsteps, Joshua Reinhardt army gear and cloth, Shapeforms cloth,
+Airborne Sound whooshes, Mechanical Wave swishes, Bluezone switches and radio, Articulated Sounds
+desert wind, Red Libraries bodyfalls, Tovusound landings, Sound Spark heartbeat, JC Audio breathing.

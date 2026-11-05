@@ -37,6 +37,10 @@ public:
 
 	float GroundZ = 0.f;
 
+	// Called when a foot lands (detected from the animated foot bones): where, and current speed.
+	TFunction<void(const FVector&, float)> OnStep;
+	float CurrentSpeed() const { return Speed2D; }
+
 protected:
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -56,4 +60,15 @@ private:
 	FVector FacePoint = FVector::ZeroVector;
 	bool bFacePoint = false;
 	float Sink = 0.f;
+
+	struct FFoot
+	{
+		FName Bone;
+		float Min = 1e9f;
+		bool bUp = false;
+	};
+	FFoot Feet[2];
+	FVector LastLoc = FVector::ZeroVector;
+	float Speed2D = 0.f;
+	void DetectSteps(float DeltaSeconds);
 };

@@ -18,9 +18,12 @@ sh(f"find {UE} -type f \\( -name '*.sh' -o -path '*/Binaries/*' -o -path '*/SDKs
 sh(f"git clone -q --depth 1 -b {BRANCH} https://github.com/moemenwork0-cmyk/game.git /tmp/game", check=True)
 P = "/tmp/game/war/WarGame.uproject"
 os.environ["SKETCHFAB_API_TOKEN"] = "__SKETCHFAB__"
-sh("python3 /tmp/game/war/Tools/Assets/fetch.py 2>&1 | tail -2", check=True)
 sh("mkdir -p /tmp/game/war/Content/Raw/Downloaded/Mixamo && "
-   "cp $(find /kaggle/input -path '*desert-breach-animations*' \\( -name '*.fbx' -o -name '*.png' \\)) /tmp/game/war/Content/Raw/Downloaded/Mixamo/")
+   "cp $(find /kaggle/input -path '*desert-breach-animations*' \\( -name '*.fbx' -o -name '*.png' \\)) /tmp/game/war/Content/Raw/Downloaded/Mixamo/ && "
+   "mkdir -p /tmp/game/war/Content/Raw/Downloaded/Audio && "
+   "cp $(find /kaggle/input -path '*desert-breach-animations*' -name '*.wav') /tmp/game/war/Content/Raw/Downloaded/Audio/")
+# Prepared sounds come from the dataset; fetch.py only downloads what is still missing.
+sh("python3 /tmp/game/war/Tools/Assets/fetch.py 2>&1 | tail -2", check=True)
 
 # Android toolchain: command-line tools, then the engine's own setup script picks the versions.
 os.makedirs(f"{SDK}/cmdline-tools", exist_ok=True)

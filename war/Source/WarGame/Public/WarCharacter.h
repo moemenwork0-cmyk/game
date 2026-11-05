@@ -28,6 +28,8 @@ public:
 	// Fire button: the story can claim it (the detonator); otherwise bare-hand punches.
 	void Fire();
 	TFunction<bool()> FireOverride;
+	// Own footsteps (detected from the body's animated feet) for the story's sound mix.
+	TFunction<void(const FVector&, float)> OnStep;
 	void SetBodyVisible(bool bVisible);
 
 	// Cinematic camera layer (wake-up, blast): offsets on top of the normal eye view.
@@ -81,4 +83,9 @@ private:
 	bool bPunchQueued = false;
 	int32 PunchIndex = 0;
 	void PlayBody(FName Clip, bool bLoop, float Rate, float Blend);
+	void Swing();
+	UPROPERTY() TArray<TObjectPtr<class USoundBase>> SwingSounds;
+	UPROPERTY() TObjectPtr<class USoundBase> ClothSound;
+	float FootMin[2] = { 1e9f, 1e9f };
+	bool bFootUp[2] = { false, false };
 };
