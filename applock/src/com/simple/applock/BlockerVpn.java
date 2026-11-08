@@ -42,7 +42,17 @@ public class BlockerVpn extends VpnService {
     private ParcelFileDescriptor tun;
     private Thread reader;
     private ExecutorService pool;
+    /** Real network (Wi-Fi or mobile) our DNS forwarding goes out on, and its DNS servers. */
+    private volatile Network net;
     private volatile List<InetAddress> upstream = new ArrayList<>();
+    private ConnectivityManager.NetworkCallback netCallback;
+    /** Tiny answer cache: query name+type -> (answer, expiry). */
+    private final java.util.Map<String, Object[]> cache = java.util.Collections.synchronizedMap(
+            new java.util.LinkedHashMap<String, Object[]>(256, 0.75f, true) {
+                @Override protected boolean removeEldestEntry(java.util.Map.Entry<String, Object[]> e) {
+                    return size() > 500;
+                }
+            });
 
     static void start(Context c) {
         c.startForegroundService(new Intent(c, BlockerVpn.class));
@@ -88,8 +98,7 @@ public class BlockerVpn extends VpnService {
     }
 
     private void establish() throws Exception {
-        upstream = findUpstreamDns();
-        upstreamAt = android.os.SystemClock.elapsedRealtime();
+        trackDefaultNetwork();
         Builder b = new Builder()
                 .setSession("App Lock - website blocker")
                 .addAddress(VPN_ADDR, 32)
@@ -100,33 +109,49 @@ public class BlockerVpn extends VpnService {
         tun = b.establish();
         if (tun == null) throw new IllegalStateException("VPN permission not granted");
         running = true;
-        pool = Executors.newFixedThreadPool(4);
+        pool = Executors.newFixedThreadPool(24);
         reader = new Thread(new Runnable() {
             @Override public void run() { readLoop(); }
         }, "dns-reader");
         reader.start();
     }
 
-    /** The real network's DNS servers (asked before our VPN comes up), with fallbacks. */
-    private List<InetAddress> findUpstreamDns() {
-        List<InetAddress> out = new ArrayList<>();
-        try {
-            ConnectivityManager cm = getSystemService(ConnectivityManager.class);
-            for (Network n : cm.getAllNetworks()) {
-                android.net.NetworkCapabilities nc = cm.getNetworkCapabilities(n);
-                if (nc == null || nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)) continue;
-                LinkProperties lp = cm.getLinkProperties(n);
-                if (lp == null) continue;
-                for (InetAddress a : lp.getDnsServers()) {
-                    if (!a.getHostAddress().equals(VPN_DNS) && !out.contains(a)) out.add(a);
-                }
+    /**
+     * Follow the phone's real default network. Our own app is excluded from the
+     * VPN, so for us the "default network" is the actual Wi-Fi / mobile network.
+     */
+    private void trackDefaultNetwork() {
+        final ConnectivityManager cm = getSystemService(ConnectivityManager.class);
+        Network n = cm.getActiveNetwork();
+        if (n != null) useNetwork(n, cm.getLinkProperties(n));
+        netCallback = new ConnectivityManager.NetworkCallback() {
+            @Override public void onAvailable(Network network) {
+                useNetwork(network, cm.getLinkProperties(network));
             }
-        } catch (RuntimeException ignored) {}
+            @Override public void onLinkPropertiesChanged(Network network, LinkProperties lp) {
+                useNetwork(network, lp);
+            }
+            @Override public void onLost(Network network) {
+                if (network.equals(net)) net = null;
+            }
+        };
+        try { cm.registerDefaultNetworkCallback(netCallback); } catch (RuntimeException ignored) {}
+    }
+
+    private void useNetwork(Network n, LinkProperties lp) {
+        List<InetAddress> list = new ArrayList<>();
+        if (lp != null) {
+            for (InetAddress a : lp.getDnsServers()) {
+                if (!a.getHostAddress().equals(VPN_DNS) && !list.contains(a)) list.add(a);
+            }
+        }
         try {
-            out.add(InetAddress.getByName("1.1.1.1"));
-            out.add(InetAddress.getByName("8.8.8.8"));
+            list.add(InetAddress.getByName("1.1.1.1"));
+            list.add(InetAddress.getByName("8.8.8.8"));
         } catch (Exception ignored) {}
-        return out;
+        if (!n.equals(net)) cache.clear();
+        upstream = list;
+        net = n;
     }
 
     private void readLoop() {
@@ -173,33 +198,69 @@ public class BlockerVpn extends VpnService {
         });
     }
 
-    private volatile long upstreamAt = 0;
-
+    /**
+     * Ask the network's DNS servers and two public ones at the same time and use
+     * the first answer, so one slow or unreachable server can't hold things up.
+     */
     private byte[] forward(byte[] query) {
-        // Wi-Fi <-> mobile data changes the real DNS servers; re-read them now and then.
-        long now = android.os.SystemClock.elapsedRealtime();
-        if (now - upstreamAt > 15000) {
-            upstreamAt = now;
-            upstream = findUpstreamDns();
-        }
-        for (InetAddress server : upstream) {
-            DatagramSocket s = null;
-            try {
-                s = new DatagramSocket();
-                protect(s);
-                s.setSoTimeout(2500);
-                s.send(new DatagramPacket(query, query.length, new InetSocketAddress(server, 53)));
-                byte[] buf = new byte[4096];
-                DatagramPacket resp = new DatagramPacket(buf, buf.length);
-                s.receive(resp);
-                return java.util.Arrays.copyOf(buf, resp.getLength());
-            } catch (IOException e) {
-                // try the next server
-            } finally {
-                if (s != null) s.close();
+        String key = cacheKey(query);
+        if (key != null) {
+            Object[] hit = cache.get(key);
+            if (hit != null && (Long) hit[1] > android.os.SystemClock.elapsedRealtime()) {
+                byte[] ans = ((byte[]) hit[0]).clone();
+                ans[0] = query[0]; ans[1] = query[1]; // match the new query id
+                return ans;
             }
         }
+        List<InetAddress> servers = upstream;
+        Network n = net;
+        DatagramSocket s = null;
+        try {
+            s = new DatagramSocket();
+            if (n != null) n.bindSocket(s); else protect(s);
+            s.setSoTimeout(3000);
+            for (InetAddress server : servers) {
+                try {
+                    s.send(new DatagramPacket(query, query.length, new InetSocketAddress(server, 53)));
+                } catch (IOException ignored) {} // e.g. unreachable IPv6 server: skip it
+            }
+            byte[] buf = new byte[4096];
+            byte[] fallback = null; // a SERVFAIL/REFUSED answer, used only if nothing better arrives
+            long deadline = android.os.SystemClock.elapsedRealtime() + 3000;
+            while (android.os.SystemClock.elapsedRealtime() < deadline) {
+                DatagramPacket resp = new DatagramPacket(buf, buf.length);
+                try {
+                    s.receive(resp);
+                } catch (java.net.SocketTimeoutException te) {
+                    break;
+                }
+                if (resp.getLength() < 12 || buf[0] != query[0] || buf[1] != query[1]) continue;
+                byte[] ans = java.util.Arrays.copyOf(buf, resp.getLength());
+                int rcode = ans[3] & 0x0f;
+                if (rcode != 0 && rcode != 3) { fallback = ans; continue; }
+                if (key != null && (ans[3] & 0x0f) == 0) {
+                    cache.put(key, new Object[]{ans,
+                            android.os.SystemClock.elapsedRealtime() + 60000L});
+                }
+                return ans;
+            }
+            return fallback;
+        } catch (IOException e) {
+            // timeout or no network: no answer, the phone will retry
+        } finally {
+            if (s != null) s.close();
+        }
         return null;
+    }
+
+    /** "name/type/class" of the question, or null. */
+    private static String cacheKey(byte[] q) {
+        String name = questionName(q);
+        if (name == null) return null;
+        int i = 12;
+        while (i < q.length && (q[i] & 0xff) != 0) i += 1 + (q[i] & 0xff);
+        if (i + 5 > q.length) return null;
+        return name.toLowerCase() + "/" + u16(q, i + 1) + "/" + u16(q, i + 3);
     }
 
     // ---------------- DNS helpers ----------------
@@ -272,6 +333,11 @@ public class BlockerVpn extends VpnService {
 
     private void shutdown() {
         running = false;
+        if (netCallback != null) {
+            try { getSystemService(ConnectivityManager.class).unregisterNetworkCallback(netCallback); }
+            catch (RuntimeException ignored) {}
+            netCallback = null;
+        }
         if (pool != null) pool.shutdownNow();
         pool = null;
         if (tun != null) {

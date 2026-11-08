@@ -181,7 +181,7 @@ public class LockService extends AccessibilityService {
         ArrayDeque<AccessibilityNodeInfo> q = new ArrayDeque<>();
         q.add(root);
         int visited = 0;
-        while (!q.isEmpty() && visited++ < 2000) {
+        while (!q.isEmpty() && visited++ < 600) {
             AccessibilityNodeInfo n = q.poll();
             if (n == null) continue;
             CharSequence cls = n.getClassName();
