@@ -30,15 +30,15 @@ import java.util.List;
 
 /**
  * Watches which app is on top. If it is locked (and not temporarily unlocked)
- * a full-screen password overlay is drawn over it. Optionally also locks just
- * the "Private DNS" screen inside Settings.
+ * a full-screen password overlay is drawn over it. Also leaves blocked websites
+ * when a browser's address bar shows one.
  */
 public class LockService extends AccessibilityService {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private WindowManager wm;
     private View overlay;          // currently shown lock screen, or null
-    private String overlayKey;     // what the overlay is locking (package or Store.DNS_KEY)
+    private String overlayKey;     // what the overlay is locking (package name)
     private String lastEventPkg;   // fallback if the window list is unavailable
 
     // ---- status shown on App Lock's main screen ----
@@ -111,20 +111,117 @@ public class LockService extends AccessibilityService {
         // 1) Whole app locked?
         if (Store.isLocked(this, pkg)) {
             long left = Store.remainingMs(pkg);
-            if (left == 0) { showOverlay(pkg, pkg, null); return; }
-            scheduleRelock(left);
-        }
-
-        // 2) Private DNS screen inside Settings?
-        if (Store.dnsLockOn(this) && Store.settingsPackages(this).contains(pkg)
-                && privateDnsVisible(pkg)) {
-            long left = Store.remainingMs(Store.DNS_KEY);
-            if (left == 0) { showOverlay(Store.DNS_KEY, pkg, "Private DNS is locked"); return; }
+            if (left == 0) { showOverlay(pkg, pkg); return; }
             scheduleRelock(left);
         }
 
         hideOverlay(); // nothing locked is in front
+
+        // 2) Blocked website open in a browser?
+        if (top != null && isBrowser(pkg)) checkBrowser(top, pkg);
+        keepBlockerRunning();
     }
+
+    // ---------------- website blocker (browser address bar) ----------------
+
+    private java.util.Set<String> browsers = new java.util.HashSet<>();
+    private long browsersAt = 0;
+
+    private boolean isBrowser(String pkg) {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (now - browsersAt > 60000 || browsersAt == 0) {
+            browsersAt = now;
+            java.util.Set<String> s = new java.util.HashSet<>(java.util.Arrays.asList(
+                    "com.android.chrome", "org.mozilla.firefox", "org.mozilla.firefox_beta",
+                    "org.mozilla.focus", "com.sec.android.app.sbrowser", "com.opera.browser",
+                    "com.opera.mini.native", "com.opera.gx", "com.microsoft.emmx",
+                    "com.brave.browser", "com.duckduckgo.mobile.android", "com.kiwibrowser.browser",
+                    "com.vivaldi.browser", "com.UCMobile.intl", "com.uc.browser.en",
+                    "com.huawei.browser", "com.hihonor.baidu.browser", "com.hihonor.browser",
+                    "com.mi.globalbrowser", "com.yandex.browser", "mark.via.gp"));
+            Intent web = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("http://example.com"));
+            for (android.content.pm.ResolveInfo ri : getPackageManager().queryIntentActivities(
+                    web, android.content.pm.PackageManager.MATCH_ALL)) {
+                s.add(ri.activityInfo.packageName);
+            }
+            browsers = s;
+        }
+        return browsers.contains(pkg);
+    }
+
+    private static final java.util.regex.Pattern HOST = java.util.regex.Pattern.compile(
+            "(?:^|[^a-z0-9.-])((?:[a-z0-9-]+\\.)+[a-z]{2,})(?=$|[^a-z0-9.-])");
+
+    private long lastBlockAt = 0;
+
+    /** Look at the browser's address bar; if it shows a blocked site, leave the page. */
+    private void checkBrowser(AccessibilityWindowInfo w, String pkg) {
+        if (!Store.anySiteBlocked(this)) return;
+        AccessibilityNodeInfo root = w.getRoot();
+        if (root == null) return;
+        String site = findBlockedAddress(root);
+        if (site == null) return;
+
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (now - lastBlockAt < 1500) {
+            performGlobalAction(GLOBAL_ACTION_HOME); // back didn't help -> leave the browser
+        } else {
+            performGlobalAction(GLOBAL_ACTION_BACK);
+        }
+        lastBlockAt = now;
+        android.widget.Toast.makeText(this, site + " is blocked", android.widget.Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * Address bars are native views (not page content): EditTexts, or views whose id
+     * mentions url / address / location / omnibox. Page content (WebView) is skipped
+     * so a search result that merely mentions facebook.com doesn't trigger.
+     */
+    private String findBlockedAddress(AccessibilityNodeInfo root) {
+        ArrayDeque<AccessibilityNodeInfo> q = new ArrayDeque<>();
+        q.add(root);
+        int visited = 0;
+        while (!q.isEmpty() && visited++ < 2000) {
+            AccessibilityNodeInfo n = q.poll();
+            if (n == null) continue;
+            CharSequence cls = n.getClassName();
+            if (cls != null && cls.toString().contains("WebView")) continue;
+            String id = n.getViewIdResourceName();
+            String lid = id == null ? "" : id.toLowerCase();
+            boolean addressLike = (cls != null && cls.toString().contains("EditText"))
+                    || lid.contains("url") || lid.contains("address") || lid.contains("location")
+                    || lid.contains("omnibox");
+            if (addressLike) {
+                String hit = blockedHostIn(n.getText());
+                if (hit != null) return hit;
+            }
+            for (int i = 0; i < n.getChildCount(); i++) q.add(n.getChild(i));
+        }
+        return null;
+    }
+
+    private String blockedHostIn(CharSequence cs) {
+        if (cs == null) return null;
+        java.util.regex.Matcher m = HOST.matcher(cs.toString().toLowerCase());
+        while (m.find()) {
+            if (Store.isHostBlocked(this, m.group(1))) return m.group(1);
+        }
+        return null;
+    }
+
+    private long lastWatchdog = 0;
+
+    /** If the blocker should be on but its VPN died, try to bring it back. */
+    private void keepBlockerRunning() {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (now - lastWatchdog < 15000) return;
+        lastWatchdog = now;
+        if (Store.blockerOn(this) && !BlockerVpn.running
+                && android.net.VpnService.prepare(this) == null) {
+            try { BlockerVpn.start(this); } catch (RuntimeException ignored) {}
+        }
+    }
+
 
     private void scheduleRelock(long ms) {
         handler.removeCallbacks(relock);
@@ -143,52 +240,13 @@ public class LockService extends AccessibilityService {
         return best;
     }
 
-    /** True if any window of the Settings app currently shows the Private DNS options. */
-    private boolean privateDnsVisible(String pkg) {
-        List<AccessibilityWindowInfo> ws;
-        try { ws = getWindows(); } catch (RuntimeException ex) { return false; }
-        for (AccessibilityWindowInfo w : ws) {
-            if (w.getType() != AccessibilityWindowInfo.TYPE_APPLICATION) continue;
-            AccessibilityNodeInfo root = w.getRoot();
-            if (root == null || root.getPackageName() == null
-                    || !pkg.equals(root.getPackageName().toString())) continue;
-            if (treeHasPrivateDns(root)) return true;
-        }
-        return false;
-    }
-
-    private static boolean treeHasPrivateDns(AccessibilityNodeInfo root) {
-        ArrayDeque<AccessibilityNodeInfo> q = new ArrayDeque<>();
-        q.add(root);
-        int visited = 0;
-        while (!q.isEmpty() && visited++ < 3000) {
-            AccessibilityNodeInfo n = q.poll();
-            if (n == null) continue;
-            String id = n.getViewIdResourceName();
-            if (id != null && id.toLowerCase().contains("private_dns")) return true;
-            if (isDnsHostnameText(n.getText()) || isDnsHostnameText(n.getHintText())) return true;
-            for (int i = 0; i < n.getChildCount(); i++) q.add(n.getChild(i));
-        }
-        return false;
-    }
-
-    /** "Private DNS provider hostname" and similar labels (English / Arabic). */
-    private static boolean isDnsHostnameText(CharSequence cs) {
-        if (cs == null) return false;
-        String t = cs.toString().toLowerCase();
-        if (!t.contains("dns")) return false;
-        return t.contains("hostname") || t.contains("host name") || t.contains("provider")
-                || t.contains("مضيف") || t.contains("موفر") || t.contains("مزود") || t.contains("مزوّد");
-    }
-
     // ---------------- overlay ----------------
 
     /**
-     * @param key     what gets unlocked by the right password (package or DNS_KEY)
+     * @param key     what gets unlocked by the right password (package name)
      * @param iconPkg app whose icon/name is shown
-     * @param title   custom title, or null for "<app> is locked"
      */
-    private void showOverlay(final String key, String iconPkg, String title) {
+    private void showOverlay(final String key, String iconPkg) {
         if (overlay != null) {
             if (key.equals(overlayKey)) return;
             hideOverlay();
@@ -204,13 +262,12 @@ public class LockService extends AccessibilityService {
             icon = pm.getApplicationIcon(iconPkg);
         } catch (PackageManager.NameNotFoundException ignored) {}
 
-        final boolean dns = Store.DNS_KEY.equals(key);
 
         // Root that turns the Back key into "leave".
         FrameLayout root = new FrameLayout(this) {
             @Override public boolean dispatchKeyEvent(KeyEvent ev) {
                 if (ev.getKeyCode() == KeyEvent.KEYCODE_BACK) {
-                    if (ev.getAction() == KeyEvent.ACTION_UP) leave(dns);
+                    if (ev.getAction() == KeyEvent.ACTION_UP) leave();
                     return true;
                 }
                 return super.dispatchKeyEvent(ev);
@@ -231,7 +288,7 @@ public class LockService extends AccessibilityService {
             box.addView(iv, new LinearLayout.LayoutParams((int) (72 * d), (int) (72 * d)));
         }
         TextView tv = new TextView(this);
-        tv.setText(title != null ? title : label + " is locked");
+        tv.setText(label + " is locked");
         tv.setTextColor(Color.WHITE);
         tv.setTextSize(22);
         tv.setGravity(Gravity.CENTER);
@@ -268,7 +325,7 @@ public class LockService extends AccessibilityService {
                     hideOverlay();
                     scheduleRelock(Store.remainingMs(key));
                 } else {
-                    leave(dns);
+                    leave();
                 }
             }
         };
@@ -276,7 +333,7 @@ public class LockService extends AccessibilityService {
             @Override public void onClick(View v) { submit.run(); }
         });
         cancel.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { leave(dns); }
+            @Override public void onClick(View v) { leave(); }
         });
         pw.setOnEditorActionListener(new TextView.OnEditorActionListener() {
             @Override public boolean onEditorAction(TextView v, int id, KeyEvent ev) {
@@ -305,7 +362,7 @@ public class LockService extends AccessibilityService {
         } catch (RuntimeException ex) {
             overlay = null;
             overlayKey = null;
-            leave(dns); // could not cover it -> do not let it through
+            leave(); // could not cover it -> do not let it through
             return;
         }
 
@@ -326,19 +383,9 @@ public class LockService extends AccessibilityService {
         }
     }
 
-    /**
-     * Wrong password / cancel / back. For the Private DNS lock, first press Back
-     * to close the DNS dialog so it isn't waiting there next time, then go Home.
-     */
-    private void leave(boolean closeDnsFirst) {
+    /** Wrong password / cancel / back: go to the Home screen. */
+    private void leave() {
         hideOverlay();
-        if (closeDnsFirst) {
-            performGlobalAction(GLOBAL_ACTION_BACK);
-            handler.postDelayed(new Runnable() {
-                @Override public void run() { performGlobalAction(GLOBAL_ACTION_HOME); }
-            }, 200);
-        } else {
-            performGlobalAction(GLOBAL_ACTION_HOME);
-        }
+        performGlobalAction(GLOBAL_ACTION_HOME);
     }
 }

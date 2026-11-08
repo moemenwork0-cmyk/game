@@ -7,8 +7,14 @@ A tiny app locker built on an AccessibilityService. No external libraries, no Gr
 ## How it works
 - First launch: set a password (min. 4 characters). App Lock itself always asks for it when opened.
 - Tick the apps to lock. Every app (including Settings and the package installer) can be ticked or unticked.
-- "Lock the Private DNS screen in Settings" (on by default): only the Private DNS dialog/page asks
-  for the password; the rest of Settings stays open. Wrong password closes the dialog and goes Home.
+- **Website blocker** (Facebook, Instagram, X/Twitter, TikTok - each can be ticked on/off). Two layers:
+  1. A local DNS-only VPN: lookups for the blocked domains get "not found", so they don't load in
+     any browser or app. Other traffic does not go through the VPN.
+  2. The accessibility service reads browsers' address bars; if one shows a blocked site it goes
+     Back (then Home). This still works when a browser uses its own secure DNS or the VPN is off.
+  Private DNS in "hostname" mode skips layer 1 (Android sends DNS straight to that server) - set
+  it to Automatic or Off for full blocking. Turn on Settings -> VPN -> App Lock -> *Always-on VPN*
+  so Android keeps the blocker running and restarts it after a reboot.
 - When a locked app comes to the front, a full-screen password screen covers it.
   - Wrong password, Cancel or Back → Home screen.
   - Correct password → the app is usable for 2 minutes, then it locks again.

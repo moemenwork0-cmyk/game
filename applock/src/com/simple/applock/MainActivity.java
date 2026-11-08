@@ -54,7 +54,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onStop() {
         super.onStop();
-        authed = false; // ask for the password again next time
+        if (!askingVpn) authed = false; // ask for the password again next time
     }
 
     // ---------------- screens ----------------
@@ -132,13 +132,19 @@ public class MainActivity extends Activity {
     }
 
     private void showMain() {
-        LinearLayout l = column();
+        LinearLayout root = column();
+        root.setPadding(root.getPaddingLeft(), root.getPaddingTop(), root.getPaddingRight(), 0);
 
+        // Everything above the app list scrolls together with it (list header).
+        LinearLayout h = new LinearLayout(this);
+        h.setOrientation(LinearLayout.VERTICAL);
+
+        // ---- App lock status ----
         boolean on = serviceEnabled();
         String msg;
         boolean good = false;
         if (!on) {
-            msg = "Protection is OFF - tap Accessibility and turn on \"App Lock\".";
+            msg = "App lock is OFF - tap Accessibility and turn on \"App Lock\".";
         } else if (!LockService.running) {
             msg = "Accessibility is ON but Android is NOT running the service.\n"
                     + "Fix: Accessibility -> App Lock -> turn OFF, then ON again. "
@@ -146,12 +152,11 @@ public class MainActivity extends Activity {
         } else {
             good = true;
             String seen = LockService.lastSeenPkg;
-            msg = "Protection is ON and running.\nEvents received: " + LockService.eventCount
-                    + "\nLast app on top: " + (seen == null ? "none yet" : seen);
+            msg = "App lock is ON and running.\nLast app on top: " + (seen == null ? "none yet" : seen);
         }
         TextView status = text(msg, 15);
         status.setTextColor(good ? 0xFF4CAF50 : 0xFFFF5252);
-        l.addView(status);
+        h.addView(status);
 
         LinearLayout row = new LinearLayout(this);
         Button acc = new Button(this);
@@ -162,7 +167,7 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         row.addView(acc, half);
         row.addView(pw, half);
-        l.addView(row);
+        h.addView(row);
         acc.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { openAccessibilitySettings(); }
         });
@@ -170,29 +175,123 @@ public class MainActivity extends Activity {
             @Override public void onClick(View v) { changePassword(); }
         });
 
-        CheckBox dns = new CheckBox(this);
-        dns.setText("Lock the Private DNS screen in Settings\n(the rest of Settings stays open)");
-        dns.setTextSize(16);
-        dns.setPadding(0, (int) (12 * d), 0, (int) (12 * d));
-        dns.setChecked(Store.dnsLockOn(this));
-        dns.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override public void onCheckedChanged(CompoundButton b, boolean on) {
-                Store.setDnsLock(MainActivity.this, on);
+        // ---- Website blocker ----
+        TextView wb = text("Website blocker", 20);
+        wb.setPadding(0, (int) (24 * d), 0, (int) (4 * d));
+        h.addView(wb);
+
+        boolean blockerOn = Store.blockerOn(this);
+        String bmsg;
+        int bcol = 0xFFFF5252;
+        if (!blockerOn) {
+            bmsg = "OFF";
+        } else if (!BlockerVpn.running) {
+            bmsg = "Should be ON but the blocker is not running - tap \"Turn blocker ON\" again.";
+        } else {
+            bmsg = "ON - ticked sites won't open in any browser.";
+            bcol = 0xFF4CAF50;
+        }
+        if (blockerOn && on && !LockService.running) {
+            bmsg += "\n(The address-bar check needs the App Lock accessibility service too.)";
+        }
+        String pdns = strictPrivateDns();
+        if (blockerOn && pdns != null) {
+            bmsg += "\nNote: Private DNS is set to \"" + pdns + "\". That skips the blocker's DNS "
+                    + "filter, so only the browser address-bar check protects you. "
+                    + "Set Private DNS to Automatic or Off for full blocking.";
+            bcol = 0xFFFFB300;
+        }
+        TextView bstatus = text(bmsg, 15);
+        bstatus.setTextColor(bcol);
+        h.addView(bstatus);
+
+        Button toggle = new Button(this);
+        toggle.setText(blockerOn ? "Turn blocker OFF" : "Turn blocker ON");
+        h.addView(toggle);
+        final boolean wasOn = blockerOn && BlockerVpn.running;
+        toggle.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                if (wasOn) {
+                    Store.setBlockerOn(MainActivity.this, false);
+                    BlockerVpn.stop(MainActivity.this);
+                    showMainSoon();
+                } else {
+                    startBlocker();
+                }
             }
         });
-        LinearLayout.LayoutParams dnsLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        dnsLp.topMargin = (int) (16 * d);
-        l.addView(dns, dnsLp);
 
-        TextView hdr = text("Tick the apps to lock:", 16);
-        hdr.setPadding(0, (int) (16 * d), 0, (int) (8 * d));
-        l.addView(hdr);
+        for (final String[] site : Store.SITES) {
+            CheckBox cb = new CheckBox(this);
+            cb.setText("Block " + site[1]);
+            cb.setTextSize(16);
+            cb.setChecked(Store.siteBlocked(this, site[0]));
+            cb.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                @Override public void onCheckedChanged(CompoundButton b, boolean checked) {
+                    Store.setSiteBlocked(MainActivity.this, site[0], checked);
+                }
+            });
+            h.addView(cb);
+        }
+
+        // ---- App list ----
+        TextView hdr = text("Tick the apps to lock:", 20);
+        hdr.setPadding(0, (int) (24 * d), 0, (int) (8 * d));
+        h.addView(hdr);
 
         ListView list = new ListView(this);
+        list.addHeaderView(h, null, false);
         list.setAdapter(new AppAdapter(this, loadApps()));
-        l.addView(list, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-        setContentView(l);
+        root.addView(list, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        setContentView(root);
+    }
+
+    private static final int REQ_VPN = 7;
+    private boolean askingVpn = false;
+
+    private void startBlocker() {
+        Intent consent = android.net.VpnService.prepare(this);
+        if (consent != null) {
+            askingVpn = true; // don't ask for our password again after the system dialog
+            startActivityForResult(consent, REQ_VPN);
+        } else {
+            onActivityResult(REQ_VPN, RESULT_OK, null);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req != REQ_VPN) return;
+        askingVpn = false;
+        if (res == RESULT_OK) {
+            Store.setBlockerOn(this, true);
+            BlockerVpn.start(this);
+        } else {
+            toast("The blocker needs the VPN permission to work");
+        }
+        showMainSoon();
+    }
+
+    /** Re-draw after the VPN had a moment to start/stop. */
+    private void showMainSoon() {
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
+            @Override public void run() { if (authed) showMain(); }
+        }, 700);
+    }
+
+    /** Hostname if Private DNS is in "hostname" (strict) mode on the real network, else null. */
+    private String strictPrivateDns() {
+        try {
+            android.net.ConnectivityManager cm = getSystemService(android.net.ConnectivityManager.class);
+            for (android.net.Network n : cm.getAllNetworks()) {
+                android.net.NetworkCapabilities nc = cm.getNetworkCapabilities(n);
+                if (nc == null || nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)) continue;
+                android.net.LinkProperties lp = cm.getLinkProperties(n);
+                if (lp != null && lp.getPrivateDnsServerName() != null) return lp.getPrivateDnsServerName();
+            }
+        } catch (RuntimeException ignored) {}
+        return null;
     }
 
     // ---------------- actions ----------------

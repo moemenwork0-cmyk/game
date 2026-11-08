@@ -79,17 +79,84 @@ final class Store {
         return lockedUserApps(c).contains(pkg);
     }
 
-    // ---- Private DNS lock ----
+    // ---- website blocker ----
 
-    /** Key used for the temporary unlock of the Private DNS screen. */
-    static final String DNS_KEY = "#private_dns";
+    /** Sites the user can block. Each entry: id, display name, domains (subdomains included). */
+    static final String[][] SITES = {
+            {"facebook", "Facebook",
+                    "facebook.com", "facebook.net", "fb.com", "fb.me", "fb.watch",
+                    "fbcdn.net", "fbsbx.com"},
+            {"instagram", "Instagram",
+                    "instagram.com", "cdninstagram.com", "ig.me", "instagr.am"},
+            {"x", "X (Twitter)",
+                    "x.com", "twitter.com", "twimg.com", "t.co"},
+            {"tiktok", "TikTok",
+                    "tiktok.com", "tiktokv.com", "tiktokv.us", "tiktokw.us", "tiktokcdn.com",
+                    "tiktokcdn-us.com", "tiktokcdn-eu.com", "ttwstatic.com", "byteoversea.com",
+                    "ibytedtos.com", "ibyteimg.com", "muscdn.com", "musical.ly", "tiktok.org"},
+    };
 
-    static boolean dnsLockOn(Context c) {
-        return prefs(c).getBoolean("dns_lock", true);
+    /**
+     * Browser DNS-over-HTTPS endpoints. Blocked while any site is blocked so a
+     * browser can't quietly skip our DNS filter. "use-application-dns.net" is
+     * the signal that tells Firefox to switch its own DoH off.
+     */
+    static final String[] DOH_DOMAINS = {
+            "use-application-dns.net", "dns.google", "dns.google.com", "cloudflare-dns.com",
+            "dns.quad9.net", "doh.opendns.com", "dns.nextdns.io",
+    };
+
+    static boolean siteBlocked(Context c, String id) {
+        return prefs(c).getBoolean("site_" + id, true);
     }
 
-    static void setDnsLock(Context c, boolean on) {
-        prefs(c).edit().putBoolean("dns_lock", on).apply();
+    static void setSiteBlocked(Context c, String id, boolean on) {
+        prefs(c).edit().putBoolean("site_" + id, on).apply();
+        blockedCache = null;
+    }
+
+    /** Master switch for the website blocker (the VPN). */
+    static boolean blockerOn(Context c) {
+        return prefs(c).getBoolean("blocker_on", false);
+    }
+
+    static void setBlockerOn(Context c, boolean on) {
+        prefs(c).edit().putBoolean("blocker_on", on).apply();
+    }
+
+    /** Blocker switched on and at least one site ticked. */
+    static boolean anySiteBlocked(Context c) {
+        return blockerOn(c) && !blockedDomains(c).isEmpty();
+    }
+
+    private static volatile Set<String> blockedCache;
+
+    /** Domains currently blocked (each also blocks its subdomains). */
+    static Set<String> blockedDomains(Context c) {
+        Set<String> s = blockedCache;
+        if (s != null) return s;
+        s = new HashSet<>();
+        for (String[] site : SITES) {
+            if (!siteBlocked(c, site[0])) continue;
+            for (int i = 2; i < site.length; i++) s.add(site[i]);
+        }
+        if (!s.isEmpty()) java.util.Collections.addAll(s, DOH_DOMAINS);
+        blockedCache = s;
+        return s;
+    }
+
+    /** True if host is a blocked domain or a subdomain of one. */
+    static boolean isHostBlocked(Context c, String host) {
+        if (host == null) return false;
+        String h = host.toLowerCase();
+        while (h.endsWith(".")) h = h.substring(0, h.length() - 1);
+        Set<String> blocked = blockedDomains(c);
+        while (true) {
+            if (blocked.contains(h)) return true;
+            int dot = h.indexOf('.');
+            if (dot < 0) return false;
+            h = h.substring(dot + 1);
+        }
     }
 
     private static Set<String> settingsPkgs;

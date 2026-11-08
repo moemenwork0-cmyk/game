@@ -11,7 +11,7 @@ rm -rf "$OUT" && mkdir -p "$OUT/gen" "$OUT/classes" "$OUT/dex" dist
 
 "$BT/aapt2" compile --dir res -o "$OUT/res.zip"
 "$BT/aapt2" link -I "$JAR" --manifest AndroidManifest.xml --java "$OUT/gen" \
-    --min-sdk-version 33 --target-sdk-version 34 --version-code 1 --version-name 1.0 \
+    --min-sdk-version 33 --target-sdk-version 33 --version-code 2 --version-name 2.0 \
     -o "$OUT/unsigned.apk" "$OUT/res.zip"
 
 javac -nowarn -Xlint:-options -source 8 -target 8 -bootclasspath "$JAR:$BT/core-lambda-stubs.jar" -d "$OUT/classes" \
