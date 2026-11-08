@@ -7,17 +7,22 @@ A tiny app locker built on an AccessibilityService. No external libraries, no Gr
 ## How it works
 - First launch: set a password (min. 4 characters). App Lock itself always asks for it when opened.
 - Tick the apps to lock. Every app (including Settings and the package installer) can be ticked or unticked.
-- **Website blocker** (Facebook, Instagram, X/Twitter, TikTok - each can be ticked on/off). Two layers:
-  1. A local DNS-only VPN: lookups for the blocked domains get "not found", so they don't load in
-     any browser or app. Other traffic does not go through the VPN.
-  2. The accessibility service reads browsers' address bars; if one shows a blocked site it goes
-     Back (then Home). This still works when a browser uses its own secure DNS or the VPN is off.
-  Private DNS in "hostname" mode skips layer 1 (Android sends DNS straight to that server) - set
-  it to Automatic or Off for full blocking. Turn on Settings -> VPN -> App Lock -> *Always-on VPN*
-  so Android keeps the blocker running and restarts it after a reboot.
-- When a locked app comes to the front, a full-screen password screen covers it.
-  - Wrong password, Cancel or Back → Home screen.
-  - Correct password → the app is usable for 2 minutes, then it locks again.
+- **Website blocker** (Facebook, Instagram, X/Twitter, TikTok - each can be ticked on/off).
+  The accessibility service reads only the browser's address bar. If it shows a blocked site, a
+  "blocked" screen covers the browser and the tab is sent to google.com. It never touches the
+  network (no VPN, no DNS, no internet permission). A Google search that mentions facebook.com
+  is not blocked; only the address of the page itself counts.
+- Lock screen stays until you act (right password / wrong password / Cancel / Back) or you
+  really switch to another app. Turning the screen off locks everything again.
+  5 wrong passwords in a row -> 30 s pause.
+
+## Known limits
+- Turning off the accessibility service, or "Force stop" in App info, switches everything off.
+  Lock the Settings app in the list if you want to prevent that.
+- Safe mode disables all downloaded apps' accessibility services.
+- Links opened *inside* other apps' own web views (not a real browser) are not checked;
+  lock the Facebook / Instagram / X / TikTok apps themselves in the list to block the apps.
+- Browsers with an unusual address-bar layout may not be recognised.
 
 ## Setup on the phone (Honor / Android 13+)
 1. Install the APK (allow "install unknown apps" for your file manager/browser).
@@ -27,6 +32,11 @@ A tiny app locker built on an AccessibilityService. No external libraries, no Gr
 4. In App Lock tap **Accessibility** → Installed services / Downloaded apps → **App Lock** → On.
 5. Honor battery manager may kill the service: Settings → Battery → App launch → App Lock →
    switch to *Manage manually* and enable all three toggles.
+
+## Tests (no phone needed)
+```
+ANDROID_HOME=/path/to/sdk test/run.sh     # 58 domain checks + 30 Robolectric tests
+```
 
 ## Build
 ```

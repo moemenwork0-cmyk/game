@@ -81,31 +81,6 @@ final class Store {
 
     // ---- website blocker ----
 
-    /** Sites the user can block. Each entry: id, display name, domains (subdomains included). */
-    static final String[][] SITES = {
-            {"facebook", "Facebook",
-                    "facebook.com", "facebook.net", "fb.com", "fb.me", "fb.watch",
-                    "fbcdn.net", "fbsbx.com"},
-            {"instagram", "Instagram",
-                    "instagram.com", "cdninstagram.com", "ig.me", "instagr.am"},
-            {"x", "X (Twitter)",
-                    "x.com", "twitter.com", "twimg.com", "t.co"},
-            {"tiktok", "TikTok",
-                    "tiktok.com", "tiktokv.com", "tiktokv.us", "tiktokw.us", "tiktokcdn.com",
-                    "tiktokcdn-us.com", "tiktokcdn-eu.com", "ttwstatic.com", "byteoversea.com",
-                    "ibytedtos.com", "ibyteimg.com", "muscdn.com", "musical.ly", "tiktok.org"},
-    };
-
-    /**
-     * Browser DNS-over-HTTPS endpoints. Blocked while any site is blocked so a
-     * browser can't quietly skip our DNS filter. "use-application-dns.net" is
-     * the signal that tells Firefox to switch its own DoH off.
-     */
-    static final String[] DOH_DOMAINS = {
-            "use-application-dns.net", "dns.google", "dns.google.com", "cloudflare-dns.com",
-            "dns.quad9.net", "doh.opendns.com", "dns.nextdns.io",
-    };
-
     static boolean siteBlocked(Context c, String id) {
         return prefs(c).getBoolean("site_" + id, true);
     }
@@ -115,20 +90,6 @@ final class Store {
         blockedCache = null;
     }
 
-    /** Master switch for the website blocker (the VPN). */
-    static boolean blockerOn(Context c) {
-        return prefs(c).getBoolean("blocker_on", false);
-    }
-
-    static void setBlockerOn(Context c, boolean on) {
-        prefs(c).edit().putBoolean("blocker_on", on).apply();
-    }
-
-    /** Blocker switched on and at least one site ticked. */
-    static boolean anySiteBlocked(Context c) {
-        return blockerOn(c) && !blockedDomains(c).isEmpty();
-    }
-
     private static volatile Set<String> blockedCache;
 
     /** Domains currently blocked (each also blocks its subdomains). */
@@ -136,27 +97,37 @@ final class Store {
         Set<String> s = blockedCache;
         if (s != null) return s;
         s = new HashSet<>();
-        for (String[] site : SITES) {
+        for (String[] site : Domains.SITES) {
             if (!siteBlocked(c, site[0])) continue;
             for (int i = 2; i < site.length; i++) s.add(site[i]);
         }
-        if (!s.isEmpty()) java.util.Collections.addAll(s, DOH_DOMAINS);
         blockedCache = s;
         return s;
     }
 
-    /** True if host is a blocked domain or a subdomain of one. */
     static boolean isHostBlocked(Context c, String host) {
-        if (host == null) return false;
-        String h = host.toLowerCase();
-        while (h.endsWith(".")) h = h.substring(0, h.length() - 1);
-        Set<String> blocked = blockedDomains(c);
-        while (true) {
-            if (blocked.contains(h)) return true;
-            int dot = h.indexOf('.');
-            if (dot < 0) return false;
-            h = h.substring(dot + 1);
+        return Domains.isBlocked(blockedDomains(c), host);
+    }
+
+    // ---- wrong-password cool-down (shared by the lock screen and App Lock itself) ----
+
+    private static int wrongInARow = 0;
+    private static long lockedOutUntil = 0;
+
+    /** Milliseconds left before another password attempt is allowed. */
+    static synchronized long lockoutLeftMs() {
+        return Math.max(0, lockedOutUntil - android.os.SystemClock.elapsedRealtime());
+    }
+
+    /** Check a password attempt, counting failures: 5 wrong in a row -> 30 s pause. */
+    static synchronized boolean tryPassword(Context c, String pw) {
+        if (lockoutLeftMs() > 0) return false;
+        if (checkPassword(c, pw)) { wrongInARow = 0; return true; }
+        if (++wrongInARow >= 5) {
+            wrongInARow = 0;
+            lockedOutUntil = android.os.SystemClock.elapsedRealtime() + 30000;
         }
+        return false;
     }
 
     private static Set<String> settingsPkgs;
@@ -199,6 +170,11 @@ final class Store {
 
     static synchronized void unlock(String pkg) {
         unlockedUntil.put(pkg, android.os.SystemClock.elapsedRealtime() + UNLOCK_MS);
+    }
+
+    /** Screen turned off: everything locks again. */
+    static synchronized void clearUnlocks() {
+        unlockedUntil.clear();
     }
 
     static synchronized long remainingMs(String pkg) {

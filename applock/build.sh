@@ -11,10 +11,10 @@ rm -rf "$OUT" && mkdir -p "$OUT/gen" "$OUT/classes" "$OUT/dex" dist
 
 "$BT/aapt2" compile --dir res -o "$OUT/res.zip"
 "$BT/aapt2" link -I "$JAR" --manifest AndroidManifest.xml --java "$OUT/gen" \
-    --min-sdk-version 33 --target-sdk-version 33 --version-code 3 --version-name 2.1 \
+    --min-sdk-version 33 --target-sdk-version 33 --version-code 4 --version-name 3.0 \
     -o "$OUT/unsigned.apk" "$OUT/res.zip"
 
-javac -nowarn -Xlint:-options -source 8 -target 8 -bootclasspath "$JAR:$BT/core-lambda-stubs.jar" -d "$OUT/classes" \
+javac -Xlint:all -Xlint:-options -Xlint:-deprecation -Xlint:-serial -source 8 -target 8 -bootclasspath "$JAR:$BT/core-lambda-stubs.jar" -d "$OUT/classes" \
     $(find src "$OUT/gen" -name '*.java')
 "$BT/d8" --release --min-api 33 --lib "$JAR" --output "$OUT/dex" $(find "$OUT/classes" -name '*.class')
 (cd "$OUT/dex" && zip -q ../unsigned.apk classes.dex)
