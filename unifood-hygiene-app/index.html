@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0B6B57">
+<meta name="color-scheme" content="light dark">
+<title>UNIFOOD Hygiene Score</title>
+</head>
+<body>
+<div id="splash"><div class="splash-in"><div class="logo"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 6c9 11 18 20 18 32a18 18 0 0 1-36 0C14 26 23 17 32 6z" fill="currentColor"/><path d="M23 38l6 6 12-13" fill="none" stroke="#0B6B57" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><b>UNIFOOD</b><span id="splashMsg">…</span></div></div>
+
+<header class="appbar" id="hdr">
+  <div class="ab-row">
+    <div class="brand"><span class="mark"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 6c9 11 18 20 18 32a18 18 0 0 1-36 0C14 26 23 17 32 6z" fill="currentColor"/><path d="M23 38l6 6 12-13" fill="none" stroke="#0B6B57" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><b id="tTitle"></b></div>
+    <button type="button" id="sync" class="sync"></button>
+    <button type="button" id="langBtn" class="abbtn"></button>
+  </div>
+  <div class="ab-row daterow">
+    <button type="button" id="prevDay" class="abbtn arrow"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+    <button type="button" id="dateBtn" class="datebtn"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></svg><span id="tDate"></span><input type="date" id="dateIn" aria-label="Production day" tabindex="-1"></button>
+    <button type="button" id="nextDay" class="abbtn arrow"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <button type="button" id="nowBtn" class="abbtn now" hidden></button>
+  </div>
+</header>
+
+<main id="main"></main>
+
+<nav class="bottomnav" id="tabs"></nav>
+
+<div id="sheet" class="sheet" hidden><div class="sheet-panel"><div class="grab"></div><div class="sheet-body"></div></div></div>
+
+<div id="lb" class="lb" hidden role="dialog" aria-modal="true" aria-labelledby="lbCap">
+  <div class="lbbar">
+    <button type="button" id="lbClose" data-lb="close" class="lbx">✕</button>
+    <div id="lbCap" class="lbcap"></div>
+  </div>
+  <div class="lbimg"><img id="lbImg" alt=""></div>
+  <div id="lbConfirm" class="lbconfirm" hidden><span id="lbSure"></span><button type="button" class="btn danger" id="lbDel2" data-lb="del2"></button><button type="button" class="btn" id="lbDel0" data-lb="del0"></button></div>
+  <div class="lbbtns">
+    <button type="button" id="lbPrev" data-lb="prev" class="lbnav"></button>
+    <button type="button" id="lbShare" data-lb="share" class="btn primary"></button>
+    <button type="button" id="lbDel" data-lb="del" class="btn danger-o"></button>
+    <button type="button" id="lbNext" data-lb="next" class="lbnav"></button>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" hidden></div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

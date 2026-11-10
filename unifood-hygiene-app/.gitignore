@@ -1,0 +1,10 @@
+node_modules/
+dist/
+android/local.properties
+android/.gradle/
+android/app/build/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+*.apk
+signing/
+src/firebase-config.js

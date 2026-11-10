@@ -1,0 +1,10 @@
+{
+  "appId": "com.unifood.hygiene",
+  "appName": "مؤشر النظافة – يونيفود",
+  "webDir": "dist",
+  "android": { "allowMixedContent": false },
+  "plugins": {
+    "SystemBars": { "insetsHandling": "css", "style": "DARK" },
+    "Keyboard": { "resize": "native" }
+  }
+}
