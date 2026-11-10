@@ -11,17 +11,15 @@
 <div id="splash"><div class="splash-in"><div class="logo"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 6c9 11 18 20 18 32a18 18 0 0 1-36 0C14 26 23 17 32 6z" fill="currentColor"/><path d="M23 38l6 6 12-13" fill="none" stroke="#0B6B57" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><b>UNIFOOD</b><span id="splashMsg">…</span></div></div>
 
 <header class="appbar" id="hdr">
-  <div class="ab-row">
-    <div class="brand"><span class="mark"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 6c9 11 18 20 18 32a18 18 0 0 1-36 0C14 26 23 17 32 6z" fill="currentColor"/><path d="M23 38l6 6 12-13" fill="none" stroke="#0B6B57" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><b id="tTitle"></b></div>
-    <button type="button" id="sync" class="sync"></button>
-    <button type="button" id="langBtn" class="abbtn"></button>
+  <span class="mark" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M32 6c9 11 18 20 18 32a18 18 0 0 1-36 0C14 26 23 17 32 6z" fill="currentColor"/><path d="M23 38l6 6 12-13" fill="none" stroke="#0B6B57" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+  <div class="datepill">
+    <button type="button" id="prevDay" class="dparrow"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+    <button type="button" id="dateBtn" class="dpmid"><span id="tDate"></span><input type="date" id="dateIn" aria-label="Production day" tabindex="-1"></button>
+    <button type="button" id="nextDay" class="dparrow"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
   </div>
-  <div class="ab-row daterow">
-    <button type="button" id="prevDay" class="abbtn arrow"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
-    <button type="button" id="dateBtn" class="datebtn"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></svg><span id="tDate"></span><input type="date" id="dateIn" aria-label="Production day" tabindex="-1"></button>
-    <button type="button" id="nextDay" class="abbtn arrow"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
-    <button type="button" id="nowBtn" class="abbtn now" hidden></button>
-  </div>
+  <button type="button" id="nowBtn" class="nowbtn" hidden><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 4v4h4"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/></svg></button>
+  <button type="button" id="sync" class="sync"></button>
+  <button type="button" id="langBtn" class="langbtn"></button>
 </header>
 
 <main id="main"></main>

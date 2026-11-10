@@ -119,7 +119,10 @@ function hhmm(iso){ if(!iso) return ""; const d=new Date(iso); if(isNaN(d)) retu
 function fmt(p){ if(p==null) return "—"; const r=Math.round(p*10)/10; return (r%1===0? r.toFixed(0) : r.toFixed(1)) }
 function cls(p,crit){ if(crit) return "s-crit"; return p==null?"s-none":p>=TARGET?"s-good":p>=AMBER?"s-warn":"s-bad" }
 function dayLabel(date){
-  try{ return new Date(date+"T12:00:00").toLocaleDateString(S.lang==="ar"?"ar-EG":"en-GB",{weekday:"long",day:"numeric",month:"long"}); }catch(e){ return date; }
+  try{ const d=new Date(date+"T12:00:00"), loc=S.lang==="ar"?"ar-EG-u-nu-latn":"en-GB";
+    const dm=d.toLocaleDateString(loc,{day:"numeric",month:"long"});
+    if(date===prodNow().date) return tr("now")+" · "+dm;
+    return d.toLocaleDateString(loc,{weekday:"short"})+" · "+dm; }catch(e){ return date; }
 }
 const ICON = {
   today:`<svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9" /><path d="M12 12l5-5"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg>`,
@@ -454,55 +457,58 @@ function roundInfo(date){
 }
 function banners(){
   let h="";
-  if(S.demo) h+=`<div class="note demo"><span>${tr("demoNote")}</span><button type="button" class="btn sm" data-act="demo">${tr("hideDemo")}</button></div>`;
-  if(S.storageOff) h+=`<div class="note bad">${tr("nostore")}</div>`;
+  if(S.demo) h+=`<div class="slim demo"><span>${tr("demoNote")}</span><button type="button" class="linkbtn" data-act="demo">${tr("hideDemo")}</button></div>`;
+  if(S.storageOff) h+=`<div class="slim bad">${tr("nostore")}</div>`;
   return h;
 }
 function viewToday(){
   const F=facility(S.date);
   let h=banners();
-  if(F.crit.length) h+=`<div class="note bad crit"><b>⚠ ${tr("critBanner")}</b><div>${F.crit.map(c=>`<span class="num">${c.p.id}</span> – ${esc(L(c.p))}`).join("<br>")}</div></div>`;
-  h+=`<section class="card hero">${gauge(F.pct,F.crit.length)}
-    <div class="hero-side">
-      <span class="lbl">${tr("facility")}</span>
-      <div>${dayStatus(F)}</div>
-      <div class="round"><span class="lbl">${tr("round")}</span>${roundInfo(S.date)}</div>
-    </div></section>
-    <div class="kpis">
-      <div class="kpi"><span>${tr("coverage")}</span><b class="num">${fmt(F.cov)}%</b><div class="meter"><i style="width:${F.cov||0}%"></i></div></div>
-      <div class="kpi"><span>${tr("ok")}</span><b class="num s-good">✓ ${F.ok}</b></div>
-      <div class="kpi"><span>${tr("nc")}</span><b class="num s-bad">✗ ${F.nc}</b></div>
-      <div class="kpi"><span>${tr("criticalN")}</span><b class="num ${F.crit.length?"s-bad":""}">★ ${F.crit.length}</b></div>
+  if(F.crit.length) h+=`<div class="alert"><b>⚠ ${tr("critBanner")}</b><div>${F.crit.map(c=>`<span class="num">${c.p.id}</span> – ${esc(L(c.p))}`).join("<br>")}</div></div>`;
+  h+=`<section class="card hero">
+    <div class="hero-top">${gauge(F.pct,F.crit.length)}
+      <div class="hero-info"><span class="lbl">${tr("facility")}</span>${dayStatus(F)}
+        <div class="stats">
+          <span><b class="num s-good">${F.ok}</b><small>✓ ${tr("ok")}</small></span>
+          <span><b class="num s-bad">${F.nc}</b><small>✗ ${tr("nc")}</small></span>
+          <span><b class="num ${F.crit.length?"s-bad":""}">${F.crit.length}</b><small>★ ${tr("critical")}</small></span>
+        </div></div></div>
+    <div class="hero-foot">
+      <div class="lrow2"><span>${tr("coverage")}</span><b class="num">${fmt(F.cov)}%</b></div>
+      <div class="meter"><i style="width:${F.cov||0}%"></i></div>
+      <div class="lrow2"><span>${tr("round")}</span><span class="rinfo">${roundInfo(S.date)}</span></div>
     </div>
-    <details class="card method"><summary>ⓘ ${tr("methodT")}</summary><p>${tr("method")}</p></details>`;
-  if(!F.done && !S.demo) h+=`<div class="note"><span>${tr("emptyDay")}</span><button type="button" class="btn sm" data-act="demo">${tr("showDemo")}</button></div>`;
-  h+=`<h2>${tr("depts")}</h2><div class="depts">`;
-  F.per.forEach((s,i)=>{ const k=DK[i], c=cls(s.pct,s.crit.length);
-    h+=`<div role="button" tabindex="0" class="dept ${c}" data-dept="${k}">
-      <div class="dh"><b>${esc(L(DBY[k]))}</b><span class="big num ${c}">${fmt(s.pct)}${s.pct==null?"":"%"}</span></div>
-      <div class="meter"><i style="width:${s.cov||0}%"></i></div>
-      <div class="cov"><span>${tr("coverage")} <span class="num">${s.done}/${s.expected}</span></span><span class="tally"><span class="s-good">✓${s.ok}</span><span class="s-bad">✗${s.nc}</span><span>N/A ${s.na}</span>${s.crit.length?`<span class="pill s-crit xs">${tr("critical")}</span>`:""}</span></div></div>`;
-  });
-  h+=`</div><h2>${tr("map")}</h2><div class="card mapcard">
-    <div class="zoombar"><button type="button" class="iconbtn" data-zoom="-1" aria-label="${tr("zoomOut")}">−</button><span class="num">${Math.round(S.zoom*100)}%</span><button type="button" class="iconbtn" data-zoom="1" aria-label="${tr("zoomIn")}">+</button></div>
+    <details class="method"><summary>ⓘ ${tr("methodT")}</summary><p>${tr("method")}</p></details>
+  </section>`;
+  if(!F.done && !S.demo) h+=`<div class="empty-card"><p>${tr("emptyDay")}</p><div class="row-btns"><a class="btn primary" href="#inspect">${tr("inspect")}</a><button type="button" class="btn ghost" data-act="demo">${tr("showDemo")}</button></div></div>`;
+  const row=(attr,name,s,crit,sub)=>{ const c=cls(s.pct,crit);
+    return `<div role="button" tabindex="0" class="drow" ${attr}><div class="dn"><b>${esc(name)}</b><small>${sub}</small><div class="bar ${c}"><i style="width:${s.pct==null?0:Math.max(3,s.pct)}%"></i></div></div><span class="dp num ${c}">${s.pct==null?"—":fmt(s.pct)+"%"}</span><span class="chev">${ICON.chev}</span></div>`; };
+  h+=`<h2>${tr("depts")}</h2><div class="card rows">`;
+  F.per.forEach((s,i)=>{ const k=DK[i];
+    h+=row(`data-dept="${k}"`,L(DBY[k]),s,s.crit.length,`${tr("coverage")} <span class="num">${s.done}/${s.expected}</span>${s.nc?` · <span class="s-bad">✗ ${s.nc}</span>`:""}${s.crit.length?` · <span class="s-bad">★ ${tr("critical")}</span>`:""}`); });
+  h+=`</div><div class="card rows" style="margin-top:10px">`;
+  for(const k of ["P","G"]){ const s=stats(S.date,p=>p.a===k);
+    h+=row(`data-area="${k}"`,shortA(ABY[k]),s,s.crit.length,`${tr("coverage")} ${fmt(s.cov)}%${s.nc?` · <span class="s-bad">✗ ${s.nc}</span>`:""}`); }
+  h+=`</div>`;
+  h+=`<h2>${tr("map")}</h2><div class="card mapcard">
+    <div class="zoombar"><span class="muted small">${tr("mapNote")}</span><div class="zb"><button type="button" class="iconbtn sm" data-zoom="-1" aria-label="${tr("zoomOut")}">−</button><button type="button" class="iconbtn sm" data-zoom="1" aria-label="${tr("zoomIn")}">+</button></div></div>
     ${mapSvg(S.date)}
-    <div class="legend"><span><i style="background:var(--good-bg);border-color:var(--good)"></i>≥ ${TARGET}%</span><span><i style="background:var(--warn-bg);border-color:var(--warn)"></i>${AMBER}–${TARGET}%</span><span><i style="background:var(--bad-bg);border-color:var(--bad)"></i>&lt; ${AMBER}% / ${tr("critical")}</span><span><i style="background:var(--sunk)"></i>${tr("noData")}</span></div>
-    <p class="muted small">${tr("mapNote")}</p></div>
-    <div class="grid2 pg">${["P","G"].map(k=>{const s=stats(S.date,p=>p.a===k);return `<div role="button" tabindex="0" class="dept mini ${cls(s.pct,s.crit.length)}" data-area="${k}"><div class="dh"><b>${esc(L(ABY[k]))}</b>${statusPill(s,s.crit.length)}</div><div class="cov"><span>${s.nc} ✗ · ${tr("coverage")} ${fmt(s.cov)}%</span></div></div>`}).join("")}</div>`;
+    <div class="legend"><span><i style="background:var(--good-bg);border-color:var(--good)"></i>≥ ${TARGET}%</span><span><i style="background:var(--warn-bg);border-color:var(--warn)"></i>${AMBER}–${TARGET}%</span><span><i style="background:var(--bad-bg);border-color:var(--bad)"></i>&lt; ${AMBER}% / ${tr("critical")}</span><span><i style="background:var(--sunk)"></i>${tr("noData")}</span></div></div>`;
   const ncs=F.ncList.slice().sort((a,b)=>(b.p.c||0)-(a.p.c||0));
   const nPh=ncs.reduce((n,r)=>n+photosOf(S.date,r.p.id).length,0);
   h+=`<h2>${tr("open")} <span class="count">${ncs.length}${nPh?` · 📷 ${nPh}`:""}</span></h2>`;
-  if(!ncs.length) h+=`<p class="empty">—</p>`;
+  if(!ncs.length) h+=`<div class="card"><p class="empty">✓ ${tr("none")}</p></div>`;
   else{
+    h+=`<div class="card rows">`;
     for(const k of DK){ const rows=ncs.filter(r=>r.p.d===k); if(!rows.length) continue;
-      h+=`<div class="grouph">${esc(L(DBY[k]))} <span>${rows.length} ✗</span></div>`;
-      for(const r of rows) h+=`<div class="card ncrow ${r.p.c?"critrow":""}">
-        <div class="nctop">${r.p.c?`<span class="chip c">★ ${tr("critical")}</span>`:""}<span class="chip num">${r.p.id}</span><span class="muted small">${esc(L(ABY[r.p.a]))}</span><span class="time num">${hhmm(r.at)||"—"}</span></div>
+      h+=`<div class="grouph">${esc(L(DBY[k]))}<span>${rows.length} ✗</span></div>`;
+      for(const r of rows) h+=`<div class="ncrow ${r.p.c?"crit":""}">
+        <div class="nctop"><span class="pid num">${r.p.id}</span>${r.p.c?`<span class="tag c">★ ${tr("critical")}</span>`:""}<span class="muted small ell">${esc(shortA(ABY[r.p.a]))}</span><span class="time num">${hhmm(r.at)||""}</span></div>
         <div class="nct">${esc(L(r.p))}</div>
-        <div class="muted small">${esc(r.p.r)}</div>
-        <div class="ncact"><b>${tr("action2")}:</b> ${esc(r.note)||"<span class='muted'>—</span>"}${r.who?` <span class="muted small">· ${esc(r.who)}</span>`:""}</div>
+        <div class="ncact ${r.note?"":"none"}">${esc(r.note)||tr("action")}${r.who?` <span class="muted">· ${esc(r.who)}</span>`:""}</div>
         ${thumbs(S.date,r.p.id,true)}</div>`;
     }
+    h+=`</div>`;
   }
   return h;
 }
@@ -525,62 +531,66 @@ function firstOpenArea(){ for(const a of AREAS){ if(areaSt(a.k).rem) return a.k;
 function stepper(){
   let h=`<nav class="stepper" id="stepper" aria-label="${tr("areasRoute")}"><button type="button" class="step ${!S.areaF?"cur":""}" data-step="*" aria-pressed="${!S.areaF}">${tr("allShort")}</button>`;
   AREAS.forEach((a,i)=>{ const s=areaSt(a.k); if(!s.total) return;
-    const st=s.nc?"bad":!s.rem?"good":s.done?"part":"", badge=s.nc?`✗${s.nc}`:!s.rem?"✓":`${s.rem}`;
-    h+=`<button type="button" class="step ${st} ${S.areaF===a.k?"cur":""}" data-step="${a.k}" aria-pressed="${S.areaF===a.k}" title="${esc(L(a))}"><span class="sn">${i+1}</span><span class="st">${esc(shortA(a))}</span><small class="num">${badge}</small></button>`; });
+    const st=s.nc?"bad":!s.rem?"good":s.done?"part":"", badge=s.nc?`✗${s.nc}`:!s.rem?"✓":`${s.done}/${s.total}`;
+    h+=`<button type="button" class="step ${st} ${S.areaF===a.k?"cur":""}" data-step="${a.k}" aria-pressed="${S.areaF===a.k}" title="${esc(L(a))}"><span class="sn num">${i+1}</span><span class="st">${esc(shortA(a))}</span><small class="num">${badge}</small></button>`; });
   return h+`</nav>`;
 }
 function nFilters(){ return (S.deptF?1:0)+(S.onlyOpen?1:0) }
+function ptCard(p,ym,yno,ro){
+  const v=markOf(S.date,S.shift,p)||"", d=docOf(S.date,S.shift,p)||{}, note=(d.notes||{})[p.id]||"", at=(d.at||{})[p.id], who=(d.who||{})[p.id];
+  const ph=photosOf(S.date,p.id);
+  const wasNc=ym[p.id]==="nc";
+  const yIds=p.fu ? Object.entries(ym).filter(([id,x])=>x==="nc"&&PBY[id]).map(([id])=>id) : [];
+  return `<article class="pt ${v}" data-id="${p.id}">
+    <div class="meta"><span class="pid num">${p.id}</span>${p.c?`<span class="tag c">★ ${tr("critical")}</span>`:""}${p.op?`<span class="tag d">${tr("during")}</span>`:""}${wasNc?`<span class="tag y">✗ ${tr("yesterday")}</span>`:""}${ph.length?`<span class="tag">📷 ${ph.length}</span>`:""}${v&&at?`<span class="stamp">${hhmm(at)}${who?" · "+esc(who):""}</span>`:""}</div>
+    <div class="t">${esc(L(p))}</div><div class="alt">${esc(S.lang==="ar"?p.en:p.ar)}</div>
+    ${S.how?`<div class="how"><b>${tr("howTo")}:</b> ${esc(S.lang==="ar"?p.h_ar:p.h_en)}</div>`:""}
+    ${wasNc?`<div class="yline">⚠ ${tr("wasNcY")}${yno[p.id]?`: ${esc(yno[p.id])}`:""}</div>`:""}
+    ${p.fu?`<div class="yline"><b>${tr("yList")}:</b> ${yIds.length?yIds.join("، "):tr("noneY")}</div>`:""}
+    ${S.refs?`<div class="refs">${esc(L(DBY[p.d]))} · ${esc(p.r)} · BRCGS ${esc(p.b)}</div>`:""}
+    <div class="marks">${["ok","nc","na"].map(x=>`<button type="button" class="mk mk-${x}" ${ro?"disabled":""} data-v="${x}" aria-pressed="${v===x}" aria-label="${tr(x)}"><b>${x==="ok"?"✓":x==="nc"?"✗":"N/A"}</b>${x==="na"?"":`<span>${tr(x)}</span>`}</button>`).join("")}</div>
+    ${v==="nc"&&p.c?`<div class="critnote" role="alert">⚠ ${tr("critBanner")}</div>`:""}
+    ${v==="nc"?`<div class="ncbox"><textarea ${ro?"disabled":""} id="n_${p.id}" rows="2" class="${note.trim()?"":"need"}" placeholder="${tr("action")}">${esc(note)}</textarea>
+      ${!ro?`<div class="qn">${QN[S.lang].map((t,i)=>`<button type="button" data-qn="${i}" class="${note.includes(t)?"on":""}">${esc(t)}</button>`).join("")}</div>`:""}
+      ${photoRow(p,ph,ro,true)}</div>`:(ph.length?photoRow(p,ph,ro,false):"")}
+  </article>`;
+}
 function viewInspect(){
   const ro = S.demo;
   const dp=P.filter(p=>!S.deptF||p.d===S.deptF), dd=dp.filter(p=>markOf(S.date,S.shift,p)).length, left=dp.length-dd;
   const yd=src().get(addDays(S.date,-1)+"_D"), ym=(yd&&yd.marks)||{}, yno=(yd&&yd.notes)||{};
-  let h=banners();
-  if(!S.name && !S.demo) h+=`<div class="note"><span>${tr("nameNeeded")}</span><a class="btn sm" href="#send">${tr("send")}</a></div>`;
   const nf=nFilters();
-  h+=`<div class="insp-head" id="inspHead">
-    <div class="tbrow"><b>${tr("round")}</b>
-      <div class="prog"><div class="meter"><i style="width:${dp.length?dd/dp.length*100:0}%"></i></div></div>
-      <small class="num">${dd}/${dp.length}</small><span id="saveState" class="saving"></span></div>
-    ${stepper()}
-    <div class="searchrow"><label class="search">${ICON.search}<input id="fQ" type="search" value="${esc(S.q)}" placeholder="${tr("search")}" enterkeyhint="search"></label>
+  let h=`<div class="insp-bar" id="inspHead">${stepper()}<div class="progline"><i style="width:${dp.length?dd/dp.length*100:0}%"></i></div></div>`;
+  h+=banners();
+  if(!S.name && !S.demo) h+=`<a class="slim" href="#send"><span>✎ ${tr("nameNeeded")}</span><span class="linkbtn">${tr("send")}</span></a>`;
+  h+=`<div class="toolrow"><label class="search">${ICON.search}<input id="fQ" type="search" value="${esc(S.q)}" placeholder="${tr("search")}" enterkeyhint="search"></label>
       <button type="button" class="iconbtn filt ${nf?"on":""}" data-act="filters" aria-label="${tr("filters")}">${ICON.filter}${nf?`<i>${nf}</i>`:""}</button></div>
-  </div>`;
-  if(S.deptF) h+=`<div class="activef"><span class="chip">${esc(L(DBY[S.deptF]))}<button type="button" data-act="clrdept" aria-label="✕">✕</button></span></div>`;
-  if(!left && dp.length && !S.demo) h+=`<div class="note good"><span>✓ ${tr("roundDone")}</span><a class="btn sm primary" href="#send">${tr("goSend")}</a></div>`;
+    <div class="progtxt"><span><b class="num">${dd}</b> / <span class="num">${dp.length}</span> ${tr("progress")}</span><span id="saveState" class="saving"></span></div>`;
+  if(S.deptF) h+=`<div class="activef"><span class="fchip">${esc(L(DBY[S.deptF]))}<button type="button" data-act="clrdept" aria-label="✕">✕</button></span></div>`;
+  if(!left && dp.length && !S.demo) h+=`<div class="donecard"><b>✓ ${tr("roundDone")}</b><a class="btn primary" href="#send">${tr("goSend")}</a></div>`;
   let any=false;
-  for(const a of AREAS){
-    const all=P.filter(p=>p.a===a.k), pts=all.filter(pointMatches);
-    if(!pts.length) continue; any=true;
-    let ok=0,nc=0,na=0,rem=0,nph=0; for(const p of all){ const v=markOf(S.date,S.shift,p); if(v==="ok")ok++; else if(v==="nc")nc++; else if(v==="na")na++; else rem++; nph+=photosOf(S.date,p.id).length; }
-    const open = S.areaF===a.k || rem>0;
-    h+=`<details class="sec" data-sec="${a.k}" ${open?"open":""}><summary><span class="k num">${a.k}</span><span class="sname">${esc(L(a))}<span class="zchip">${esc(L(ZONES[a.z]))}</span></span><span class="cnt num"><span class="s-good">✓${ok}</span><span class="s-bad">✗${nc}</span><span>N/A ${na}</span><span>⏳${rem}</span>${nph?`<span>📷${nph}</span>`:""}</span><span class="chev">${ICON.chev}</span></summary>`;
-    if(!ro && all.some(p=>p.op&&!markOf(S.date,S.shift,p))) h+=`<div class="secbar"><button type="button" class="btn sm ghost" data-na="${a.k}">${tr("naRest")}</button></div>`;
-    for(const p of pts){
-      const v=markOf(S.date,S.shift,p)||"", d=docOf(S.date,S.shift,p)||{}, note=(d.notes||{})[p.id]||"", at=(d.at||{})[p.id], who=(d.who||{})[p.id];
-      const ph=photosOf(S.date,p.id);
-      const wasNc=ym[p.id]==="nc";
-      const yIds=p.fu ? Object.entries(ym).filter(([id,x])=>x==="nc"&&PBY[id]).map(([id])=>id) : [];
-      h+=`<div class="pt ${v}" data-id="${p.id}">
-        <div class="meta"><span class="chip num">${p.id}</span>${p.c?`<span class="chip c">★ ${tr("critical")}</span>`:""}${p.op?`<span class="chip d">${tr("during")}</span>`:""}${wasNc?`<span class="chip y">✗ ${tr("yesterday")}</span>`:""}${ph.length?`<span class="chip">📷 ${ph.length}</span>`:""}<span class="chip ghost">${esc(L(DBY[p.d]))}</span>${S.refs?`<span class="chip ghost">${esc(p.r)}</span><span class="chip ghost">BRCGS ${esc(p.b)}</span>`:""}</div>
-        <div class="t">${esc(L(p))}</div><div class="alt">${esc(S.lang==="ar"?p.en:p.ar)}</div>
-        ${S.how?`<div class="how"><b>${tr("howTo")}:</b> ${esc(S.lang==="ar"?p.h_ar:p.h_en)}</div>`:""}
-        ${wasNc?`<div class="yline">⚠ ${tr("wasNcY")}${yno[p.id]?`: ${esc(yno[p.id])}`:""}</div>`:""}
-        ${p.fu?`<div class="yline"><b>${tr("yList")}:</b> ${yIds.length?yIds.join("، "):tr("noneY")}</div>`:""}
-        <div class="marks">${["ok","nc","na"].map(x=>`<button type="button" class="mk mk-${x}" ${ro?"disabled":""} data-v="${x}" aria-pressed="${v===x}" aria-label="${tr(x)}"><b>${x==="ok"?"✓":x==="nc"?"✗":"N/A"}</b><span>${tr(x)}</span></button>`).join("")}</div>
-        ${v&&at?`<div class="stamp">${v==="ok"?"✓":v==="nc"?"✗":"N/A"} <span class="num">${hhmm(at)}</span>${who?" · "+esc(who):""}</div>`:""}
-        ${v==="nc"&&p.c?`<div class="critnote" role="alert">⚠ ${tr("critBanner")}</div>`:""}
-        ${v==="nc"?`<textarea ${ro?"disabled":""} id="n_${p.id}" rows="2" class="${note.trim()?"":"need"}" placeholder="${tr("action")}">${esc(note)}</textarea>`:""}
-        ${v==="nc"&&!ro?`<div class="qn">${QN[S.lang].map((t,i)=>`<button type="button" data-qn="${i}" class="${note.includes(t)?"on":""}">${esc(t)}</button>`).join("")}</div>`:""}
-        ${(v==="nc"||ph.length)?photoRow(p,ph,ro,v==="nc"):""}</div>`;
+  const head=(a,all,big)=>{ let ok=0,nc=0,na=0,rem=0,nph=0; for(const p of all){ const v=markOf(S.date,S.shift,p); if(v==="ok")ok++; else if(v==="nc")nc++; else if(v==="na")na++; else rem++; nph+=photosOf(S.date,p.id).length; }
+    return {rem, html:`<span class="k num">${a.k}</span><span class="sname"><b>${esc(L(a))}</b><small>${esc(L(ZONES[a.z]))} · <span class="s-good">✓${ok}</span> <span class="s-bad">✗${nc}</span> N/A ${na}${rem?` · ${rem} ${S.lang==="ar"?"متبقي":"left"}`:""}${nph?` · 📷${nph}`:""}</small></span>`}; };
+  const naBtn=(a,all)=> (!ro && all.some(p=>p.op&&!markOf(S.date,S.shift,p))) ? `<button type="button" class="btn ghost sm wide" data-na="${a.k}">${tr("naRest")}</button>` : "";
+  if(S.areaF && ABY[S.areaF]){
+    const a=ABY[S.areaF], all=P.filter(p=>p.a===a.k), pts=all.filter(pointMatches);
+    const hd=head(a,all);
+    h+=`<div class="areahead">${hd.html}</div>${naBtn(a,all)}`;
+    if(pts.length){ any=true; h+=`<div class="pts">${pts.map(p=>ptCard(p,ym,yno,ro)).join("")}</div>`; }
+  } else {
+    for(const a of AREAS){
+      const all=P.filter(p=>p.a===a.k), pts=all.filter(pointMatches);
+      if(!pts.length) continue; any=true;
+      const hd=head(a,all);
+      h+=`<details class="sec" data-sec="${a.k}" ${hd.rem>0?"open":""}><summary>${hd.html}<span class="chev">${ICON.chev}</span></summary>${naBtn(a,all)}<div class="pts">${pts.map(p=>ptCard(p,ym,yno,ro)).join("")}</div></details>`;
     }
-    h+=`</details>`;
   }
   if(!any) h+=`<p class="empty">${tr("noMatch")}</p>`;
   if(S.areaF && ABY[S.areaF]){
     const vis=AREAS.filter(a=>areaSt(a.k).total), i=vis.findIndex(a=>a.k===S.areaF), prev=vis[i-1], next=vis[i+1], s=areaSt(S.areaF);
     const rtl=S.lang==="ar", ap=rtl?"→":"←", an=rtl?"←":"→";
-    if(!s.rem && left) h+=`<div class="note good">✓ ${tr("areaDone")}</div>`;
-    h+=`<div class="areanav">${prev?`<button type="button" class="btn" data-step="${prev.k}">${ap} ${esc(shortA(prev))}</button>`:"<span></span>"}<span class="num muted">${s.done}/${s.total}</span>${
+    if(!s.rem && left) h+=`<div class="slim good">✓ ${tr("areaDone")}</div>`;
+    h+=`<div class="areanav">${prev?`<button type="button" class="btn ghost" data-step="${prev.k}">${ap} ${esc(shortA(prev))}</button>`:"<span></span>"}${
       next?`<button type="button" class="btn primary" data-step="${next.k}">${esc(shortA(next))} ${an}</button>`:`<a class="btn primary" href="#send">${tr("goSend")}</a>`}</div>`;
   }
   return h;
@@ -832,12 +842,13 @@ function render(keep){
   renderPending=false;
   if(!S.demo && !PH.byDate.has(S.date)) ensurePhotos(S.date);
   document.documentElement.lang=S.lang; document.documentElement.dir=S.lang==="ar"?"rtl":"ltr";
-  $("tTitle").textContent=tr("title");
+  document.title=tr("title");
   $("tDate").textContent=dayLabel(S.date);
   $("langBtn").textContent=S.lang==="ar"?"EN":"ع";
+  main.classList.remove("anim"); if(!keep){ void main.offsetWidth; main.classList.add("anim"); }
   $("langBtn").setAttribute("aria-label",S.lang==="ar"?"English":"العربية");
   const isToday=S.date===prodNow().date;
-  $("nowBtn").textContent=tr("now"); $("nowBtn").hidden=isToday;
+  $("nowBtn").setAttribute("aria-label",tr("now")); $("nowBtn").hidden=isToday;
   $("prevDay").setAttribute("aria-label",tr("prevDay")); $("nextDay").setAttribute("aria-label",tr("nextDay"));
   $("dateIn").value=S.date;
   $("tabs").innerHTML=["today","inspect","trend","send","guide"].map(v=>`<a href="#${v}" ${S.view===v?'aria-current="page"':""}>${ICON[v]}<span>${tr(v)}</span></a>`).join("");
@@ -855,7 +866,9 @@ function renderSync(){
   const st=DB.syncState(), el=$("sync"); if(!el) return;
   const k = st.err?"err":!st.online?"off":st.busy?"busy":"ok";
   el.className="sync "+k;
-  el.innerHTML=`<i></i><span>${k==="err"?tr("syncErr"):k==="off"?tr("offline"):k==="busy"?tr("syncing"):tr("synced")}${st.pending&&k!=="ok"?` (${st.pending})`:""}</span>`;
+  const label=k==="err"?tr("syncErr"):k==="off"?tr("offline"):k==="busy"?tr("syncing"):tr("synced");
+  el.innerHTML=`<i></i>${k==="ok"?"":`<span>${label}${st.pending?` (${st.pending})`:""}</span>`}`;
+  el.setAttribute("aria-label",label);
   el.dataset.k=k;
 }
 function toast(t,ms){
@@ -978,6 +991,15 @@ main.addEventListener("change",async e=>{
     for(const f of files){ try{ const o=JSON.parse(await f.text()); if(!o || !Array.isArray(o.docs)) throw 0; n+=mergeDocs(o.docs); ph+=await importPhotos(o.photos); }catch(_){ bad++; } }
     render(); const m=$("impMsg"); if(m) m.textContent=`${tr("imported")}: ${n} · ${tr("photosAdded")}: ${ph}${bad?` · ${tr("badFiles")}: ${bad}`:""}`; }
 });
+
+(()=>{ let x0=null,y0=0,t0=0;   // swipe left / right on Inspect = next / previous area
+  main.addEventListener("touchstart",e=>{ x0=null; if(S.view!=="inspect"||!S.areaF||e.touches.length!==1) return;
+    if(e.target.closest(".stepper,textarea,input,.mapwrap,.qn,.ph")) return; x0=e.touches[0].clientX; y0=e.touches[0].clientY; t0=Date.now(); },{passive:true});
+  main.addEventListener("touchend",e=>{ if(x0==null) return; const dx=e.changedTouches[0].clientX-x0, dy=e.changedTouches[0].clientY-y0; x0=null;
+    if(Date.now()-t0>600 || Math.abs(dx)<90 || Math.abs(dx)<Math.abs(dy)*2) return;
+    const vis=AREAS.filter(a=>areaSt(a.k).total), i=vis.findIndex(a=>a.k===S.areaF), fwd=(dx<0)!==(S.lang==="ar"), nx=vis[i+(fwd?1:-1)];
+    if(nx){ N.tap(); S.areaF=nx.k; S.q=""; S.onlyOpen=false; render(); window.scrollTo(0,0); } },{passive:true});
+})();
 
 /* ---------- photo viewer ---------- */
 const LB={list:[],i:0,url:"",ret:"",pt:""};
